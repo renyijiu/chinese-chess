@@ -1,0 +1,31 @@
+{
+  "schema": "xiangqi-source-asset/v1",
+  "role": "elephant",
+  "displayNames": {
+    "red": "相",
+    "black": "象"
+  },
+  "generator": {
+    "application": "Blender",
+    "version": "5.2.0 LTS",
+    "script": "scripts/blender/create_xiangqi_piece_assets.py"
+  },
+  "reference": "assets/concepts/xiangqi-characters/qin-terracotta-roster-v1.png",
+  "license": "Original procedural project asset; no third-party geometry or bitmap textures",
+  "visualIntent": [
+    "terracotta ceremonial elephant",
+    "Qin patterned barding and command tower",
+    "clay tusks and lowered trunk"
+  ],
+  "periodPolicy": "Qin terracotta visual fantasy: no gunpowder artillery; cannon role is represented by a heavy siege crossbow",
+  "knownLimitations": [
+    "procedural forms remain a web-game asset rather than a scan-derived museum reconstruction",
+    "surface weathering is modeled and vertex-colored; bitmap normal maps are intentionally absent",
+    "broad automatic skin weights require manual deformation polish before an extreme close-up"
+  ],
+  "texturePolicy": {
+    "bitmapTextures": 0,
+    "ktx2": "not-applicable-no-bitmap-textures",
+    "solidColorBake": "COLOR_0 VEC3 exact RGB reference colors; one elephant_terracotta_vertex_palette material"
+  }
+}

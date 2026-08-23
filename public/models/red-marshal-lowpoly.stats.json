@@ -1,0 +1,12 @@
+{
+  "role": "帅",
+  "side": "red",
+  "triangles": 5948,
+  "vertices": 6081,
+  "meshes": 100,
+  "dimensionsMeters": {
+    "diameter": 2.5,
+    "height": 3.93
+  },
+  "generatedBy": "scripts/generate-marshal.mjs"
+}

@@ -1,0 +1,6 @@
+# Editable DCC sources and future high-resolution texture sources use Git LFS.
+assets/**/*.blend filter=lfs diff=lfs merge=lfs -text
+assets/characters/**/source/**/*.exr filter=lfs diff=lfs merge=lfs -text
+assets/characters/**/source/**/*.tif filter=lfs diff=lfs merge=lfs -text
+assets/characters/**/source/**/*.tiff filter=lfs diff=lfs merge=lfs -text
+assets/characters/**/source/**/*.psd filter=lfs diff=lfs merge=lfs -text

@@ -1,0 +1,1152 @@
+{
+  "schema": "xiangqi-piece-assets/v1",
+  "version": 1,
+  "coordinateSystem": {
+    "units": "meter",
+    "up": "+Y",
+    "forward": "+Z",
+    "origin": "base-bottom-center"
+  },
+  "textureCompression": {
+    "status": "not-applicable-no-bitmap-textures",
+    "bitmapTextureCount": 0,
+    "policy": "When bitmap textures are introduced, BaseColor uses ETC1S and normal/ORM use UASTC with mipmaps."
+  },
+  "geometryCompression": "EXT_meshopt_compression",
+  "vertexColorEncoding": {
+    "attribute": "COLOR_0",
+    "accessorType": "VEC3",
+    "classifier": "nearest authored RGB reference within squared distance 0.00018",
+    "referenceColors": {
+      "faction_cloth_primary": [
+        "#400503",
+        "#300402"
+      ],
+      "faction_cloth_secondary": [
+        "#110202",
+        "#0e0202"
+      ],
+      "faction_trim": [
+        "#612e09",
+        "#472409"
+      ],
+      "aged_bronze": [
+        "#291406",
+        "#1d1107"
+      ]
+    },
+    "nonFactionPolicy": "RGB values outside the semantic tolerance remain unchanged",
+    "materialPattern": "{role}_terracotta_vertex_palette"
+  },
+  "factions": {
+    "red": {
+      "displayName": "红方",
+      "emblem": "qin-cinnabar-command-seal",
+      "palette": {
+        "faction_cloth_primary": "#803024",
+        "faction_cloth_secondary": "#351713",
+        "faction_trim": "#a8763b",
+        "aged_bronze": "#6b4027",
+        "energy": "#d7a35d"
+      }
+    },
+    "black": {
+      "displayName": "黑方",
+      "emblem": "qin-verdigris-command-seal",
+      "palette": {
+        "faction_cloth_primary": "#284e43",
+        "faction_cloth_secondary": "#122621",
+        "faction_trim": "#688a72",
+        "aged_bronze": "#3f5d50",
+        "energy": "#9dc8ae"
+      }
+    }
+  },
+  "roles": {
+    "marshal": {
+      "displayNames": {
+        "red": "帅",
+        "black": "将"
+      },
+      "source": {
+        "blend": "assets/characters/marshal/source/marshal.blend",
+        "metadata": "assets/characters/marshal/marshal.asset.json",
+        "rawLods": {
+          "lod0": "assets/characters/marshal/exports/marshal-lod0-raw.glb",
+          "lod1": "assets/characters/marshal/exports/marshal-lod1-raw.glb",
+          "lod2": "assets/characters/marshal/exports/marshal-lod2-raw.glb"
+        }
+      },
+      "dimensions": {
+        "baseDiameter": 0.89,
+        "maxFootprint": 0.89,
+        "approximateHeight": 1.683
+      },
+      "lodBudgets": {
+        "lod0": {
+          "triangles": 60000,
+          "textureMax": 2048
+        },
+        "lod1": {
+          "triangles": 18000,
+          "textureMax": 1024
+        },
+        "lod2": {
+          "triangles": 5000,
+          "textureMax": 512
+        }
+      },
+      "requiredNodes": [
+        "piece_root",
+        "rig_root",
+        "character_mesh",
+        "socket_attack_origin",
+        "socket_hit_center",
+        "socket_ground",
+        "socket_trail_start",
+        "socket_trail_end"
+      ],
+      "clips": {
+        "idle_loop": {
+          "clip": "idle_loop",
+          "loop": true,
+          "markers": []
+        },
+        "move_start": {
+          "clip": "move_start",
+          "loop": false,
+          "markers": [
+            {
+              "name": "prepare",
+              "at": 0.2
+            }
+          ]
+        },
+        "move_loop": {
+          "clip": "move_loop",
+          "loop": true,
+          "markers": [
+            {
+              "name": "contact_left",
+              "at": 0.25
+            },
+            {
+              "name": "contact_right",
+              "at": 0.75
+            }
+          ]
+        },
+        "move_end": {
+          "clip": "move_end",
+          "loop": false,
+          "markers": [
+            {
+              "name": "settle",
+              "at": 0.82
+            }
+          ]
+        },
+        "attack_primary": {
+          "clip": "attack_primary",
+          "loop": false,
+          "markers": [
+            {
+              "name": "telegraph",
+              "at": 0.25
+            },
+            {
+              "name": "release",
+              "at": 0.58
+            },
+            {
+              "name": "recover",
+              "at": 0.88
+            }
+          ]
+        },
+        "hit_react": {
+          "clip": "hit_react",
+          "loop": false,
+          "markers": [
+            {
+              "name": "impact",
+              "at": 0.25
+            },
+            {
+              "name": "recover",
+              "at": 0.86
+            }
+          ]
+        },
+        "destroy": {
+          "clip": "destroy",
+          "loop": false,
+          "markers": [
+            {
+              "name": "fracture",
+              "at": 0.38
+            },
+            {
+              "name": "vanish",
+              "at": 0.78
+            },
+            {
+              "name": "complete",
+              "at": 1
+            }
+          ]
+        }
+      },
+      "variants": {
+        "red": {
+          "palette": "red",
+          "emblem": "qin-cinnabar-command-seal",
+          "lods": {
+            "lod0": "/models/pieces/v1/marshal/marshal-lod0.glb",
+            "lod1": "/models/pieces/v1/marshal/marshal-lod1.glb",
+            "lod2": "/models/pieces/v1/marshal/marshal-lod2.glb"
+          }
+        },
+        "black": {
+          "palette": "black",
+          "emblem": "qin-verdigris-command-seal",
+          "lods": {
+            "lod0": "/models/pieces/v1/marshal/marshal-lod0.glb",
+            "lod1": "/models/pieces/v1/marshal/marshal-lod1.glb",
+            "lod2": "/models/pieces/v1/marshal/marshal-lod2.glb"
+          }
+        }
+      }
+    },
+    "advisor": {
+      "displayNames": {
+        "red": "仕",
+        "black": "士"
+      },
+      "source": {
+        "blend": "assets/characters/advisor/source/advisor.blend",
+        "metadata": "assets/characters/advisor/advisor.asset.json",
+        "rawLods": {
+          "lod0": "assets/characters/advisor/exports/advisor-lod0-raw.glb",
+          "lod1": "assets/characters/advisor/exports/advisor-lod1-raw.glb",
+          "lod2": "assets/characters/advisor/exports/advisor-lod2-raw.glb"
+        }
+      },
+      "dimensions": {
+        "baseDiameter": 0.89,
+        "maxFootprint": 0.89,
+        "approximateHeight": 1.4802
+      },
+      "lodBudgets": {
+        "lod0": {
+          "triangles": 48000,
+          "textureMax": 2048
+        },
+        "lod1": {
+          "triangles": 14000,
+          "textureMax": 1024
+        },
+        "lod2": {
+          "triangles": 4000,
+          "textureMax": 512
+        }
+      },
+      "requiredNodes": [
+        "piece_root",
+        "rig_root",
+        "character_mesh",
+        "socket_attack_origin",
+        "socket_hit_center",
+        "socket_ground",
+        "socket_trail_start",
+        "socket_trail_end"
+      ],
+      "clips": {
+        "idle_loop": {
+          "clip": "idle_loop",
+          "loop": true,
+          "markers": []
+        },
+        "move_start": {
+          "clip": "move_start",
+          "loop": false,
+          "markers": [
+            {
+              "name": "prepare",
+              "at": 0.2
+            }
+          ]
+        },
+        "move_loop": {
+          "clip": "move_loop",
+          "loop": true,
+          "markers": [
+            {
+              "name": "contact_left",
+              "at": 0.25
+            },
+            {
+              "name": "contact_right",
+              "at": 0.75
+            }
+          ]
+        },
+        "move_end": {
+          "clip": "move_end",
+          "loop": false,
+          "markers": [
+            {
+              "name": "settle",
+              "at": 0.82
+            }
+          ]
+        },
+        "attack_primary": {
+          "clip": "attack_primary",
+          "loop": false,
+          "markers": [
+            {
+              "name": "telegraph",
+              "at": 0.25
+            },
+            {
+              "name": "release",
+              "at": 0.58
+            },
+            {
+              "name": "recover",
+              "at": 0.88
+            }
+          ]
+        },
+        "hit_react": {
+          "clip": "hit_react",
+          "loop": false,
+          "markers": [
+            {
+              "name": "impact",
+              "at": 0.25
+            },
+            {
+              "name": "recover",
+              "at": 0.86
+            }
+          ]
+        },
+        "destroy": {
+          "clip": "destroy",
+          "loop": false,
+          "markers": [
+            {
+              "name": "fracture",
+              "at": 0.38
+            },
+            {
+              "name": "vanish",
+              "at": 0.78
+            },
+            {
+              "name": "complete",
+              "at": 1
+            }
+          ]
+        }
+      },
+      "variants": {
+        "red": {
+          "palette": "red",
+          "emblem": "qin-cinnabar-command-seal",
+          "lods": {
+            "lod0": "/models/pieces/v1/advisor/advisor-lod0.glb",
+            "lod1": "/models/pieces/v1/advisor/advisor-lod1.glb",
+            "lod2": "/models/pieces/v1/advisor/advisor-lod2.glb"
+          }
+        },
+        "black": {
+          "palette": "black",
+          "emblem": "qin-verdigris-command-seal",
+          "lods": {
+            "lod0": "/models/pieces/v1/advisor/advisor-lod0.glb",
+            "lod1": "/models/pieces/v1/advisor/advisor-lod1.glb",
+            "lod2": "/models/pieces/v1/advisor/advisor-lod2.glb"
+          }
+        }
+      }
+    },
+    "elephant": {
+      "displayNames": {
+        "red": "相",
+        "black": "象"
+      },
+      "source": {
+        "blend": "assets/characters/elephant/source/elephant.blend",
+        "metadata": "assets/characters/elephant/elephant.asset.json",
+        "rawLods": {
+          "lod0": "assets/characters/elephant/exports/elephant-lod0-raw.glb",
+          "lod1": "assets/characters/elephant/exports/elephant-lod1-raw.glb",
+          "lod2": "assets/characters/elephant/exports/elephant-lod2-raw.glb"
+        }
+      },
+      "dimensions": {
+        "baseDiameter": 0.89,
+        "maxFootprint": 0.9431,
+        "approximateHeight": 1.232
+      },
+      "lodBudgets": {
+        "lod0": {
+          "triangles": 72000,
+          "textureMax": 2048
+        },
+        "lod1": {
+          "triangles": 22000,
+          "textureMax": 1024
+        },
+        "lod2": {
+          "triangles": 6000,
+          "textureMax": 512
+        }
+      },
+      "requiredNodes": [
+        "piece_root",
+        "rig_root",
+        "character_mesh",
+        "socket_attack_origin",
+        "socket_hit_center",
+        "socket_ground",
+        "socket_trail_start",
+        "socket_trail_end"
+      ],
+      "clips": {
+        "idle_loop": {
+          "clip": "idle_loop",
+          "loop": true,
+          "markers": []
+        },
+        "move_start": {
+          "clip": "move_start",
+          "loop": false,
+          "markers": [
+            {
+              "name": "prepare",
+              "at": 0.2
+            }
+          ]
+        },
+        "move_loop": {
+          "clip": "move_loop",
+          "loop": true,
+          "markers": [
+            {
+              "name": "contact_left",
+              "at": 0.25
+            },
+            {
+              "name": "contact_right",
+              "at": 0.75
+            }
+          ]
+        },
+        "move_end": {
+          "clip": "move_end",
+          "loop": false,
+          "markers": [
+            {
+              "name": "settle",
+              "at": 0.82
+            }
+          ]
+        },
+        "attack_primary": {
+          "clip": "attack_primary",
+          "loop": false,
+          "markers": [
+            {
+              "name": "telegraph",
+              "at": 0.25
+            },
+            {
+              "name": "release",
+              "at": 0.58
+            },
+            {
+              "name": "recover",
+              "at": 0.88
+            }
+          ]
+        },
+        "hit_react": {
+          "clip": "hit_react",
+          "loop": false,
+          "markers": [
+            {
+              "name": "impact",
+              "at": 0.25
+            },
+            {
+              "name": "recover",
+              "at": 0.86
+            }
+          ]
+        },
+        "destroy": {
+          "clip": "destroy",
+          "loop": false,
+          "markers": [
+            {
+              "name": "fracture",
+              "at": 0.38
+            },
+            {
+              "name": "vanish",
+              "at": 0.78
+            },
+            {
+              "name": "complete",
+              "at": 1
+            }
+          ]
+        }
+      },
+      "variants": {
+        "red": {
+          "palette": "red",
+          "emblem": "qin-cinnabar-command-seal",
+          "lods": {
+            "lod0": "/models/pieces/v1/elephant/elephant-lod0.glb",
+            "lod1": "/models/pieces/v1/elephant/elephant-lod1.glb",
+            "lod2": "/models/pieces/v1/elephant/elephant-lod2.glb"
+          }
+        },
+        "black": {
+          "palette": "black",
+          "emblem": "qin-verdigris-command-seal",
+          "lods": {
+            "lod0": "/models/pieces/v1/elephant/elephant-lod0.glb",
+            "lod1": "/models/pieces/v1/elephant/elephant-lod1.glb",
+            "lod2": "/models/pieces/v1/elephant/elephant-lod2.glb"
+          }
+        }
+      }
+    },
+    "chariot": {
+      "displayNames": {
+        "red": "俥",
+        "black": "車"
+      },
+      "source": {
+        "blend": "assets/characters/chariot/source/chariot.blend",
+        "metadata": "assets/characters/chariot/chariot.asset.json",
+        "rawLods": {
+          "lod0": "assets/characters/chariot/exports/chariot-lod0-raw.glb",
+          "lod1": "assets/characters/chariot/exports/chariot-lod1-raw.glb",
+          "lod2": "assets/characters/chariot/exports/chariot-lod2-raw.glb"
+        }
+      },
+      "dimensions": {
+        "baseDiameter": 0.89,
+        "maxFootprint": 0.89,
+        "approximateHeight": 1.19
+      },
+      "lodBudgets": {
+        "lod0": {
+          "triangles": 68000,
+          "textureMax": 2048
+        },
+        "lod1": {
+          "triangles": 20000,
+          "textureMax": 1024
+        },
+        "lod2": {
+          "triangles": 5000,
+          "textureMax": 512
+        }
+      },
+      "requiredNodes": [
+        "piece_root",
+        "rig_root",
+        "character_mesh",
+        "socket_attack_origin",
+        "socket_hit_center",
+        "socket_ground",
+        "socket_trail_start",
+        "socket_trail_end"
+      ],
+      "clips": {
+        "idle_loop": {
+          "clip": "idle_loop",
+          "loop": true,
+          "markers": []
+        },
+        "move_start": {
+          "clip": "move_start",
+          "loop": false,
+          "markers": [
+            {
+              "name": "prepare",
+              "at": 0.2
+            }
+          ]
+        },
+        "move_loop": {
+          "clip": "move_loop",
+          "loop": true,
+          "markers": [
+            {
+              "name": "contact_left",
+              "at": 0.25
+            },
+            {
+              "name": "contact_right",
+              "at": 0.75
+            }
+          ]
+        },
+        "move_end": {
+          "clip": "move_end",
+          "loop": false,
+          "markers": [
+            {
+              "name": "settle",
+              "at": 0.82
+            }
+          ]
+        },
+        "attack_primary": {
+          "clip": "attack_primary",
+          "loop": false,
+          "markers": [
+            {
+              "name": "telegraph",
+              "at": 0.25
+            },
+            {
+              "name": "release",
+              "at": 0.58
+            },
+            {
+              "name": "recover",
+              "at": 0.88
+            }
+          ]
+        },
+        "hit_react": {
+          "clip": "hit_react",
+          "loop": false,
+          "markers": [
+            {
+              "name": "impact",
+              "at": 0.25
+            },
+            {
+              "name": "recover",
+              "at": 0.86
+            }
+          ]
+        },
+        "destroy": {
+          "clip": "destroy",
+          "loop": false,
+          "markers": [
+            {
+              "name": "fracture",
+              "at": 0.38
+            },
+            {
+              "name": "vanish",
+              "at": 0.78
+            },
+            {
+              "name": "complete",
+              "at": 1
+            }
+          ]
+        }
+      },
+      "variants": {
+        "red": {
+          "palette": "red",
+          "emblem": "qin-cinnabar-command-seal",
+          "lods": {
+            "lod0": "/models/pieces/v1/chariot/chariot-lod0.glb",
+            "lod1": "/models/pieces/v1/chariot/chariot-lod1.glb",
+            "lod2": "/models/pieces/v1/chariot/chariot-lod2.glb"
+          }
+        },
+        "black": {
+          "palette": "black",
+          "emblem": "qin-verdigris-command-seal",
+          "lods": {
+            "lod0": "/models/pieces/v1/chariot/chariot-lod0.glb",
+            "lod1": "/models/pieces/v1/chariot/chariot-lod1.glb",
+            "lod2": "/models/pieces/v1/chariot/chariot-lod2.glb"
+          }
+        }
+      }
+    },
+    "horse": {
+      "displayNames": {
+        "red": "傌",
+        "black": "馬"
+      },
+      "source": {
+        "blend": "assets/characters/horse/source/horse.blend",
+        "metadata": "assets/characters/horse/horse.asset.json",
+        "rawLods": {
+          "lod0": "assets/characters/horse/exports/horse-lod0-raw.glb",
+          "lod1": "assets/characters/horse/exports/horse-lod1-raw.glb",
+          "lod2": "assets/characters/horse/exports/horse-lod2-raw.glb"
+        }
+      },
+      "dimensions": {
+        "baseDiameter": 0.89,
+        "maxFootprint": 0.9054,
+        "approximateHeight": 1.7394
+      },
+      "lodBudgets": {
+        "lod0": {
+          "triangles": 65000,
+          "textureMax": 2048
+        },
+        "lod1": {
+          "triangles": 20000,
+          "textureMax": 1024
+        },
+        "lod2": {
+          "triangles": 5000,
+          "textureMax": 512
+        }
+      },
+      "requiredNodes": [
+        "piece_root",
+        "rig_root",
+        "character_mesh",
+        "socket_attack_origin",
+        "socket_hit_center",
+        "socket_ground",
+        "socket_trail_start",
+        "socket_trail_end"
+      ],
+      "clips": {
+        "idle_loop": {
+          "clip": "idle_loop",
+          "loop": true,
+          "markers": []
+        },
+        "move_start": {
+          "clip": "move_start",
+          "loop": false,
+          "markers": [
+            {
+              "name": "prepare",
+              "at": 0.2
+            }
+          ]
+        },
+        "move_loop": {
+          "clip": "move_loop",
+          "loop": true,
+          "markers": [
+            {
+              "name": "contact_left",
+              "at": 0.25
+            },
+            {
+              "name": "contact_right",
+              "at": 0.75
+            }
+          ]
+        },
+        "move_end": {
+          "clip": "move_end",
+          "loop": false,
+          "markers": [
+            {
+              "name": "settle",
+              "at": 0.82
+            }
+          ]
+        },
+        "attack_primary": {
+          "clip": "attack_primary",
+          "loop": false,
+          "markers": [
+            {
+              "name": "telegraph",
+              "at": 0.25
+            },
+            {
+              "name": "release",
+              "at": 0.58
+            },
+            {
+              "name": "recover",
+              "at": 0.88
+            }
+          ]
+        },
+        "hit_react": {
+          "clip": "hit_react",
+          "loop": false,
+          "markers": [
+            {
+              "name": "impact",
+              "at": 0.25
+            },
+            {
+              "name": "recover",
+              "at": 0.86
+            }
+          ]
+        },
+        "destroy": {
+          "clip": "destroy",
+          "loop": false,
+          "markers": [
+            {
+              "name": "fracture",
+              "at": 0.38
+            },
+            {
+              "name": "vanish",
+              "at": 0.78
+            },
+            {
+              "name": "complete",
+              "at": 1
+            }
+          ]
+        }
+      },
+      "variants": {
+        "red": {
+          "palette": "red",
+          "emblem": "qin-cinnabar-command-seal",
+          "lods": {
+            "lod0": "/models/pieces/v1/horse/horse-lod0.glb",
+            "lod1": "/models/pieces/v1/horse/horse-lod1.glb",
+            "lod2": "/models/pieces/v1/horse/horse-lod2.glb"
+          }
+        },
+        "black": {
+          "palette": "black",
+          "emblem": "qin-verdigris-command-seal",
+          "lods": {
+            "lod0": "/models/pieces/v1/horse/horse-lod0.glb",
+            "lod1": "/models/pieces/v1/horse/horse-lod1.glb",
+            "lod2": "/models/pieces/v1/horse/horse-lod2.glb"
+          }
+        }
+      }
+    },
+    "cannon": {
+      "displayNames": {
+        "red": "炮",
+        "black": "砲"
+      },
+      "source": {
+        "blend": "assets/characters/cannon/source/cannon.blend",
+        "metadata": "assets/characters/cannon/cannon.asset.json",
+        "rawLods": {
+          "lod0": "assets/characters/cannon/exports/cannon-lod0-raw.glb",
+          "lod1": "assets/characters/cannon/exports/cannon-lod1-raw.glb",
+          "lod2": "assets/characters/cannon/exports/cannon-lod2-raw.glb"
+        }
+      },
+      "dimensions": {
+        "baseDiameter": 0.89,
+        "maxFootprint": 0.94,
+        "approximateHeight": 0.9
+      },
+      "lodBudgets": {
+        "lod0": {
+          "triangles": 55000,
+          "textureMax": 2048
+        },
+        "lod1": {
+          "triangles": 16000,
+          "textureMax": 1024
+        },
+        "lod2": {
+          "triangles": 4000,
+          "textureMax": 512
+        }
+      },
+      "requiredNodes": [
+        "piece_root",
+        "rig_root",
+        "character_mesh",
+        "socket_attack_origin",
+        "socket_hit_center",
+        "socket_ground",
+        "socket_trail_start",
+        "socket_trail_end"
+      ],
+      "clips": {
+        "idle_loop": {
+          "clip": "idle_loop",
+          "loop": true,
+          "markers": []
+        },
+        "move_start": {
+          "clip": "move_start",
+          "loop": false,
+          "markers": [
+            {
+              "name": "prepare",
+              "at": 0.2
+            }
+          ]
+        },
+        "move_loop": {
+          "clip": "move_loop",
+          "loop": true,
+          "markers": [
+            {
+              "name": "contact_left",
+              "at": 0.25
+            },
+            {
+              "name": "contact_right",
+              "at": 0.75
+            }
+          ]
+        },
+        "move_end": {
+          "clip": "move_end",
+          "loop": false,
+          "markers": [
+            {
+              "name": "settle",
+              "at": 0.82
+            }
+          ]
+        },
+        "attack_primary": {
+          "clip": "attack_primary",
+          "loop": false,
+          "markers": [
+            {
+              "name": "telegraph",
+              "at": 0.25
+            },
+            {
+              "name": "release",
+              "at": 0.58
+            },
+            {
+              "name": "recover",
+              "at": 0.88
+            }
+          ]
+        },
+        "hit_react": {
+          "clip": "hit_react",
+          "loop": false,
+          "markers": [
+            {
+              "name": "impact",
+              "at": 0.25
+            },
+            {
+              "name": "recover",
+              "at": 0.86
+            }
+          ]
+        },
+        "destroy": {
+          "clip": "destroy",
+          "loop": false,
+          "markers": [
+            {
+              "name": "fracture",
+              "at": 0.38
+            },
+            {
+              "name": "vanish",
+              "at": 0.78
+            },
+            {
+              "name": "complete",
+              "at": 1
+            }
+          ]
+        }
+      },
+      "variants": {
+        "red": {
+          "palette": "red",
+          "emblem": "qin-cinnabar-command-seal",
+          "lods": {
+            "lod0": "/models/pieces/v1/cannon/cannon-lod0.glb",
+            "lod1": "/models/pieces/v1/cannon/cannon-lod1.glb",
+            "lod2": "/models/pieces/v1/cannon/cannon-lod2.glb"
+          }
+        },
+        "black": {
+          "palette": "black",
+          "emblem": "qin-verdigris-command-seal",
+          "lods": {
+            "lod0": "/models/pieces/v1/cannon/cannon-lod0.glb",
+            "lod1": "/models/pieces/v1/cannon/cannon-lod1.glb",
+            "lod2": "/models/pieces/v1/cannon/cannon-lod2.glb"
+          }
+        }
+      }
+    },
+    "soldier": {
+      "displayNames": {
+        "red": "兵",
+        "black": "卒"
+      },
+      "source": {
+        "blend": "assets/characters/soldier/source/soldier.blend",
+        "metadata": "assets/characters/soldier/soldier.asset.json",
+        "rawLods": {
+          "lod0": "assets/characters/soldier/exports/soldier-lod0-raw.glb",
+          "lod1": "assets/characters/soldier/exports/soldier-lod1-raw.glb",
+          "lod2": "assets/characters/soldier/exports/soldier-lod2-raw.glb"
+        }
+      },
+      "dimensions": {
+        "baseDiameter": 0.89,
+        "maxFootprint": 0.89,
+        "approximateHeight": 1.5701
+      },
+      "lodBudgets": {
+        "lod0": {
+          "triangles": 38000,
+          "textureMax": 2048
+        },
+        "lod1": {
+          "triangles": 10000,
+          "textureMax": 1024
+        },
+        "lod2": {
+          "triangles": 3000,
+          "textureMax": 512
+        }
+      },
+      "requiredNodes": [
+        "piece_root",
+        "rig_root",
+        "character_mesh",
+        "socket_attack_origin",
+        "socket_hit_center",
+        "socket_ground",
+        "socket_trail_start",
+        "socket_trail_end"
+      ],
+      "clips": {
+        "idle_loop": {
+          "clip": "idle_loop",
+          "loop": true,
+          "markers": []
+        },
+        "move_start": {
+          "clip": "move_start",
+          "loop": false,
+          "markers": [
+            {
+              "name": "prepare",
+              "at": 0.2
+            }
+          ]
+        },
+        "move_loop": {
+          "clip": "move_loop",
+          "loop": true,
+          "markers": [
+            {
+              "name": "contact_left",
+              "at": 0.25
+            },
+            {
+              "name": "contact_right",
+              "at": 0.75
+            }
+          ]
+        },
+        "move_end": {
+          "clip": "move_end",
+          "loop": false,
+          "markers": [
+            {
+              "name": "settle",
+              "at": 0.82
+            }
+          ]
+        },
+        "attack_primary": {
+          "clip": "attack_primary",
+          "loop": false,
+          "markers": [
+            {
+              "name": "telegraph",
+              "at": 0.25
+            },
+            {
+              "name": "release",
+              "at": 0.58
+            },
+            {
+              "name": "recover",
+              "at": 0.88
+            }
+          ]
+        },
+        "hit_react": {
+          "clip": "hit_react",
+          "loop": false,
+          "markers": [
+            {
+              "name": "impact",
+              "at": 0.25
+            },
+            {
+              "name": "recover",
+              "at": 0.86
+            }
+          ]
+        },
+        "destroy": {
+          "clip": "destroy",
+          "loop": false,
+          "markers": [
+            {
+              "name": "fracture",
+              "at": 0.38
+            },
+            {
+              "name": "vanish",
+              "at": 0.78
+            },
+            {
+              "name": "complete",
+              "at": 1
+            }
+          ]
+        }
+      },
+      "variants": {
+        "red": {
+          "palette": "red",
+          "emblem": "qin-cinnabar-command-seal",
+          "lods": {
+            "lod0": "/models/pieces/v1/soldier/soldier-lod0.glb",
+            "lod1": "/models/pieces/v1/soldier/soldier-lod1.glb",
+            "lod2": "/models/pieces/v1/soldier/soldier-lod2.glb"
+          }
+        },
+        "black": {
+          "palette": "black",
+          "emblem": "qin-verdigris-command-seal",
+          "lods": {
+            "lod0": "/models/pieces/v1/soldier/soldier-lod0.glb",
+            "lod1": "/models/pieces/v1/soldier/soldier-lod1.glb",
+            "lod2": "/models/pieces/v1/soldier/soldier-lod2.glb"
+          }
+        }
+      }
+    }
+  }
+}
