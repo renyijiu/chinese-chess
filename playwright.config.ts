@@ -1,0 +1,39 @@
+import { defineConfig, devices } from "@playwright/test";
+
+const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
+
+export default defineConfig({
+  expect: { timeout: 12_000 },
+  fullyParallel: false,
+  outputDir: "output/playwright/test-results",
+  reporter: [["list"], ["html", { open: "never", outputFolder: "output/playwright/report" }]],
+  retries: process.env.CI ? 1 : 0,
+  snapshotPathTemplate: "{testDir}/../visual/baselines/{projectName}/{testFilePath}/{arg}{ext}",
+  testDir: "tests/e2e",
+  timeout: 60_000,
+  workers: 1,
+  use: {
+    baseURL,
+    colorScheme: "dark",
+    screenshot: "only-on-failure",
+    trace: "retain-on-failure",
+  },
+  webServer: {
+    command: "npm run dev",
+    reuseExistingServer: !process.env.CI,
+    timeout: 120_000,
+    url: baseURL,
+  },
+  projects: [
+    {
+      name: "desktop-chromium",
+      testIgnore: /mobile\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"], viewport: { height: 900, width: 1440 } },
+    },
+    {
+      name: "mobile-chromium",
+      testMatch: /mobile\.spec\.ts/,
+      use: { ...devices["Pixel 5"], viewport: { height: 844, width: 390 } },
+    },
+  ],
+});

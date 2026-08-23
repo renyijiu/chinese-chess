@@ -1,0 +1,48 @@
+export {
+  boardIndex,
+  createInitialGame,
+  dispatch,
+  formatSquareCoordinate,
+  getLegalMoves,
+  getPieceAt,
+  getPositionKey,
+  isInCheck,
+  isSquare,
+} from "./engine";
+export {
+  deserializeGame,
+  serializeGame,
+  XiangqiSerializationError,
+} from "./persistence";
+export {
+  POPULAR_RULESET_ID,
+  XIANGQI_SCHEMA_VERSION,
+} from "./types";
+export type {
+  Board,
+  CapturedPiece,
+  CheckDeclaredEvent,
+  CommandError,
+  CommandErrorCode,
+  DispatchResult,
+  DomainEvent,
+  GameCommand,
+  GameEndedEvent,
+  GameEndReason,
+  GameState,
+  GameStatus,
+  LastAction,
+  MoveCommand,
+  MoveCommittedEvent,
+  MoveRecord,
+  MoveUndoneEvent,
+  Piece,
+  PieceCapturedEvent,
+  ReplayCommand,
+  ResignCommand,
+  ResignedEvent,
+  Role,
+  Side,
+  Square,
+  UndoCommand,
+} from "./types";
