@@ -73,7 +73,7 @@ test("keeps the rule-correct board and modular R3F runtime wired", async () => {
     readFile(new URL("../components/xiangqi/scene/BoardScene.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/xiangqi/scene/BoardSurface.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/xiangqi/scene/board-geometry.ts", import.meta.url), "utf8"),
-    readFile(new URL("../components/xiangqi/scene/FortressEnvironment.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../components/xiangqi/scene/DioramaEnvironment.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/xiangqi/runtime/board-coordinates.ts", import.meta.url), "utf8"),
     readFile(new URL("../components/xiangqi/pieces/asset-loader.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/xiangqi/scene/PrototypeMarshal.tsx", import.meta.url), "utf8"),
@@ -86,7 +86,7 @@ test("keeps the rule-correct board and modular R3F runtime wired", async () => {
     readFile(new URL("../components/xiangqi/presentation/PresentationStore.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../README.md", import.meta.url), "utf8"),
-    stat(new URL("../public/background/fortress-valley-v1.jpg", import.meta.url)),
+    stat(new URL("../public/background/qin-diorama-panorama-v1-high.webp", import.meta.url)),
     stat(new URL("../public/basis/basis_transcoder.wasm", import.meta.url)),
   ]);
   const packageJson = JSON.parse(packageText);
@@ -108,8 +108,12 @@ test("keeps the rule-correct board and modular R3F runtime wired", async () => {
   assert.match(surface, /instancedMesh/);
   assert.match(boardGeometry, /function makeBoardSegments/);
   assert.match(boardGeometry, /function makeBoardOrnamentPlacements/);
-  assert.match(environment, /fortress-valley-v1\.jpg/);
-  assert.match(environment, /attach="background"/);
+  assert.match(environment, /getPanoramaUrl/);
+  assert.match(environment, /name="qin-diorama-panorama"/);
+  assert.match(environment, /EnvironmentLayerBoundary/);
+  assert.match(environment, /QinGradientSky/);
+  assert.match(environment, /useScheduledFrame/);
+  assert.doesNotMatch(environment, /useTexture\.preload/);
   assert.match(runtime, /function squareToWorld/);
   assert.match(runtime, /BOARD_SPACING = 1\.14/);
   assert.match(loader, /setMeshoptDecoder/);
@@ -136,6 +140,6 @@ test("keeps the rule-correct board and modular R3F runtime wired", async () => {
   assert.match(presentationStore, /TimelineDirector/);
   assert.match(page, /XiangqiGame/);
   assert.match(readme, /九道纵线、十道横线/);
-  assert.ok(backdrop.size <= 750_000, "the first-load matte backdrop should stay below 750 KB");
+  assert.ok(backdrop.size <= 250_000, "the highest-quality Qin panorama should stay below 250 KB");
   assert.ok(basisTranscoder.size > 500_000, "the local Basis transcoder should be self-hosted");
 });

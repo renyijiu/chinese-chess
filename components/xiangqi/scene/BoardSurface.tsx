@@ -3,7 +3,7 @@
 /* eslint-disable react/no-unknown-property -- R3F scene graph props are valid custom JSX properties. */
 
 import { RoundedBox } from "@react-three/drei";
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { Component, useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 
@@ -152,6 +152,45 @@ const glazeFragmentShader = `
     gl_FragColor = vec4(color, 0.94);
   }
 `;
+
+class OptionalRiverBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  componentDidCatch(error: Error) {
+    console.warn("Animated Qin glaze degraded to its static river surface", error);
+  }
+
+  render() {
+    return this.state.failed ? <StaticGlazedRiver /> : this.props.children;
+  }
+}
+
+function StaticGlazedRiver() {
+  return (
+    <group name="qin-glazed-river-fallback">
+      <mesh raycast={() => null} receiveShadow position={[0, 0.31, 0]}>
+        <boxGeometry args={[FILE_MAX - FILE_MIN + 0.14, 0.16, BOARD_SPACING - 0.06]} />
+        <meshStandardMaterial
+          color={QIN_DIORAMA_THEME.materials.blackLacquer}
+          metalness={0.04}
+          roughness={0.72}
+        />
+      </mesh>
+      <mesh raycast={() => null} position={[0, 0.455, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[FILE_MAX - FILE_MIN, BOARD_SPACING - 0.14]} />
+        <meshStandardMaterial
+          color={QIN_DIORAMA_THEME.accents.mineralBlue}
+          metalness={0.05}
+          roughness={0.65}
+        />
+      </mesh>
+    </group>
+  );
+}
 
 function GlazedRiver({ animate = true }: { animate?: boolean }) {
   const materialRef = useRef<THREE.ShaderMaterial>(null);
@@ -416,7 +455,9 @@ export function BoardSurface({ animate, shadows }: { animate: boolean; shadows: 
     <group name="qin-terracotta-mausoleum-board">
       <QinDoubleEnclosure castShadow={false} />
       <QinClayTiles castShadow={shadows} />
-      <GlazedRiver animate={animate} />
+      <OptionalRiverBoundary>
+        <GlazedRiver animate={animate} />
+      </OptionalRiverBoundary>
       <BoardLines castShadow={false} />
       <RiverInscription position={[-2.42, 0.505, 0]} text="楚  河" />
       <RiverInscription position={[2.42, 0.505, 0]} text="漢  界" />

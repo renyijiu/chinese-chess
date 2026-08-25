@@ -2,6 +2,19 @@ import { expect, test } from "@playwright/test";
 
 import { clickBoardSquare, openCleanGame, pressSequence, startGame, waitForRevision } from "./helpers";
 
+test("a failed optional panorama degrades locally and leaves the board playable", async ({ page }) => {
+  await page.route("**/background/qin-diorama-panorama-v1-*.webp", (route) => route.abort("failed"));
+  await openCleanGame(page);
+  await expect(page.locator(".board-viewer")).toHaveAttribute("data-environment-status", "degraded");
+
+  const keyboard = await startGame(page);
+  await keyboard.focus();
+  await pressSequence(keyboard, ["ArrowLeft", "ArrowLeft", "ArrowLeft", "ArrowLeft", "ArrowUp", "ArrowUp", "ArrowUp", "Enter", "ArrowUp"]);
+  await keyboard.press("Enter");
+  await waitForRevision(page, 1);
+  await expect(page.locator(".game-history")).toContainText("红·兵 a3 → a4");
+});
+
 test("authoritative rules continue through a WebGL context loss and restore", async ({ page }) => {
   test.setTimeout(90_000);
   await openCleanGame(page);

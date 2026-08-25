@@ -18,7 +18,8 @@ import { BoardCamera, type BoardView, type BoardViewSide } from "./BoardCamera";
 import { BattlePostprocessing } from "./BattlePostprocessing";
 import { CameraFeedback } from "./CameraFeedback";
 import { BoardSurface } from "./BoardSurface";
-import { FortressEnvironment } from "./FortressEnvironment";
+import { DioramaEnvironment } from "./DioramaEnvironment";
+import type { EnvironmentStatus } from "./diorama-environment";
 import { PieceLayer, type ScenePieceSlot } from "./PieceLayer";
 import { PrototypeMarshal } from "./PrototypeMarshal";
 
@@ -29,6 +30,7 @@ type BoardSceneProps = {
   autoTour: boolean;
   drawCallsRef: RefObject<HTMLSpanElement | null>;
   pieceLayer?: ReactNode;
+  onEnvironmentStatusChange?: (status: EnvironmentStatus) => void;
   presentation: PresentationStore;
   quality: QualityProfile;
   reducedMotion: boolean;
@@ -63,10 +65,12 @@ function ConditionalBattlePostprocessing({ presentation }: { presentation: Prese
 
 function AmbientScene({
   animate,
+  onEnvironmentStatusChange,
   presentation,
   quality,
 }: {
   animate: boolean;
+  onEnvironmentStatusChange?: (status: EnvironmentStatus) => void;
   presentation: PresentationStore;
   quality: QualityProfile;
 }) {
@@ -82,8 +86,16 @@ function AmbientScene({
   const animateEnvironment = animate && !actionActive;
   return (
     <>
-      <FortressEnvironment animate={animateEnvironment} quality={quality} />
-      <BoardSurface animate={animateEnvironment} shadows={quality.shadows} />
+      <DioramaEnvironment
+        animate={animateEnvironment}
+        key={`${quality.environment.panorama}:${quality.environment.detailLevel}`}
+        onStatusChange={onEnvironmentStatusChange}
+        quality={quality}
+      />
+      <BoardSurface
+        animate={animateEnvironment && quality.environment.motion.river}
+        shadows={quality.shadows}
+      />
     </>
   );
 }
@@ -94,6 +106,7 @@ export function BoardScene({
   audio,
   autoTour,
   drawCallsRef,
+  onEnvironmentStatusChange,
   pieceLayer,
   presentation,
   quality,
@@ -108,7 +121,12 @@ export function BoardScene({
           <AnimationDirector animations={animations} presentation={presentation} />
           <WebGLContextRecovery animations={animations} presentation={presentation} />
           <StaticShadowMap enabled={quality.shadows} />
-          <AmbientScene animate={ambientMotion} presentation={presentation} quality={quality} />
+          <AmbientScene
+            animate={ambientMotion}
+            onEnvironmentStatusChange={onEnvironmentStatusChange}
+            presentation={presentation}
+            quality={quality}
+          />
           <Suspense fallback={null}>{pieceLayer ?? <PrototypePieceLayer />}</Suspense>
           <BoardCamera autoTour={autoTour} side={viewSide} view={view} />
           <CameraFeedback presentation={presentation} quality={quality.postprocessing ? "high" : quality.dynamicEffectLights ? "medium" : "low"} reducedMotion={reducedMotion} />

@@ -9,6 +9,7 @@ import type { AudioEngine } from "../components/xiangqi/audio/AudioEngine";
 import type { PresentationStore } from "../components/xiangqi/presentation/PresentationStore";
 import { BoardScene } from "../components/xiangqi/scene/BoardScene";
 import type { BoardView, BoardViewSide } from "../components/xiangqi/scene/BoardCamera";
+import type { EnvironmentStatus } from "../components/xiangqi/scene/diorama-environment";
 import { SceneErrorBoundary } from "../components/xiangqi/runtime/SceneErrorBoundary";
 import {
   getQualityProfile,
@@ -43,6 +44,7 @@ export function BoardViewer({
 }) {
   const drawCallsRef = useRef<HTMLSpanElement>(null);
   const [autoTour, setAutoTour] = useState(false);
+  const [environmentStatus, setEnvironmentStatus] = useState<EnvironmentStatus>("loading");
   const [error, setError] = useState(false);
   const [view, setView] = useState<BoardView>("battle");
   const [viewSide, setViewSide] = useState<BoardViewSide>("red");
@@ -67,7 +69,11 @@ export function BoardViewer({
       : status;
 
   return (
-    <section className="viewer-shell board-viewer" aria-label="写实要塞风中国象棋棋盘三维预览">
+    <section
+      className="viewer-shell board-viewer"
+      aria-label="写实要塞风中国象棋棋盘三维预览"
+      data-environment-status={environmentStatus}
+    >
       <div className="viewer-canvas">
         {webglAvailable ? (
           <SceneErrorBoundary
@@ -96,6 +102,7 @@ export function BoardViewer({
                 audio={audio}
                 autoTour={autoTour}
                 drawCallsRef={drawCallsRef}
+                onEnvironmentStatusChange={setEnvironmentStatus}
                 pieceLayer={pieceLayer}
                 presentation={presentation}
                 quality={qualityProfile}
