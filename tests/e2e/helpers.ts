@@ -45,8 +45,33 @@ export async function tapBoardSquare(
   await canvas.page().touchscreen.tap(point.x, point.y);
 }
 
-export async function openCleanGame(page: Page, quality: "high" | "medium" | "low" = "low") {
-  await page.addInitScript((initialQuality) => {
+export async function waitForEnvironmentSettled(
+  page: Page,
+  expected?: "ready" | "degraded",
+) {
+  const viewer = page.locator(".board-viewer");
+  await expect(viewer).toHaveAttribute(
+    "data-environment-status",
+    expected ?? /^(ready|degraded)$/,
+  );
+}
+
+export async function settleVisualScene(page: Page) {
+  await waitForEnvironmentSettled(page);
+  await expect.poll(
+    () => page.evaluate(() => window.__XIANGQI_PERFORMANCE__?.sampleCount ?? 0),
+  ).toBeGreaterThan(0);
+  await page.evaluate(() => new Promise<void>((resolve) => {
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
+  }));
+}
+
+export async function openCleanGame(
+  page: Page,
+  quality: "high" | "medium" | "low" = "low",
+  reducedMotion = false,
+) {
+  await page.addInitScript(({ initialQuality, initialReducedMotion }) => {
     if (window.sessionStorage.getItem("xiangqi3d:e2e-initialized")) return;
     window.localStorage.clear();
     window.localStorage.setItem("xiangqi3d:settings:v1", JSON.stringify({
@@ -55,17 +80,19 @@ export async function openCleanGame(page: Page, quality: "high" | "medium" | "lo
       musicVolume: 0.42,
       muted: false,
       quality: initialQuality,
-      reducedMotion: false,
+      reducedMotion: initialReducedMotion,
       sfxVolume: 0.8,
       uiVolume: 0.72,
       version: 1,
       voiceVolume: 0.75,
     }));
     window.sessionStorage.setItem("xiangqi3d:e2e-initialized", "true");
-  }, quality);
+  }, { initialQuality: quality, initialReducedMotion: reducedMotion });
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await expect(page.getByRole("button", { name: "开始本机双人对局" })).toBeVisible();
   await expect(page.locator(".xiangqi-game-shell")).toHaveAttribute("data-quality", quality);
+  await expect(page.locator(".xiangqi-game-shell")).toHaveAttribute("data-reduced-motion", String(reducedMotion));
+  await waitForEnvironmentSettled(page);
 }
 
 export async function startGame(page: Page) {

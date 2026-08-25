@@ -44,7 +44,10 @@ export function BoardViewer({
 }) {
   const drawCallsRef = useRef<HTMLSpanElement>(null);
   const [autoTour, setAutoTour] = useState(false);
-  const [environmentStatus, setEnvironmentStatus] = useState<EnvironmentStatus>("loading");
+  const [environmentState, setEnvironmentState] = useState<{
+    quality: QualityTier;
+    status: EnvironmentStatus;
+  }>({ quality, status: "loading" });
   const [error, setError] = useState(false);
   const [view, setView] = useState<BoardView>("battle");
   const [viewSide, setViewSide] = useState<BoardViewSide>("red");
@@ -62,6 +65,13 @@ export function BoardViewer({
   }, [reducedMotion]);
 
   const handleSceneError = useCallback(() => setError(true), []);
+  const handleEnvironmentStatusChange = useCallback(
+    (status: EnvironmentStatus) => setEnvironmentState({ quality, status }),
+    [quality],
+  );
+  const environmentStatus = environmentState.quality === quality
+    ? environmentState.status
+    : "loading";
   const runtimeStatus = !webglAvailable
     ? "WebGL2 三维预览不可用"
     : error
@@ -104,7 +114,7 @@ export function BoardViewer({
                 audio={audio}
                 autoTour={autoTour}
                 drawCallsRef={drawCallsRef}
-                onEnvironmentStatusChange={setEnvironmentStatus}
+                onEnvironmentStatusChange={handleEnvironmentStatusChange}
                 pieceLayer={pieceLayer}
                 presentation={presentation}
                 quality={qualityProfile}

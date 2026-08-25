@@ -7,9 +7,13 @@ export type RendererPerformanceSample = Readonly<{
 }>;
 
 export type RuntimePerformanceSnapshot = Readonly<{
+  averageFrameIntervalMs: number;
   currentDrawCalls: number;
   currentTriangles: number;
   geometries: number;
+  maximumFrameIntervalMs: number;
+  p50FrameIntervalMs: number;
+  p90FrameIntervalMs: number;
   peakDrawCalls: number;
   peakTriangles: number;
   /** Rendered-frame interval, not CPU/GPU render duration. */
@@ -19,9 +23,13 @@ export type RuntimePerformanceSnapshot = Readonly<{
 }>;
 
 const EMPTY_SNAPSHOT: RuntimePerformanceSnapshot = Object.freeze({
+  averageFrameIntervalMs: 0,
   currentDrawCalls: 0,
   currentTriangles: 0,
   geometries: 0,
+  maximumFrameIntervalMs: 0,
+  p50FrameIntervalMs: 0,
+  p90FrameIntervalMs: 0,
   peakDrawCalls: 0,
   peakTriangles: 0,
   p95FrameIntervalMs: 0,
@@ -57,14 +65,20 @@ export class PerformanceMetrics {
   snapshot(): RuntimePerformanceSnapshot {
     if (!this.current) return EMPTY_SNAPSHOT;
     const sorted = [...this.intervals].sort((left, right) => left - right);
-    const p95Index = Math.max(0, Math.ceil(sorted.length * 0.95) - 1);
+    const percentile = (value: number) => sorted[Math.max(0, Math.ceil(sorted.length * value) - 1)] ?? 0;
     return {
+      averageFrameIntervalMs: sorted.length > 0
+        ? sorted.reduce((total, interval) => total + interval, 0) / sorted.length
+        : 0,
       currentDrawCalls: this.current.drawCalls,
       currentTriangles: this.current.triangles,
       geometries: this.current.geometries,
+      maximumFrameIntervalMs: sorted.at(-1) ?? 0,
+      p50FrameIntervalMs: percentile(0.5),
+      p90FrameIntervalMs: percentile(0.9),
       peakDrawCalls: this.peakDrawCalls,
       peakTriangles: this.peakTriangles,
-      p95FrameIntervalMs: sorted[p95Index] ?? 0,
+      p95FrameIntervalMs: percentile(0.95),
       sampleCount: sorted.length,
       textures: this.current.textures,
     };

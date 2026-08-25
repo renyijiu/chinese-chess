@@ -114,7 +114,16 @@ function RiggedRoleModel({ actorId, animation, animations, lod, opacity, piece }
     return { localY: -bounds.min.y, materials, mixer, model };
   }, [piece.side, scene]);
 
-  useEffect(() => () => prepared.materials.forEach((material) => material.dispose()), [prepared]);
+  useEffect(() => () => {
+    prepared.mixer.stopAllAction();
+    prepared.mixer.uncacheRoot(prepared.model);
+    const skeletons = new Set<THREE.Skeleton>();
+    prepared.model.traverse((child) => {
+      if (child instanceof THREE.SkinnedMesh) skeletons.add(child.skeleton);
+    });
+    skeletons.forEach((skeleton) => skeleton.dispose());
+    prepared.materials.forEach((material) => material.dispose());
+  }, [prepared]);
   useEffect(() => animations.register(actorId, prepared.mixer, clips), [actorId, animations, clips, prepared.mixer]);
   useEffect(() => {
     prepared.materials.forEach((material) => {

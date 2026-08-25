@@ -1,20 +1,31 @@
 # 网页 3D 中国象棋
 
-这是一个面向写实中国象棋的浏览器游戏。当前首页按山城战场方向构建可实时交互的 3D 棋盘，32 枚棋子使用帅/将、仕/士、相/象、车、马、炮、兵/卒七类秦兵马俑带骨骼 GLB 资产。烧土陶色是主体，红黑双方共享几何，以少量风化朱砂/铜绿甲片、符节和军印区分阵营。
+这是一个可完整本机双人对弈的浏览器 3D 中国象棋。32 枚棋子使用帅/将、仕/士、相/象、车、马、炮、兵/卒七类 Q 版秦兵马俑带骨骼 GLB 资产；棋盘、环境、交互反馈和 HUD 共同采用暖烧陶、黑漆、旧铜、白垩及少量矿物残彩的微缩沙盘语言。
 
 ## 3D 棋盘场景
 
-棋盘由 [`app/BoardViewer.tsx`](app/BoardViewer.tsx) 在 Three.js / React Three Fiber 中程序化构建，不依赖外部贴图或棋盘 GLB：
+棋盘由 [`BoardSurface.tsx`](components/xiangqi/scene/BoardSurface.tsx) 在 Three.js / React Three Fiber 中程序化构建，不依赖外部棋盘 GLB：
 
 - 九道纵线、十道横线、两座九宫和中央河界按中国象棋结构生成。
 - 河界处七条内部纵线断开，最外两条边线保持贯通。
-- 炮位与兵卒位使用标准角标；所有落子点以固定 `SPACING` 映射到世界坐标，方便后续规则引擎和拾取系统复用。
-- 美术表现采用实例化青石板、铜质嵌线、动态水道、分层城台、垛口、烽火和红黑军旗；远景使用约 500 KB 的 [`public/background/fortress-valley-v1.jpg`](public/background/fortress-valley-v1.jpg) 写实天幕承载夕阳、山谷与两侧山城细节，形成“写实远景 + 实时 3D 棋台”的混合渲染结构。
+- 炮位与兵卒位使用标准角标；所有落子点只通过 `squareToWorld()` 映射到固定世界坐标，规则和拾取不依赖美术节点。
+- 近景使用厚陶棋台、圆角秦砖、黑漆线格、青绿釉河、双重低城垣和瓦当压印；中景道具使用实例化几何，且全部退出棋盘 raycast。
+- 远景按画质只加载一张 360° 秦陵沙盘全景；请求失败时局部降级为匹配雾色的主题渐变，棋盘继续可操作。
 - 页面提供战场透视、正上方俯视、自动巡游、拖动旋转、滚轮缩放和右键平移。
 
-远景天幕的无损 PNG 源文件保存在同目录的 `fortress-valley-v1.png`，生成规格记录在 [`assets/background/fortress-valley-v1.prompt.md`](assets/background/fortress-valley-v1.prompt.md)。默认关闭自动巡游，优先保持棋盘与山谷背景共同设计的导演机位。
+全景的无损源文件为 [`qin-diorama-panorama-v1.png`](assets/background/qin-diorama-panorama-v1.png)，原创生成说明、用途与限制记录在 [`qin-diorama-panorama-v1.prompt.md`](assets/background/qin-diorama-panorama-v1.prompt.md)。网页只使用 `public/background/` 下的 high / medium / low WebP 变体。
 
 七类正式资产的底座直径约 `0.89` 米，静止姿态最大占地 `0.943` 米，小于 `1.14` 的落子点间距；模型包围盒底面会自动贴合棋盘表面。高/中画质默认加载 LOD1，低画质加载 LOD2。
+
+画质合同保持同一艺术方向并单调降档：
+
+| 档位 | 全景 | 环境细节 | 环境阴影 / 动态光 | 环境运动 |
+| --- | --- | ---: | --- | --- |
+| high | high WebP | 3 | 完整静态阴影 / 稀疏动态光 | 旗帜、尘粒、釉河 |
+| medium | medium WebP | 2 | 降级静态阴影 / 静态灯 | 低频旗帜、尘粒、釉河 |
+| low | low WebP | 1 | 关闭 | 关闭 |
+
+“减少动态效果”是正交覆盖：保留当前档位的静态细节、全景与角色 LOD，只冻结非必要环境运动。
 
 ## 技术基线
 
@@ -51,7 +62,7 @@ npm run assets:pieces:validate
 npm run assets:pieces:report
 ```
 
-当前 21 个运行时 GLB 均为单一 opaque skinned primitive、14 joints、7 clips；LOD1 七类合计约 1.70 MiB。模型通过顶点级烧土明暗、墓土侵蚀、裂隙、低金属度和高粗糙度避免塑料玩具感，完整红黑阵容接触表在 [`roster-contact-sheet-qin-terracotta.png`](assets/characters/reviews/roster-contact-sheet-qin-terracotta.png)。写实度定位是可实时上棋盘的秦俑中模，不宣称达到博物馆扫描或电影级手雕高模。
+当前 21 个运行时 GLB 均为单一 opaque skinned primitive、14 joints、7 clips；LOD1 七类合计约 1.90 MiB。模型通过顶点级烧土明暗、墓土侵蚀、裂隙、低金属度和高粗糙度避免塑料玩具感，完整红黑阵容接触表在 [`roster-contact-sheet-qin-terracotta.png`](assets/characters/reviews/roster-contact-sheet-qin-terracotta.png)。定位是适合棋盘阅读的 Q 版秦俑实时中模，不宣称达到博物馆扫描精度。
 
 ## 初始性能预算
 
@@ -94,8 +105,8 @@ npm run test:visual
 npm run test:performance:headed
 ```
 
-`npm test` 会先执行 Vinext 生产构建，再验证服务端输出、R3F 棋盘接线、九纵十横结构和 WebGL2 回退逻辑。Playwright 另覆盖音频用户手势、键盘完整走子、直接点击/触摸 WebGL 棋盘交叉点、红黑双方连续八手对弈、吃子、精确存档恢复、确认框焦点隔离、WebGL context loss/恢复和低画质视觉回归。严格性能场景要显式运行 `test:performance:headed`，无头软件渲染结果不作为真机 GPU 结论。
+`npm test` 会先执行 Vinext 生产构建，再验证服务端输出、R3F 棋盘接线、九纵十横结构和 WebGL2 回退逻辑。Playwright 另覆盖音频用户手势、键盘完整走子、真实 Canvas 指针/触摸、红黑双方连续八手、吃子、将军、终局、精确存档恢复、可选全景失败、画质往返、确认框焦点隔离和 WebGL context loss/恢复。视觉比较在环境状态显式进入 `ready` 或 `degraded` 后才截图。
 
-可重复的测试范围、浏览器证据、资源预算、性能数字及尚未关闭的发布门槛记录在 [`docs/validation.md`](docs/validation.md)。当前 M1 Max 可见 Chromium 高画质实测为 87 次当前绘制、106 次峰值绘制、18.7 ms p95 渲染帧间隔和 3.84 MiB 首次可玩生产响应体；连续性能轮次的 p95 在 17.8–18.7 ms 波动。绘制与下载预算通过，但尚未稳定达到计划中的 16.7 ms 精确目标，严格性能命令会如实返回失败，因此不会宣称完整性能验收已经通过。
+可重复的测试范围、浏览器证据、资源预算、性能数字及尚未关闭的发布门槛记录在 [`docs/validation.md`](docs/validation.md)。2026-08-25 的 M1 Max 可见 Chromium 高画质 1920×1080 在预热后的 208 帧窗口实测为 77 次当前绘制、82 次峰值绘制、16.54 ms 平均 / 18.4 ms p95 渲染帧间隔和 3.66 MiB 首次可玩生产响应体。绘制、DPR、主动全景和下载预算通过，但尚未达到 16.7 ms 精确 p95 门槛；严格性能命令会如实返回失败。
 
 部署层继续使用 Vinext/Vite 与 Cloudflare Worker；D1、Durable Objects 和账号体系留给联机阶段接入。

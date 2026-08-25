@@ -16,11 +16,15 @@ describe("PerformanceMetrics", () => {
     });
 
     expect(metrics.snapshot()).toEqual({
+      averageFrameIntervalMs: 15.2,
       currentDrawCalls: 100,
       currentTriangles: 140_000,
       geometries: 24,
+      maximumFrameIntervalMs: 20,
       peakDrawCalls: 100,
       peakTriangles: 140_000,
+      p50FrameIntervalMs: 16,
+      p90FrameIntervalMs: 20,
       p95FrameIntervalMs: 20,
       sampleCount: 5,
       textures: 12,

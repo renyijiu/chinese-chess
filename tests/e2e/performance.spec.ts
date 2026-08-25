@@ -13,6 +13,12 @@ test("@performance captures first-playable transfer size and renderer telemetry"
   const baseUrl = new URL(testInfo.project.use.baseURL as string);
   const expectedAssetPaths = ["marshal", "advisor", "elephant", "chariot", "horse", "cannon", "soldier"]
     .map((role) => `/models/pieces/v1/${role}/${role}-lod1.glb`);
+  const activePanoramaPath = "/background/qin-diorama-panorama-v1-high.webp";
+  const inactivePanoramaPaths = [
+    "/background/qin-diorama-panorama-v1-medium.webp",
+    "/background/qin-diorama-panorama-v1-low.webp",
+  ];
+  const expectedFirstPlayablePaths = [...expectedAssetPaths, activePanoramaPath];
   const responseBodies: Promise<readonly [string, number]>[] = [];
   const seenPaths = new Set<string>();
   let recordingFirstPlayable = true;
@@ -30,19 +36,26 @@ test("@performance captures first-playable transfer size and renderer telemetry"
 
   await openCleanGame(page, "high");
   const keyboard = await startGame(page);
-  await expect.poll(() => expectedAssetPaths.every((path) => seenPaths.has(path))).toBe(true);
+  await expect.poll(() => expectedFirstPlayablePaths.every((path) => seenPaths.has(path))).toBe(true);
   await expect.poll(() => page.evaluate(() => window.__XIANGQI_PERFORMANCE__?.currentDrawCalls ?? 0)).toBeGreaterThan(0);
   const bootstrapMetrics = await page.evaluate(() => window.__XIANGQI_PERFORMANCE__);
   console.info(`PERFORMANCE_BOOTSTRAP ${JSON.stringify(bootstrapMetrics)}`);
   recordingFirstPlayable = false;
   const measuredResponses = await Promise.all(responseBodies);
   const responseBytes = new Map(measuredResponses);
-  for (const path of expectedAssetPaths) {
+  for (const path of expectedFirstPlayablePaths) {
     expect(responseBytes.has(path), `first-playable response must include ${path}`).toBe(true);
+  }
+  for (const path of inactivePanoramaPaths) {
+    expect(seenPaths.has(path), `first playable must not request inactive panorama ${path}`).toBe(false);
   }
 
   let metrics = bootstrapMetrics as RuntimePerformanceSnapshot;
   if (authoritativeFrameGate) {
+    await page.evaluate(() => window.__XIANGQI_RESET_PERFORMANCE__?.());
+    await page.getByRole("button", { name: "自动巡游" }).click();
+    await page.waitForFunction(() => (window.__XIANGQI_PERFORMANCE__?.sampleCount ?? 0) >= 60);
+    await page.getByRole("button", { name: "停止巡游" }).click();
     await keyboard.focus();
     for (const key of ["ArrowLeft", "ArrowLeft", "ArrowLeft", "ArrowLeft", "ArrowUp", "ArrowUp", "ArrowUp", "Enter"]) {
       await keyboard.press(key);
@@ -52,9 +65,9 @@ test("@performance captures first-playable transfer size and renderer telemetry"
     await keyboard.press("Enter");
     await expect(page.locator(".xiangqi-game-shell")).toHaveAttribute("data-game-revision", "1");
     await expect(keyboard).toHaveAttribute("aria-disabled", "false");
-    if ((await page.evaluate(() => window.__XIANGQI_PERFORMANCE__?.sampleCount ?? 0)) < 30) {
+    if ((await page.evaluate(() => window.__XIANGQI_PERFORMANCE__?.sampleCount ?? 0)) < 180) {
       await page.getByRole("button", { name: "自动巡游" }).click();
-      await page.waitForFunction(() => (window.__XIANGQI_PERFORMANCE__?.sampleCount ?? 0) >= 30);
+      await page.waitForFunction(() => (window.__XIANGQI_PERFORMANCE__?.sampleCount ?? 0) >= 180);
       await page.getByRole("button", { name: "停止巡游" }).click();
     }
     metrics = await page.evaluate(() => window.__XIANGQI_PERFORMANCE__) as RuntimePerformanceSnapshot;
@@ -65,12 +78,46 @@ test("@performance captures first-playable transfer size and renderer telemetry"
     return debug && gl ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) as string : "unavailable";
   });
   const firstPlayableBytes = [...responseBytes.values()].reduce((total, bytes) => total + bytes, 0);
+  const rafCadence = await page.evaluate(() => new Promise<{
+    averageFrameIntervalMs: number;
+    maximumFrameIntervalMs: number;
+    p50FrameIntervalMs: number;
+    p90FrameIntervalMs: number;
+    p95FrameIntervalMs: number;
+  }>((resolve) => {
+    const intervals: number[] = [];
+    let previous = 0;
+    const sample = (timestamp: number) => {
+      if (previous > 0) intervals.push(timestamp - previous);
+      previous = timestamp;
+      if (intervals.length < 120) {
+        window.requestAnimationFrame(sample);
+        return;
+      }
+      const sorted = [...intervals].sort((left, right) => left - right);
+      const percentile = (value: number) => sorted[Math.max(0, Math.ceil(sorted.length * value) - 1)] ?? 0;
+      resolve({
+        averageFrameIntervalMs: intervals.reduce((total, interval) => total + interval, 0) / intervals.length,
+        maximumFrameIntervalMs: sorted.at(-1) ?? 0,
+        p50FrameIntervalMs: percentile(0.5),
+        p90FrameIntervalMs: percentile(0.9),
+        p95FrameIntervalMs: percentile(0.95),
+      });
+    };
+    window.requestAnimationFrame(sample);
+  }));
+  const canvasDpr = await page.locator("canvas").evaluate((canvas) => {
+    const bounds = canvas.getBoundingClientRect();
+    return Number(((canvas as HTMLCanvasElement).width / bounds.width).toFixed(2));
+  });
   const evidence = {
     ...metrics,
     authoritativeFrameGate,
     firstPlayableBytes,
     firstPlayableMiB: Number((firstPlayableBytes / 1024 / 1024).toFixed(2)),
+    canvasDpr,
     measurement: process.env.PLAYWRIGHT_MEASUREMENT_MODE ?? "Headless Chromium rendered-frame interval; not CPU time or GPU render duration",
+    rafCadence,
     renderer,
     gpuMemoryMiB: "not measured; renderer.info exposes resource counts, not allocation bytes",
   };
@@ -80,9 +127,10 @@ test("@performance captures first-playable transfer size and renderer telemetry"
   });
   console.info(`PERFORMANCE_EVIDENCE ${JSON.stringify(evidence)}`);
 
-  expect(metrics.sampleCount).toBeGreaterThanOrEqual(authoritativeFrameGate ? 30 : 1);
+  expect(metrics.sampleCount).toBeGreaterThanOrEqual(authoritativeFrameGate ? 180 : 1);
   expect(metrics.peakDrawCalls).toBeLessThanOrEqual(160);
   expect(metrics.currentDrawCalls).toBeLessThanOrEqual(100);
   if (authoritativeFrameGate) expect(metrics.p95FrameIntervalMs).toBeLessThanOrEqual(16.7);
+  expect(canvasDpr).toBeLessThanOrEqual(1.5);
   expect(firstPlayableBytes).toBeLessThanOrEqual(12 * 1024 * 1024);
 });
