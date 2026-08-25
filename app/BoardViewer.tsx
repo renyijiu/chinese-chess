@@ -71,7 +71,7 @@ export function BoardViewer({
   return (
     <section
       className="viewer-shell board-viewer"
-      aria-label="写实要塞风中国象棋棋盘三维预览"
+      aria-label="Q 版秦俑沙盘中国象棋棋盘三维预览"
       data-environment-status={environmentStatus}
     >
       <div className="viewer-canvas">
@@ -122,8 +122,8 @@ export function BoardViewer({
       </div>
 
       <div className="viewer-corner-label" aria-hidden="true">
-        <span>FORTRESS BOARD</span>
-        <strong>要塞棋盘 · 01</strong>
+        <span>QIN DIORAMA</span>
+        <strong>秦俑沙盘 · 01</strong>
       </div>
 
       <div className="viewer-hud">

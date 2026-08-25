@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import { openCleanGame, setReducedMotion, startGame } from "./helpers";
 
-test("@visual initial 32-piece fortress board", async ({ page }) => {
+test("@visual initial 32-piece Qin terracotta diorama board", async ({ page }) => {
   await openCleanGame(page);
   await startGame(page);
   await setReducedMotion(page);

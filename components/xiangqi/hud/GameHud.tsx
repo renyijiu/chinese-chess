@@ -48,7 +48,7 @@ export function GameMenu({
     <div className="game-menu game-overlay-panel" role="dialog" aria-labelledby="game-menu-title">
       <p className="game-kicker">LOCAL HOT-SEAT · 本机双人</p>
       <h2 id="game-menu-title">兵临九宫</h2>
-      <p>红方先行。选择己方棋子，再点击金色合法落点；红色落点表示可吃子。</p>
+      <p>红方先行。选择己方棋子，再点击米白圆点落位；朱砂圆环表示可吃子。</p>
       {warning ? <p className="game-warning" role="status">{warning}</p> : null}
       <div className="game-menu-actions">
         {hasSave ? (
@@ -150,7 +150,11 @@ export function GameHud({
 
   return (
     <div className="game-hud" aria-label="对局控制台">
-      <section className={`game-turn-card ${game.sideToMove}`} aria-label="当前回合">
+      <section
+        className={`game-turn-card ${game.sideToMove}`}
+        aria-label="当前回合"
+        data-check={check ? "true" : undefined}
+      >
         <span>{interactionLocked ? "演出处理中" : ended ? "棋局结束" : "当前行动"}</span>
         <strong>{ended ? formatGameOutcome(game) : SIDE_LABELS[game.sideToMove]}</strong>
         <small>

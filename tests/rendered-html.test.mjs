@@ -23,19 +23,21 @@ async function render() {
   );
 }
 
-test("server-renders the 3D Xiangqi fortress board", async () => {
+test("server-renders the Qin terracotta diorama board", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
-  assert.match(html, /<html lang="zh-CN">/);
-  assert.match(html, /<title>兵临九宫｜3D 中国象棋要塞棋盘<\/title>/);
+  assert.match(html, /<html lang="zh-CN" style="/);
+  assert.match(html, /--qin-black-lacquer:#171612/);
+  assert.match(html, /--qin-hud-text:#eadcc3/);
+  assert.match(html, /<title>兵临九宫｜Q 版秦俑 3D 中国象棋<\/title>/);
   assert.match(html, /3D 中国象棋 · 本机双人/);
   assert.match(html, /可玩棋局 · POPULAR V1/);
   assert.match(html, /32 枚棋子按标准阵型列阵/);
   assert.match(html, /开始本机双人对局/);
-  assert.match(html, /aria-label="写实要塞风中国象棋棋盘三维预览"/);
+  assert.match(html, /aria-label="Q 版秦俑沙盘中国象棋棋盘三维预览"/);
   assert.match(html, /俯视棋盘/);
   assert.match(html, /自动巡游/);
   assert.match(html, /换边视角/);

@@ -15,8 +15,8 @@ const designNotes = [
   },
   {
     index: "02",
-    title: "氛围取自参考图",
-    copy: "以夕阳山谷、层叠城墙、楼阁灯火、湿润青石和红黑军旗建立写实战场纵深，没有照搬图片中的棋子。",
+    title: "一方秦俑沙盘",
+    copy: "烧土棋台、黑漆线格、青绿河界与微缩秦代营垒共同构成桌面沙盘，让 Q 版秦俑成为视觉主角。",
   },
   {
     index: "03",
@@ -41,21 +41,22 @@ export default function Home() {
 
       <section className="board-intro" id="top">
         <div className="board-title">
-          <p className="eyebrow">FORTRESS BATTLEFIELD · 要塞战场</p>
-          <h1>城已筑，<br />请点兵。</h1>
+          <p className="eyebrow">QIN TERRACOTTA DIORAMA · 秦俑沙盘</p>
+          <h1>俑已列阵，<br />请执一手。</h1>
         </div>
         <div className="board-summary">
           <p className="lede">
-            写实山城棋盘现已接入完整的本机双人规则：32 枚棋子按标准阵型列阵，红方先行，
+            Q 版秦俑沙盘现已接入完整的本机双人规则：32 枚棋子按标准阵型列阵，红方先行，
             可选择合法落点、吃子、悔棋、认输并自动恢复本地存档。七类角色均已重构为可编辑、
-            带骨骼与七套动作的秦兵马俑；烧土陶色为主体，以风化朱砂和铜绿军印区分双方。
+            带骨骼与七套动作的秦兵马俑；烧土陶色为主体，以风化朱砂和铜绿军印区分双方，
+            黑漆与旧铜细节收住界面层级。
           </p>
           <p className="interaction-hint">拖动旋转 · 滚轮缩放 · 右键平移</p>
         </div>
       </section>
 
       <section className="board-stage" aria-labelledby="board-stage-title">
-        <h2 className="sr-only" id="board-stage-title">3D 中国象棋要塞棋盘</h2>
+        <h2 className="sr-only" id="board-stage-title">Q 版秦俑沙盘 3D 中国象棋棋盘</h2>
         <XiangqiGame />
       </section>
 
@@ -71,10 +72,10 @@ export default function Home() {
       <section className="board-notes" aria-labelledby="design-notes-title">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">DESIGN LOGIC</p>
-            <h2 id="design-notes-title">棋盘不是背景，<br />是第一件兵器。</h2>
+            <p className="eyebrow">DIORAMA DESIGN · 沙盘设计</p>
+            <h2 id="design-notes-title">棋盘是一方土，<br />也是两军阵前。</h2>
           </div>
-          <p>BOARD PROTOTYPE · V1</p>
+          <p>QIN DIORAMA · V1</p>
         </div>
         <div className="note-grid">
           {designNotes.map((note) => (

@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
+import type { CSSProperties } from "react";
+
+import { QIN_DIORAMA_CSS_VARIABLES } from "../components/xiangqi/scene/scene-theme";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "兵临九宫｜3D 中国象棋要塞棋盘",
-  description: "写实山城要塞风格的网页 3D 中国象棋棋盘原型。",
+  title: "兵临九宫｜Q 版秦俑 3D 中国象棋",
+  description: "以秦兵马俑、烧土陶台与黑漆铜饰构成的网页 3D 中国象棋本机双人棋局。",
 };
 
 export default function RootLayout({
@@ -12,7 +15,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="zh-CN">
+    <html lang="zh-CN" style={QIN_DIORAMA_CSS_VARIABLES as CSSProperties}>
       <body>{children}</body>
     </html>
   );

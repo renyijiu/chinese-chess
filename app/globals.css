@@ -1,14 +1,14 @@
 @import "tailwindcss";
 
 :root {
-  --ink: #f0eadc;
-  --muted: #9d9a91;
-  --red: #8f2d25;
-  --red-bright: #b04738;
-  --gold: #c59a57;
-  --deep: #090d0c;
-  --panel: #111716;
-  --line: rgba(213, 184, 128, 0.2);
+  --ink: var(--qin-hud-text);
+  --muted: var(--qin-hud-text-muted);
+  --red: var(--qin-faction-red-secondary);
+  --red-bright: var(--qin-faction-red-glow);
+  --gold: var(--qin-aged-bronze);
+  --deep: var(--qin-environment-background);
+  --panel: var(--qin-hud-surface);
+  --line: color-mix(in srgb, var(--qin-hud-border) 58%, transparent);
 }
 
 * {
@@ -21,9 +21,9 @@ html {
 
 body {
   background:
-    radial-gradient(circle at 76% 9%, rgba(113, 52, 33, 0.2), transparent 32rem),
-    radial-gradient(circle at 10% 45%, rgba(25, 69, 64, 0.16), transparent 36rem),
-    linear-gradient(180deg, #0e1211 0%, var(--deep) 100%);
+    radial-gradient(circle at 76% 8%, color-mix(in srgb, var(--qin-fired-clay) 30%, transparent), transparent 31rem),
+    radial-gradient(circle at 7% 43%, color-mix(in srgb, var(--qin-verdigris) 20%, transparent), transparent 34rem),
+    linear-gradient(180deg, var(--qin-fired-clay-shadow) -42%, var(--deep) 42%, var(--qin-black-lacquer) 100%);
   color: var(--ink);
   font-family: "Noto Serif SC", "Songti SC", "STSong", Georgia, serif;
   margin: 0;
@@ -40,18 +40,19 @@ a {
   -webkit-tap-highlight-color: transparent;
 }
 
-:where(a, button):focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: 4px;
+:where(a, button, input, select):focus-visible {
+  box-shadow: 0 0 0 2px var(--qin-state-keyboard-focus), 0 0 0 5px var(--qin-chalk);
+  outline: 0;
 }
 
 .board-page {
-  overflow: hidden;
+  overflow-x: clip;
 }
 
 .topbar {
   align-items: center;
   border-bottom: 1px solid var(--line);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--qin-black-lacquer) 82%, transparent);
   display: flex;
   justify-content: space-between;
   margin: 0 auto;
@@ -84,9 +85,9 @@ a {
 
 .brand-seal {
   align-items: center;
-  background: var(--red);
-  border: 1px solid #ca6b55;
-  box-shadow: inset 0 0 0 3px rgba(55, 13, 10, 0.32);
+  background: var(--qin-cinnabar);
+  border: 1px solid var(--qin-faction-red-glow);
+  box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--qin-black-lacquer) 46%, transparent);
   display: inline-flex;
   font-size: 21px;
   height: 42px;
@@ -95,8 +96,9 @@ a {
 }
 
 .phase-badge {
-  border: 1px solid var(--line);
-  color: var(--gold);
+  background: color-mix(in srgb, var(--qin-black-lacquer) 82%, transparent);
+  border: 1px solid var(--qin-aged-bronze);
+  color: var(--qin-chalk);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 11px;
   letter-spacing: 0.08em;
@@ -114,7 +116,7 @@ a {
 }
 
 .eyebrow {
-  color: var(--gold);
+  color: var(--qin-fired-clay-light);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 11px;
   letter-spacing: 0.22em;
@@ -130,12 +132,12 @@ h1 {
 }
 
 .board-summary {
-  border-left: 1px solid var(--line);
+  border-left: 3px double var(--qin-aged-bronze);
   padding-left: clamp(22px, 3vw, 44px);
 }
 
 .lede {
-  color: #c3beb1;
+  color: var(--qin-hud-text);
   font-family: ui-sans-serif, system-ui, sans-serif;
   font-size: 15px;
   line-height: 1.9;
@@ -144,7 +146,7 @@ h1 {
 }
 
 .interaction-hint {
-  color: #777d78;
+  color: var(--qin-hud-text-muted);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 10px;
   letter-spacing: 0.12em;
@@ -158,9 +160,12 @@ h1 {
 }
 
 .viewer-shell {
-  background: #101615;
-  border: 1px solid rgba(213, 184, 128, 0.26);
-  box-shadow: 0 36px 120px rgba(0, 0, 0, 0.58);
+  background: var(--qin-black-lacquer);
+  border: 2px solid var(--qin-aged-bronze);
+  box-shadow:
+    inset 0 0 0 5px var(--qin-black-lacquer),
+    inset 0 0 0 6px color-mix(in srgb, var(--qin-chalk) 24%, transparent),
+    0 36px 120px color-mix(in srgb, var(--qin-black-lacquer) 78%, transparent);
   min-height: min(830px, 79vh);
   overflow: hidden;
   position: relative;
@@ -168,7 +173,7 @@ h1 {
 
 .viewer-shell::before,
 .viewer-shell::after {
-  border-color: rgba(197, 154, 87, 0.48);
+  border-color: var(--qin-aged-bronze);
   border-style: solid;
   content: "";
   height: 52px;
@@ -211,7 +216,7 @@ h1 {
 }
 
 .viewer-fallback {
-  color: var(--muted);
+  color: var(--qin-hud-text-muted);
   font-family: ui-sans-serif, system-ui, sans-serif;
   inset: 50% auto auto 50%;
   margin: 0;
@@ -232,13 +237,14 @@ h1 {
 }
 
 .viewer-corner-label span {
-  color: rgba(232, 218, 191, 0.57);
+  color: var(--qin-hud-text-muted);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 9px;
   letter-spacing: 0.18em;
 }
 
 .viewer-corner-label strong {
+  color: var(--qin-chalk);
   font-size: 13px;
   font-weight: 500;
   letter-spacing: 0.12em;
@@ -259,9 +265,9 @@ h1 {
 
 .viewer-stat {
   backdrop-filter: blur(12px);
-  background: rgba(7, 11, 10, 0.7);
-  border: 1px solid var(--line);
-  color: #c5beae;
+  background: color-mix(in srgb, var(--qin-hud-surface) 88%, transparent);
+  border: 1px solid var(--qin-hud-border);
+  color: var(--qin-hud-text);
   flex: 1 1 250px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 10px;
@@ -279,9 +285,9 @@ h1 {
 
 .viewer-control {
   backdrop-filter: blur(12px);
-  background: rgba(7, 11, 10, 0.76);
-  border: 1px solid var(--line);
-  color: var(--ink);
+  background: color-mix(in srgb, var(--qin-hud-surface) 90%, transparent);
+  border: 1px solid var(--qin-hud-border);
+  color: var(--qin-hud-text);
   cursor: pointer;
   font-family: ui-sans-serif, system-ui, sans-serif;
   font-size: 12px;
@@ -292,7 +298,8 @@ h1 {
 
 .viewer-control:hover:not(:disabled),
 .viewer-control[aria-pressed="true"] {
-  border-color: rgba(213, 184, 128, 0.63);
+  background: var(--qin-hud-surface-raised);
+  border-color: var(--qin-chalk);
 }
 
 .viewer-control:disabled {
@@ -321,7 +328,7 @@ h1 {
 }
 
 .board-specs dt {
-  color: var(--muted);
+  color: var(--qin-hud-text-muted);
   font-family: ui-sans-serif, system-ui, sans-serif;
   font-size: 10px;
 }
@@ -367,6 +374,7 @@ h1 {
 }
 
 .note-grid article {
+  background: color-mix(in srgb, var(--qin-black-lacquer) 82%, transparent);
   border-bottom: 1px solid var(--line);
   border-right: 1px solid var(--line);
   border-top: 1px solid var(--line);
@@ -375,7 +383,7 @@ h1 {
 }
 
 .note-grid article > span {
-  color: var(--gold);
+  color: var(--qin-fired-clay-light);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 11px;
 }
@@ -387,7 +395,7 @@ h1 {
 }
 
 .note-grid p {
-  color: var(--muted);
+  color: var(--qin-hud-text-muted);
   font-family: ui-sans-serif, system-ui, sans-serif;
   font-size: 13px;
   line-height: 1.8;
@@ -442,7 +450,7 @@ h1 {
 }
 
 .game-kicker {
-  color: var(--gold);
+  color: var(--qin-fired-clay-light);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 10px;
   letter-spacing: 0.2em;
@@ -452,10 +460,13 @@ h1 {
 .game-menu {
   backdrop-filter: blur(20px);
   background:
-    linear-gradient(145deg, rgba(16, 22, 20, 0.97), rgba(8, 12, 11, 0.9)),
-    rgba(8, 12, 11, 0.94);
-  border: 1px solid rgba(213, 184, 128, 0.42);
-  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.7);
+    linear-gradient(145deg, color-mix(in srgb, var(--qin-hud-surface-raised) 70%, var(--qin-hud-surface)), var(--qin-hud-surface) 62%),
+    var(--qin-hud-surface);
+  border: 2px solid var(--qin-aged-bronze);
+  box-shadow:
+    inset 0 0 0 4px var(--qin-black-lacquer),
+    inset 0 0 0 5px color-mix(in srgb, var(--qin-chalk) 18%, transparent),
+    0 28px 90px color-mix(in srgb, var(--qin-black-lacquer) 82%, transparent);
   left: 50%;
   max-width: min(520px, calc(100% - 40px));
   padding: clamp(28px, 5vw, 52px);
@@ -467,7 +478,7 @@ h1 {
 
 .game-menu::before,
 .game-over-panel::before {
-  background: linear-gradient(90deg, var(--red-bright), var(--gold));
+  background: linear-gradient(90deg, var(--qin-cinnabar), var(--qin-aged-bronze), var(--qin-verdigris));
   content: "";
   height: 2px;
   left: 0;
@@ -488,14 +499,14 @@ h1 {
 .game-menu > p:not(.game-kicker),
 .game-over-panel > p:not(.game-kicker),
 .game-confirm-dialog p {
-  color: #bcb5a7;
+  color: var(--qin-hud-text);
   font-family: ui-sans-serif, system-ui, sans-serif;
   font-size: 14px;
   line-height: 1.75;
 }
 
 .game-menu small {
-  color: #777d78;
+  color: var(--qin-hud-text-muted);
   display: block;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 9px;
@@ -515,8 +526,8 @@ h1 {
 .game-secondary-action,
 .game-danger-action,
 .game-action-bar button {
-  border: 1px solid var(--line);
-  color: var(--ink);
+  border: 1px solid var(--qin-hud-border);
+  color: var(--qin-hud-text);
   cursor: pointer;
   font-family: ui-sans-serif, system-ui, sans-serif;
   font-size: 13px;
@@ -525,26 +536,26 @@ h1 {
 }
 
 .game-primary-action {
-  background: linear-gradient(135deg, #9c3328, #742019);
-  border-color: rgba(221, 126, 92, 0.72);
+  background: color-mix(in srgb, var(--qin-cinnabar) 64%, var(--qin-black-lacquer));
+  border-color: var(--qin-faction-red-glow);
 }
 
 .game-secondary-action,
 .game-action-bar button {
   backdrop-filter: blur(13px);
-  background: rgba(8, 13, 12, 0.86);
+  background: color-mix(in srgb, var(--qin-hud-surface) 91%, transparent);
 }
 
 .game-danger-action {
-  background: #7c251e;
-  border-color: #be5d4d;
+  background: color-mix(in srgb, var(--qin-cinnabar) 58%, var(--qin-black-lacquer));
+  border-color: var(--qin-faction-red-glow);
 }
 
 .game-primary-action:hover,
 .game-secondary-action:hover,
 .game-danger-action:hover,
 .game-action-bar button:hover:not(:disabled) {
-  border-color: var(--gold);
+  border-color: var(--qin-chalk);
 }
 
 .game-primary-action:disabled,
@@ -556,9 +567,9 @@ h1 {
 
 .game-warning,
 .game-persistence-warning {
-  background: rgba(117, 43, 28, 0.86);
-  border: 1px solid rgba(220, 117, 81, 0.55);
-  color: #f1d6c5 !important;
+  background: color-mix(in srgb, var(--qin-cinnabar) 68%, var(--qin-black-lacquer));
+  border: 1px solid var(--qin-faction-red-glow);
+  color: var(--qin-chalk) !important;
   font-family: ui-sans-serif, system-ui, sans-serif;
   font-size: 12px !important;
   line-height: 1.5 !important;
@@ -574,9 +585,9 @@ h1 {
 .game-turn-card,
 .game-history {
   backdrop-filter: blur(14px);
-  background: rgba(6, 10, 9, 0.79);
-  border: 1px solid var(--line);
-  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.32);
+  background: color-mix(in srgb, var(--qin-hud-surface) 88%, transparent);
+  border: 1px solid var(--qin-hud-border);
+  box-shadow: 0 16px 44px color-mix(in srgb, var(--qin-black-lacquer) 62%, transparent);
 }
 
 .game-turn-card {
@@ -590,23 +601,31 @@ h1 {
 }
 
 .game-turn-card.red {
-  border-left: 3px solid #b74635;
+  border-left: 4px solid var(--qin-faction-red-trim);
 }
 
 .game-turn-card.black {
-  border-left: 3px solid #4d8a76;
+  border-left: 4px solid var(--qin-faction-black-trim);
+}
+
+.game-turn-card[data-check="true"] {
+  border-bottom-color: var(--qin-state-check);
+  box-shadow:
+    inset 0 -3px 0 var(--qin-state-check),
+    0 16px 44px color-mix(in srgb, var(--qin-black-lacquer) 62%, transparent);
 }
 
 .game-turn-card span,
 .game-turn-card small,
 .game-history > div span {
-  color: #9c9b92;
+  color: var(--qin-hud-text-muted);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 9px;
   letter-spacing: 0.08em;
 }
 
 .game-turn-card strong {
+  color: var(--qin-hud-text);
   font-size: 19px;
   font-weight: 500;
 }
@@ -628,7 +647,7 @@ h1 {
 }
 
 .game-history > p {
-  color: #777d78;
+  color: var(--qin-hud-text-muted);
   font-family: ui-sans-serif, system-ui, sans-serif;
   font-size: 12px;
   margin: 18px 0 5px;
@@ -644,7 +663,7 @@ h1 {
 
 .game-history li {
   align-items: center;
-  border-top: 1px solid rgba(213, 184, 128, 0.1);
+  border-top: 1px solid color-mix(in srgb, var(--qin-hud-border) 30%, transparent);
   display: grid;
   font-family: ui-sans-serif, system-ui, sans-serif;
   font-size: 10px;
@@ -654,12 +673,12 @@ h1 {
 }
 
 .game-history li > span:first-child {
-  color: var(--gold);
+  color: var(--qin-fired-clay-light);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 .game-history em {
-  color: #df7865;
+  color: var(--qin-faction-red-glow);
   font-style: normal;
 }
 
@@ -678,9 +697,9 @@ h1 {
 }
 
 .game-action-bar .game-skip-action {
-  background: linear-gradient(135deg, rgba(143, 91, 30, 0.94), rgba(88, 49, 20, 0.94));
-  border-color: rgba(239, 191, 102, 0.72);
-  color: #ffe1a1;
+  background: linear-gradient(135deg, var(--qin-fired-clay), var(--qin-fired-clay-shadow));
+  border-color: var(--qin-fired-clay-light);
+  color: var(--qin-chalk);
 }
 
 .game-keyboard-control {
@@ -694,9 +713,9 @@ h1 {
 .game-keyboard-control button {
   align-items: center;
   backdrop-filter: blur(14px);
-  background: rgba(6, 10, 9, 0.82);
-  border: 1px solid var(--line);
-  color: var(--ink);
+  background: color-mix(in srgb, var(--qin-hud-surface) 90%, transparent);
+  border: 1px solid var(--qin-hud-border);
+  color: var(--qin-hud-text);
   cursor: pointer;
   display: flex;
   gap: 12px;
@@ -707,8 +726,11 @@ h1 {
 }
 
 .game-keyboard-control button[aria-pressed="true"] {
-  border-color: rgba(244, 228, 164, 0.88);
-  box-shadow: 0 0 0 3px rgba(197, 154, 87, 0.16), 0 12px 35px rgba(0, 0, 0, 0.36);
+  border-color: var(--qin-state-keyboard-focus);
+  box-shadow:
+    0 0 0 2px var(--qin-chalk),
+    0 0 0 4px var(--qin-state-keyboard-focus),
+    0 12px 35px color-mix(in srgb, var(--qin-black-lacquer) 64%, transparent);
 }
 
 .game-keyboard-control button[aria-disabled="true"] {
@@ -718,14 +740,14 @@ h1 {
 
 .game-keyboard-control span,
 .game-keyboard-control small {
-  color: #9c9b92;
+  color: var(--qin-hud-text-muted);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 9px;
   letter-spacing: 0.06em;
 }
 
 .game-keyboard-control strong {
-  color: #f4e4a4;
+  color: var(--qin-chalk);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 13px;
   text-transform: uppercase;
@@ -747,8 +769,8 @@ h1 {
 
 .game-settings {
   backdrop-filter: blur(17px);
-  background: rgba(7, 12, 11, 0.94);
-  border: 1px solid rgba(213, 184, 128, 0.32);
+  background: color-mix(in srgb, var(--qin-hud-surface) 96%, transparent);
+  border: 1px solid var(--qin-hud-border);
   bottom: 81px;
   display: grid;
   gap: 14px;
@@ -761,7 +783,7 @@ h1 {
 }
 
 .game-settings label {
-  color: #c5beae;
+  color: var(--qin-hud-text);
   display: grid;
   font-family: ui-sans-serif, system-ui, sans-serif;
   font-size: 12px;
@@ -770,16 +792,27 @@ h1 {
 
 .game-settings select,
 .game-settings input[type="range"] {
-  accent-color: var(--red-bright);
-  background: #111817;
-  color: var(--ink);
+  accent-color: var(--qin-cinnabar);
+  background: var(--qin-black-lacquer);
+  color: var(--qin-hud-text);
   max-width: 100%;
 }
 
+.game-settings input[type="range"] {
+  min-height: 24px;
+}
+
 .game-settings select {
-  border: 1px solid var(--line);
+  border: 1px solid var(--qin-hud-border);
   min-height: 36px;
   padding: 5px 8px;
+}
+
+.game-settings input[type="checkbox"] {
+  accent-color: var(--qin-cinnabar);
+  height: 24px;
+  margin: 0;
+  width: 24px;
 }
 
 .game-settings .game-toggle-row {
@@ -790,8 +823,8 @@ h1 {
 
 .game-over-panel {
   backdrop-filter: blur(18px);
-  background: rgba(8, 13, 12, 0.94);
-  border: 1px solid rgba(213, 184, 128, 0.4);
+  background: color-mix(in srgb, var(--qin-hud-surface) 96%, transparent);
+  border: 2px solid var(--qin-aged-bronze);
   left: 50%;
   max-width: min(520px, calc(100% - 40px));
   padding: 30px;
@@ -803,7 +836,7 @@ h1 {
 
 .game-dialog-backdrop {
   align-items: center;
-  background: rgba(2, 4, 4, 0.7);
+  background: color-mix(in srgb, var(--qin-black-lacquer) 78%, transparent);
   display: flex;
   inset: 0;
   justify-content: center;
@@ -813,9 +846,9 @@ h1 {
 }
 
 .game-confirm-dialog {
-  background: #101615;
-  border: 1px solid rgba(213, 184, 128, 0.48);
-  box-shadow: 0 26px 80px rgba(0, 0, 0, 0.7);
+  background: var(--qin-hud-surface);
+  border: 2px solid var(--qin-aged-bronze);
+  box-shadow: 0 26px 80px color-mix(in srgb, var(--qin-black-lacquer) 84%, transparent);
   max-width: 430px;
   padding: 28px;
   width: 100%;
@@ -914,6 +947,7 @@ h1 {
 
   .game-settings {
     bottom: 125px;
+    max-height: calc(100% - 160px);
     right: 18px;
   }
 
