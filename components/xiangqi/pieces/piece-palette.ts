@@ -12,11 +12,14 @@ export const FACTION_COLORS: Record<Side, {
   trim: number;
 }> = {
   red: {
-    bronze: 0x6b4027,
-    clothPrimary: 0x803024,
-    clothSecondary: 0x351713,
+    // These targets are the sRGB encodings of the authoritative research
+    // materials' linear glTF base colors. Red pieces therefore retain the
+    // source lacquer, jade, cinnabar and dark-detail appearance exactly.
+    bronze: 0x5b4031,
+    clothPrimary: 0x6a4937,
+    clothSecondary: 0x6faf95,
     glow: 0xd7a35d,
-    trim: 0xa8763b,
+    trim: 0xc44b2f,
   },
   black: {
     bronze: 0x3f5d50,

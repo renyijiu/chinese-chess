@@ -1,12 +1,9 @@
-"""Generate the seven Qin-terracotta Xiangqi role families.
+"""Adapt the authoritative Qin-terracotta roster to the runtime contract.
 
-The geometry is deliberately deterministic and procedural: every checked-in
-``.blend`` stays editable, every role has an unmistakable board-camera
-silhouette, and the runtime GLBs need no third-party geometry or bitmap assets.
-The forms follow the repository-owned Qin terracotta roster concept: fired
-clay remains dominant, while restrained mineral-pigment command marks separate
-the factions.  The output is an editable, original technical-art asset set and
-does not use third-party geometry or textures.
+The repository-owned research GLBs under ``assets/models`` are the geometry
+and appearance authority. This script normalizes, simplifies, vertex-colors,
+rigs and animates those meshes for the game without replacing their designs
+with the older procedural runtime placeholders.
 """
 
 from __future__ import annotations
@@ -21,6 +18,7 @@ from mathutils import Vector
 
 
 ROOT = Path(__file__).resolve().parents[2]
+OUTPUT_ROOT = Path(os.environ.get("XIANGQI_ASSET_OUTPUT_ROOT", ROOT)).resolve()
 ROLES = ("marshal", "advisor", "elephant", "chariot", "horse", "cannon", "soldier")
 GENERATED_ROLES = ROLES
 DISPLAY_NAMES = {
@@ -32,7 +30,49 @@ DISPLAY_NAMES = {
     "cannon": {"red": "炮", "black": "砲"},
     "soldier": {"red": "兵", "black": "卒"},
 }
-REFERENCE_FILE = "qin-terracotta-roster-v1.png"
+SOURCE_COMMIT = "96cadeb"
+AUTHORITATIVE_MODEL_FILES = {
+    role: (
+        f"assets/models/red-{role}-terracotta-cartoon-v2.glb"
+        if role == "marshal"
+        else f"assets/models/red-{role}-terracotta-cartoon-v1.glb"
+    )
+    for role in ROLES
+}
+CONTRACT_DIMENSIONS = {
+    "marshal": {"footprint": 0.8900, "height": 1.6830},
+    "advisor": {"footprint": 0.8900, "height": 1.4802},
+    "elephant": {"footprint": 0.9431, "height": 1.2320},
+    "chariot": {"footprint": 0.8900, "height": 1.1900},
+    "horse": {"footprint": 0.9054, "height": 1.7394},
+    "cannon": {"footprint": 0.9400, "height": 0.9000},
+    "soldier": {"footprint": 0.8900, "height": 1.5701},
+}
+LOD_TRIANGLE_BUDGETS = {
+    "marshal": {"lod0": 60000, "lod1": 18000, "lod2": 5000},
+    "advisor": {"lod0": 48000, "lod1": 14000, "lod2": 4000},
+    "elephant": {"lod0": 72000, "lod1": 22000, "lod2": 6000},
+    "chariot": {"lod0": 68000, "lod1": 20000, "lod2": 5000},
+    "horse": {"lod0": 65000, "lod1": 20000, "lod2": 5000},
+    "cannon": {"lod0": 55000, "lod1": 16000, "lod2": 4000},
+    "soldier": {"lod0": 38000, "lod1": 10000, "lod2": 3000},
+}
+LOD_TARGET_FRACTIONS = {"lod0": 0.94, "lod1": 0.90, "lod2": 0.88}
+SEMANTIC_REFERENCE_COLORS = {
+    "faction_cloth_primary": (0.25, 0.018, 0.01),
+    "faction_cloth_secondary": (0.065, 0.008, 0.006),
+    "faction_trim": (0.38, 0.18, 0.035),
+    "aged_bronze": (0.16, 0.078, 0.025),
+}
+# Imported material names are stable parts of the authoritative research
+# contract. Faces and fired clay remain untouched; armour and accents carry
+# the four exact runtime faction masks.
+SEMANTIC_MATERIAL_TOKENS = (
+    ("deep brown lacquer armour", "faction_cloth_primary"),
+    ("polished jade green", "faction_cloth_secondary"),
+    ("cinnabar red trim", "faction_trim"),
+    ("deep brown hair and details", "aged_bronze"),
+)
 VISUAL_INTENT = {
     "marshal": ["Qin terracotta general", "double-tail officer headdress", "command sword and broad lamellar mantle"],
     "advisor": ["Qin command officer", "bamboo slips and bronze tiger tally", "layered robe beneath lamellar collar"],
@@ -508,38 +548,43 @@ def geometry_soldier(m, s):
     cone("infantry_spear_head", (0.305, -0.085, 1.46), 0.052, 0.004, 0.22, m["trim"], max(8, s["segments"] // 3), (0.04, 0.02, 0))
 
 
+# Kept only as an opt-in development fallback for diagnosing Blender itself.
+# Production builds always import AUTHORITATIVE_MODEL_FILES and fail closed if
+# one is missing.
 GEOMETRY_BUILDERS = {
     "marshal": geometry_marshal, "advisor": geometry_advisor, "elephant": geometry_elephant,
     "chariot": geometry_chariot, "horse": geometry_horse, "cannon": geometry_cannon, "soldier": geometry_soldier,
 }
 
 
+def material_base_color(material):
+    if material and material.use_nodes and material.node_tree:
+        bsdf = next((node for node in material.node_tree.nodes if node.type == "BSDF_PRINCIPLED"), None)
+        if bsdf and "Base Color" in bsdf.inputs:
+            return tuple(bsdf.inputs["Base Color"].default_value[:3])
+    if material:
+        return tuple(material.diffuse_color[:3])
+    return (0.18, 0.18, 0.18)
+
+
+def semantic_color_for_material(material):
+    name = material.name.lower() if material else ""
+    for token, semantic in SEMANTIC_MATERIAL_TOKENS:
+        if token in name:
+            return SEMANTIC_REFERENCE_COLORS[semantic]
+    return None
+
+
 def collapse_materials_to_vertex_palette(character, role):
-    """Bake exact semantic reference RGB values into glTF COLOR_0 VEC3."""
+    """Bake source colors and exact faction reference masks into COLOR_0."""
     palette = character.data.color_attributes.new(name="faction_palette", type="BYTE_COLOR", domain="CORNER")
     slot_colors = []
     for slot in character.material_slots:
         material = slot.material
-        rgb = tuple(material.diffuse_color[:3]) if material else (0.18, 0.18, 0.18)
+        rgb = semantic_color_for_material(material) or material_base_color(material)
         slot_colors.append((*rgb, 1.0))
-    semantic_colors = ((0.25, 0.018, 0.01), (0.065, 0.008, 0.006), (0.38, 0.18, 0.035), (0.16, 0.078, 0.025))
     for polygon in character.data.polygons:
         color = slot_colors[polygon.material_index]
-        semantic = any(sum((color[axis] - reference[axis]) ** 2 for axis in range(3)) < 1e-8 for reference in semantic_colors)
-        if not semantic:
-            # Stable per-face firing/staining variation. Keeping this in
-            # COLOR_0 makes the dry, excavated surface survive glTF export
-            # without adding a bitmap texture or runtime shader branch.
-            center = polygon.center
-            noise = math.sin(center.x * 91.7 + center.y * 47.3 + center.z * 73.1 + polygon.index * 0.37)
-            factor = 0.83 + (noise * 0.5 + 0.5) * 0.22
-            soil = max(0.0, min(0.14, (0.34 - center.z) * 0.16))
-            color = (
-                max(0.0, min(1.0, color[0] * factor - soil * 0.12)),
-                max(0.0, min(1.0, color[1] * factor - soil * 0.16)),
-                max(0.0, min(1.0, color[2] * factor - soil * 0.18)),
-                1.0,
-            )
         for loop_index in polygon.loop_indices:
             palette.data[loop_index].color = color
         polygon.material_index = 0
@@ -553,7 +598,100 @@ def collapse_materials_to_vertex_palette(character, role):
     character.data.color_attributes.active_color = palette
 
 
-def create_geometry(role, settings):
+def join_mesh_objects(mesh_objects, role):
+    if not mesh_objects:
+        raise RuntimeError(f"{role}: authoritative GLB imported no mesh objects")
+    for obj in mesh_objects:
+        bpy.ops.object.select_all(action="DESELECT")
+        obj.select_set(True)
+        bpy.context.view_layer.objects.active = obj
+        if obj.parent:
+            bpy.ops.object.parent_clear(type="CLEAR_KEEP_TRANSFORM")
+        bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    if len(mesh_objects) > 1:
+        bpy.ops.object.select_all(action="DESELECT")
+        for obj in mesh_objects:
+            obj.select_set(True)
+        bpy.context.view_layer.objects.active = mesh_objects[0]
+        bpy.ops.object.join()
+        character = bpy.context.object
+    else:
+        character = mesh_objects[0]
+    character.name = "character_mesh"
+    character.data.name = f"{role}_authoritative_geometry"
+    return character
+
+
+def import_authoritative_geometry(role):
+    relative_path = AUTHORITATIVE_MODEL_FILES[role]
+    source_path = ROOT / relative_path
+    if not source_path.is_file():
+        raise FileNotFoundError(
+            f"{role}: missing authoritative visual source {relative_path}; "
+            "runtime builds do not fall back to placeholder geometry"
+        )
+    before = set(bpy.context.scene.objects)
+    bpy.ops.import_scene.gltf(filepath=str(source_path))
+    imported_meshes = [
+        obj for obj in bpy.context.scene.objects
+        if obj not in before and obj.type == "MESH"
+    ]
+    return join_mesh_objects(imported_meshes, role)
+
+
+def triangle_count(character):
+    character.data.calc_loop_triangles()
+    return len(character.data.loop_triangles)
+
+
+def decimate_to_lod(character, role, lod_name):
+    current = triangle_count(character)
+    budget = LOD_TRIANGLE_BUDGETS[role][lod_name]
+    target = min(current, math.floor(budget * LOD_TARGET_FRACTIONS[lod_name]))
+    if current <= target:
+        return current
+    modifier = character.modifiers.new(f"{lod_name} authoritative decimation", "DECIMATE")
+    modifier.ratio = max(0.01, target / current)
+    modifier.use_collapse_triangulate = True
+    bpy.context.view_layer.objects.active = character
+    character.select_set(True)
+    bpy.ops.object.modifier_apply(modifier=modifier.name)
+    character.select_set(False)
+    reduced = triangle_count(character)
+    if reduced > budget:
+        modifier = character.modifiers.new(f"{lod_name} budget safety decimation", "DECIMATE")
+        modifier.ratio = max(0.01, (budget * 0.96) / reduced)
+        modifier.use_collapse_triangulate = True
+        bpy.context.view_layer.objects.active = character
+        character.select_set(True)
+        bpy.ops.object.modifier_apply(modifier=modifier.name)
+        character.select_set(False)
+        reduced = triangle_count(character)
+    if reduced > budget:
+        raise RuntimeError(f"{role}/{lod_name}: {reduced} triangles exceeds budget {budget} after decimation")
+    return reduced
+
+
+def normalize_to_contract(character, role):
+    bounds_min = [min(vertex.co[axis] for vertex in character.data.vertices) for axis in range(3)]
+    bounds_max = [max(vertex.co[axis] for vertex in character.data.vertices) for axis in range(3)]
+    size = [bounds_max[axis] - bounds_min[axis] for axis in range(3)]
+    if min(size) <= 0:
+        raise RuntimeError(f"{role}: authoritative geometry has invalid bounds {size}")
+    dimensions = CONTRACT_DIMENSIONS[role]
+    horizontal_scale = dimensions["footprint"] / max(size[0], size[1])
+    vertical_scale = dimensions["height"] / size[2]
+    center_x = (bounds_min[0] + bounds_max[0]) * 0.5
+    center_y = (bounds_min[1] + bounds_max[1]) * 0.5
+    for vertex in character.data.vertices:
+        vertex.co.x = (vertex.co.x - center_x) * horizontal_scale
+        vertex.co.y = (vertex.co.y - center_y) * horizontal_scale
+        vertex.co.z = (vertex.co.z - bounds_min[2]) * vertical_scale
+    character.data.update()
+
+
+def create_procedural_fallback_geometry(role, settings):
+    """Build the retired placeholder only for explicit local diagnostics."""
     materials = make_materials()
     add_base(materials, settings, role)
     GEOMETRY_BUILDERS[role](materials, settings)
@@ -575,6 +713,18 @@ def create_geometry(role, settings):
         modifier.use_collapse_triangulate = True
         bpy.context.view_layer.objects.active = character
         bpy.ops.object.modifier_apply(modifier=modifier.name)
+    collapse_materials_to_vertex_palette(character, role)
+    character.data.calc_loop_triangles()
+    return character
+
+
+def create_geometry(role, lod_name, settings):
+    if os.environ.get("XIANGQI_USE_PROCEDURAL_FALLBACK") == "1":
+        print(f"WARNING {role}/{lod_name}: using retired procedural development fallback")
+        return create_procedural_fallback_geometry(role, settings)
+    character = import_authoritative_geometry(role)
+    decimate_to_lod(character, role, lod_name)
+    normalize_to_contract(character, role)
     collapse_materials_to_vertex_palette(character, role)
     character.data.calc_loop_triangles()
     return character
@@ -687,16 +837,21 @@ def create_actions(rig, role):
 
 
 def write_metadata(role):
-    directory = ROOT / "assets" / "characters" / role
+    directory = OUTPUT_ROOT / "assets" / "characters" / role
     directory.mkdir(parents=True, exist_ok=True)
+    authoritative_path = AUTHORITATIVE_MODEL_FILES[role]
     metadata = {
         "schema": "xiangqi-source-asset/v1", "role": role, "displayNames": DISPLAY_NAMES[role],
         "generator": {"application": "Blender", "version": bpy.app.version_string, "script": "scripts/blender/create_xiangqi_piece_assets.py"},
-        "reference": f"assets/concepts/xiangqi-characters/{REFERENCE_FILE}",
-        "license": "Original procedural project asset; no third-party geometry or bitmap textures",
+        "authoritativeVisualSource": {"path": authoritative_path, "editableMaster": authoritative_path.replace(".glb", ".blend")},
+        "sourceCommit": SOURCE_COMMIT,
+        "derivationMode": "procedural-development-fallback" if os.environ.get("XIANGQI_USE_PROCEDURAL_FALLBACK") == "1" else "authoritative-import",
+        "reference": "assets/models/README.md",
+        "license": "Repository-owned Qin-terracotta research asset; no third-party geometry or bitmap textures",
         "visualIntent": VISUAL_INTENT[role],
         "periodPolicy": "Qin terracotta visual fantasy: no gunpowder artillery; cannon role is represented by a heavy siege crossbow",
-        "knownLimitations": ["procedural forms remain a web-game asset rather than a scan-derived museum reconstruction", "surface weathering is modeled and vertex-colored; bitmap normal maps are intentionally absent", "broad automatic skin weights require manual deformation polish before an extreme close-up"],
+        "derivation": "Authoritative research GLB normalized and decimated per LOD, then adapted to the shared runtime rig, actions, sockets and faction palette contract",
+        "knownLimitations": ["first-pass broad automatic skin weights require manual deformation polish before an extreme close-up", "source solid materials are baked to vertex colors; bitmap normal maps are intentionally absent", "canonical runtime actions are adapters and may be iterated without changing the visual source authority"],
         "texturePolicy": {"bitmapTextures": 0, "ktx2": "not-applicable-no-bitmap-textures", "solidColorBake": f"COLOR_0 VEC3 exact RGB reference colors; one {role}_terracotta_vertex_palette material"},
     }
     (directory / f"{role}.asset.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2) + "\n")
@@ -710,7 +865,7 @@ def build_lod(role, lod_name, settings):
     piece_root = bpy.data.objects.new("piece_root", None)
     piece_root.empty_display_type, piece_root.empty_display_size = "CIRCLE", 0.445
     bpy.context.scene.collection.objects.link(piece_root)
-    character = create_geometry(role, settings)
+    character = create_geometry(role, lod_name, settings)
     rig = create_rig(role)
     rig.parent = piece_root
     skin_character(character, rig)
@@ -720,8 +875,8 @@ def build_lod(role, lod_name, settings):
     create_socket("socket_trail_start", rig, (0, 0, -0.35), "weapon")
     create_socket("socket_trail_end", rig, (0, 0, 0.35), "weapon")
     create_actions(rig, role)
-    source_dir = ROOT / "assets" / "characters" / role / "source"
-    export_dir = ROOT / "assets" / "characters" / role / "exports"
+    source_dir = OUTPUT_ROOT / "assets" / "characters" / role / "source"
+    export_dir = OUTPUT_ROOT / "assets" / "characters" / role / "exports"
     if lod_name == "lod0":
         source_dir.mkdir(parents=True, exist_ok=True)
         bpy.context.preferences.filepaths.save_version = 0

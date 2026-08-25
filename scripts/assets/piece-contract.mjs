@@ -97,8 +97,8 @@ export function createManifest(metrics = {}) {
         displayName: "红方",
         emblem: "qin-cinnabar-command-seal",
         palette: {
-          faction_cloth_primary: "#803024", faction_cloth_secondary: "#351713",
-          faction_trim: "#a8763b", aged_bronze: "#6b4027", energy: "#d7a35d",
+          faction_cloth_primary: "#6a4937", faction_cloth_secondary: "#6faf95",
+          faction_trim: "#c44b2f", aged_bronze: "#5b4031", energy: "#d7a35d",
         },
       },
       black: {

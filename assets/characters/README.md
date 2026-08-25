@@ -1,10 +1,10 @@
 # Xiangqi character asset contract
 
-> **Status:** This directory is the current runtime derivative layer and is
-> pending adaptation to the authoritative red Qin-terracotta cartoon research
-> roster documented in [`../models/README.md`](../models/README.md). Preserve
-> the runtime contract below while transferring the new appearance; the models
-> here and in `public/models/pieces/**` are not the visual authority.
+> **Status:** This directory is the runtime derivative layer generated from the
+> authoritative red Qin-terracotta cartoon research roster documented in
+> [`../models/README.md`](../models/README.md). The research GLBs provide the
+> geometry and appearance; this layer adds LODs, rigging, actions, sockets,
+> faction masks and runtime packaging.
 
 Character sources are organized as `assets/characters/{role}/source`, with raw
 exports in the sibling `exports` directory. Runtime GLBs are generated into
@@ -21,12 +21,15 @@ Animation, recovery, and event timing are defined in
 [`PRESENTATION_CONTRACT.md`](./PRESENTATION_CONTRACT.md).
 
 The v1 roster contains seven shared-geometry families and fourteen faction
-variants. `COLOR_0` is a VEC3 semantic palette: nearest authored faction cloth,
-trim, and bronze colors are remapped at runtime, while skin, elephant hide,
-horse hide, leather, wood, ivory, hair, iron, and stone remain unchanged. Alpha
-is deliberately not used because the glTF exporter writes `COLOR_0` as VEC3.
+variants. `COLOR_0` is a VEC3 semantic palette: the authoritative lacquer,
+jade, cinnabar and dark-detail materials become exact primary, secondary, trim
+and aged-bronze masks. The red runtime targets reproduce those four research
+material colors; the black targets provide the faction variant. Portrait
+terracotta, fired clay, ivory and iris colors remain unchanged for both sides.
+Alpha is deliberately not used because the glTF exporter writes `COLOR_0` as
+VEC3.
 
-`reviews/roster-contact-sheet-red-black.png` is the fixed-camera U6 review for
-the six post-marshal families. These deterministic procedural assets are a
-realistic tabletop-figurine baseline, not a substitute for a later manual hero
-sculpt, baked normal detail, embroidery, cloth microfolds, or authored wear.
+The checked-in `.asset.json` for every role records its exact authoritative GLB
+and source commit. The generated `.blend` files remain editable runtime
+adapters; character design changes belong in `assets/models`, while skin-weight
+and action refinements belong here.

@@ -27,6 +27,10 @@ const requiredClips = [
   "hit_react",
   "destroy",
 ];
+const authoritativeSources = Object.fromEntries(ROLE_NAMES.map((role) => [
+  role,
+  `assets/models/red-${role}-terracotta-cartoon-${role === "marshal" ? "v2" : "v1"}.glb`,
+]));
 const semanticReferences = [
   ["faction_cloth_primary", [0.25, 0.018, 0.01]],
   ["faction_cloth_secondary", [0.065, 0.008, 0.006]],
@@ -383,6 +387,24 @@ async function main() {
     if (!existsSync(sourceBlend)) fail(`Missing editable Blender source: ${sourceBlend}`);
     const metadata = readJson(resolve(root, asset.source.metadata), `${role} asset metadata`);
     if (metadata.role !== role) fail(`${role} metadata has mismatched role ${metadata.role}`);
+    if (metadata.sourceCommit !== "96cadeb") {
+      fail(`${role} metadata must identify authoritative source commit 96cadeb`);
+    }
+    if (metadata.derivationMode !== "authoritative-import") {
+      fail(`${role} metadata must come from the authoritative import pipeline`);
+    }
+    const authoritativePath = metadata.authoritativeVisualSource?.path;
+    if (authoritativePath !== authoritativeSources[role]) {
+      fail(`${role} metadata must identify ${authoritativeSources[role]} as its authoritative visual source`);
+    }
+    if (!existsSync(resolve(root, authoritativePath))) {
+      fail(`${role} authoritative visual source is missing: ${authoritativePath}`);
+    }
+    const editableMaster = metadata.authoritativeVisualSource?.editableMaster;
+    const expectedMaster = authoritativeSources[role].replace(/\.glb$/, ".blend");
+    if (editableMaster !== expectedMaster || !existsSync(resolve(root, expectedMaster))) {
+      fail(`${role} metadata must identify the existing editable master ${expectedMaster}`);
+    }
     for (const lod of LODS) validateNoRootMotion(asset.source.rawLods[lod], `${role}/${lod}`);
     const results = await Promise.all(LODS.map((lod) => validateGlb(
       asset.variants.red.lods[lod], asset.source.rawLods[lod], role, lod,

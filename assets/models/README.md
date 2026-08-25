@@ -21,13 +21,12 @@ must not depend on that worktree.
 
 ## Runtime boundary
 
-`assets/characters/**` and `public/models/pieces/**` remain the current runtime
-derivative layer while this roster is adapted to the game contract. They are
-not the visual authority and were deliberately not overwritten by this import.
-A runtime replacement must first add the required topology/LOD treatment,
-armature and skin weights, canonical animation clips, named sockets, faction
-materials, validation metadata, and Meshopt packaging. Do not copy these
-research GLBs directly into `public/models`.
+`assets/characters/**` and `public/models/pieces/**` are generated runtime
+derivatives of this roster. They are not the visual authority: the adapter adds
+topology/LOD treatment, armature and skin weights, canonical animation clips,
+named sockets, faction masks, validation metadata, and Meshopt packaging. Do
+not copy these research GLBs directly into `public/models`; run the piece asset
+pipeline so the runtime contract is preserved.
 
 The research pipelines are:
 
