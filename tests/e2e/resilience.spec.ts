@@ -13,7 +13,7 @@ import {
 test("a failed optional panorama degrades locally and leaves the board playable", async ({ page }) => {
   await page.route("**/background/qin-diorama-panorama-v1-*.webp", (route) => route.abort("failed"));
   await openCleanGame(page);
-  await expect(page.locator(".board-viewer")).toHaveAttribute("data-environment-status", "degraded");
+  await waitForEnvironmentSettled(page, "degraded");
 
   const keyboard = await startGame(page);
   await keyboard.focus();
@@ -25,7 +25,7 @@ test("a failed optional panorama degrades locally and leaves the board playable"
   await pressSequence(keyboard, ["ArrowUp", "ArrowUp", "Enter", "ArrowDown", "Enter"]);
   await waitForRevision(page, 2);
   await expect(page.locator(".game-history")).toContainText("黑·卒 a6 → a5");
-  await expect(page.locator(".board-viewer")).toHaveAttribute("data-environment-status", "degraded");
+  await waitForEnvironmentSettled(page, "degraded");
 });
 
 test("high-low-high environment switching settles without cumulative renderer growth", async ({ page }, testInfo) => {

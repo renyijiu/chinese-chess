@@ -1,6 +1,10 @@
 import { expect, test } from "@playwright/test";
 
-import type { RuntimePerformanceSnapshot } from "../../components/xiangqi/runtime/performance-metrics";
+import {
+  summarizeFrameIntervals,
+  type RuntimePerformanceSnapshot,
+} from "../../components/xiangqi/runtime/performance-metrics";
+import { getPanoramaUrl } from "../../components/xiangqi/scene/diorama-environment";
 import { openCleanGame, startGame } from "./helpers";
 
 test.skip(
@@ -13,11 +17,8 @@ test("@performance captures first-playable transfer size and renderer telemetry"
   const baseUrl = new URL(testInfo.project.use.baseURL as string);
   const expectedAssetPaths = ["marshal", "advisor", "elephant", "chariot", "horse", "cannon", "soldier"]
     .map((role) => `/models/pieces/v1/${role}/${role}-lod1.glb`);
-  const activePanoramaPath = "/background/qin-diorama-panorama-v1-high.webp";
-  const inactivePanoramaPaths = [
-    "/background/qin-diorama-panorama-v1-medium.webp",
-    "/background/qin-diorama-panorama-v1-low.webp",
-  ];
+  const activePanoramaPath = getPanoramaUrl("high");
+  const inactivePanoramaPaths = [getPanoramaUrl("medium"), getPanoramaUrl("low")];
   const expectedFirstPlayablePaths = [...expectedAssetPaths, activePanoramaPath];
   const responseBodies: Promise<readonly [string, number]>[] = [];
   const seenPaths = new Set<string>();
@@ -78,13 +79,7 @@ test("@performance captures first-playable transfer size and renderer telemetry"
     return debug && gl ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) as string : "unavailable";
   });
   const firstPlayableBytes = [...responseBytes.values()].reduce((total, bytes) => total + bytes, 0);
-  const rafCadence = await page.evaluate(() => new Promise<{
-    averageFrameIntervalMs: number;
-    maximumFrameIntervalMs: number;
-    p50FrameIntervalMs: number;
-    p90FrameIntervalMs: number;
-    p95FrameIntervalMs: number;
-  }>((resolve) => {
+  const rafIntervals = await page.evaluate(() => new Promise<number[]>((resolve) => {
     const intervals: number[] = [];
     let previous = 0;
     const sample = (timestamp: number) => {
@@ -94,18 +89,11 @@ test("@performance captures first-playable transfer size and renderer telemetry"
         window.requestAnimationFrame(sample);
         return;
       }
-      const sorted = [...intervals].sort((left, right) => left - right);
-      const percentile = (value: number) => sorted[Math.max(0, Math.ceil(sorted.length * value) - 1)] ?? 0;
-      resolve({
-        averageFrameIntervalMs: intervals.reduce((total, interval) => total + interval, 0) / intervals.length,
-        maximumFrameIntervalMs: sorted.at(-1) ?? 0,
-        p50FrameIntervalMs: percentile(0.5),
-        p90FrameIntervalMs: percentile(0.9),
-        p95FrameIntervalMs: percentile(0.95),
-      });
+      resolve(intervals);
     };
     window.requestAnimationFrame(sample);
   }));
+  const rafCadence = summarizeFrameIntervals(rafIntervals);
   const canvasDpr = await page.locator("canvas").evaluate((canvas) => {
     const bounds = canvas.getBoundingClientRect();
     return Number(((canvas as HTMLCanvasElement).width / bounds.width).toFixed(2));

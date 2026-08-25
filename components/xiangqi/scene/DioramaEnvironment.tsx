@@ -35,7 +35,6 @@ type LayerBoundaryProps = {
   children: ReactNode;
   fallback: ReactNode;
   layer: string;
-  resetKey: string;
 };
 
 class EnvironmentLayerBoundary extends Component<LayerBoundaryProps, { failed: boolean }> {
@@ -43,12 +42,6 @@ class EnvironmentLayerBoundary extends Component<LayerBoundaryProps, { failed: b
 
   static getDerivedStateFromError() {
     return { failed: true };
-  }
-
-  componentDidUpdate(previous: LayerBoundaryProps) {
-    if (this.state.failed && previous.resetKey !== this.props.resetKey) {
-      this.setState({ failed: false });
-    }
   }
 
   componentDidCatch(error: Error) {
@@ -167,8 +160,10 @@ function QinPanorama({
   );
 }
 
-function makePropGeometry(kind: DioramaPropKind) {
-  if (kind === "wall" || kind === "pit-corridor" || kind === "gate") {
+type StaticPropKind = "wall" | "pit-corridor" | "mound" | "tent";
+
+function makePropGeometry(kind: StaticPropKind) {
+  if (kind === "wall" || kind === "pit-corridor") {
     return new RoundedBoxGeometry(1, 1, 1, 2, kind === "wall" ? 0.16 : 0.09);
   }
   if (kind === "mound") {
@@ -184,34 +179,26 @@ function StaticPropInstances({
   placements,
 }: {
   castShadow: boolean;
-  kind: "wall" | "pit-corridor" | "mound" | "gate" | "tent";
+  kind: StaticPropKind;
   placements: readonly DioramaPropPlacement[];
 }) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const geometry = useMemo(() => makePropGeometry(kind), [kind]);
 
   useLayoutEffect(() => {
-    const mesh = meshRef.current;
-    if (!mesh) return;
-    const transform = new THREE.Object3D();
-    placements.forEach((placement, index) => {
+    writeMatrices(meshRef.current, placements, (transform, placement) => {
       transform.position.set(...placement.position);
       transform.rotation.set(0, placement.rotation, 0);
       transform.scale.set(...placement.scale);
-      transform.updateMatrix();
-      mesh.setMatrixAt(index, transform.matrix);
     });
-    mesh.instanceMatrix.needsUpdate = true;
   }, [placements]);
 
   useEffect(() => () => geometry.dispose(), [geometry]);
   const color = kind === "pit-corridor"
     ? QIN_DIORAMA_THEME.materials.firedClayShadow
-    : kind === "gate"
-      ? QIN_DIORAMA_THEME.materials.agedBronze
-      : kind === "mound"
-        ? QIN_DIORAMA_THEME.materials.firedClay
-        : QIN_DIORAMA_THEME.materials.firedClayLight;
+    : kind === "mound"
+      ? QIN_DIORAMA_THEME.materials.firedClay
+      : QIN_DIORAMA_THEME.materials.firedClayLight;
 
   return (
     <instancedMesh
@@ -222,18 +209,18 @@ function StaticPropInstances({
       raycast={() => null}
       receiveShadow
     >
-      <meshStandardMaterial color={color} metalness={kind === "gate" ? 0.18 : 0.01} roughness={0.9} />
+      <meshStandardMaterial color={color} metalness={0.01} roughness={0.9} />
     </instancedMesh>
   );
 }
 
-function writeMatrices(
+function writeMatrices<T>(
   mesh: THREE.InstancedMesh | null,
-  placements: readonly DioramaPropPlacement[],
-  transformPlacement: (target: THREE.Object3D, placement: DioramaPropPlacement, index: number) => void,
+  placements: readonly T[],
+  transformPlacement: (target: THREE.Object3D, placement: T, index: number) => void,
+  transform = new THREE.Object3D(),
 ) {
   if (!mesh) return;
-  const transform = new THREE.Object3D();
   placements.forEach((placement, index) => {
     transformPlacement(transform, placement, index);
     transform.updateMatrix();
@@ -255,16 +242,10 @@ function GateDetails({ placements }: { placements: readonly DioramaPropPlacement
   const meshRef = useRef<THREE.InstancedMesh>(null);
 
   useLayoutEffect(() => {
-    const mesh = meshRef.current;
-    if (!mesh) return;
-    const transform = new THREE.Object3D();
-    parts.forEach((part, index) => {
+    writeMatrices(meshRef.current, parts, (transform, part) => {
       transform.position.set(...part.position);
       transform.scale.set(...part.scale);
-      transform.updateMatrix();
-      mesh.setMatrixAt(index, transform.matrix);
     });
-    mesh.instanceMatrix.needsUpdate = true;
   }, [parts]);
 
   return (
@@ -294,6 +275,7 @@ function CampDetails({
   const poleRef = useRef<THREE.InstancedMesh>(null);
   const flagRef = useRef<THREE.InstancedMesh>(null);
   const lightGroupRef = useRef<THREE.Group>(null);
+  const matrixTransform = useMemo(() => new THREE.Object3D(), []);
 
   const updateFlames = useCallback((elapsed: number) => {
     writeMatrices(flameRef.current, flames, (transform, placement, index) => {
@@ -301,16 +283,16 @@ function CampDetails({
       transform.position.set(placement.position[0], placement.position[1] + 0.52, placement.position[2]);
       transform.rotation.set(0, elapsed * 0.35 + index, 0);
       transform.scale.set(0.17 / pulse, 0.58 * pulse, 0.17 / pulse);
-    });
-  }, [flames]);
+    }, matrixTransform);
+  }, [flames, matrixTransform]);
   const updateFlags = useCallback((elapsed: number) => {
     writeMatrices(flagRef.current, banners, (transform, placement, index) => {
       const flutter = Math.sin(elapsed * 1.35 + index * 2.1) * 0.08;
       transform.position.set(placement.position[0] + 0.36, placement.position[1] + 1.65, placement.position[2]);
       transform.rotation.set(0, placement.rotation + flutter, 0);
       transform.scale.set(0.72, 1.08, 0.05);
-    });
-  }, [banners]);
+    }, matrixTransform);
+  }, [banners, matrixTransform]);
 
   useLayoutEffect(() => {
     writeMatrices(brazierRef.current, flames, (transform, placement) => {
@@ -503,7 +485,6 @@ export function DioramaEnvironment({
       <EnvironmentLayerBoundary
         fallback={<LayerStatusSignal onStatus={setPanoramaStatus} status="degraded" />}
         layer="panorama"
-        resetKey={panoramaUrl}
       >
         <Suspense fallback={<LayerStatusSignal onStatus={setPanoramaStatus} status="loading" />}>
           <QinPanorama onStatus={setPanoramaStatus} url={panoramaUrl} />
@@ -513,7 +494,6 @@ export function DioramaEnvironment({
         <EnvironmentLayerBoundary
           fallback={<LayerStatusSignal onStatus={setPropStatus} status="degraded" />}
           layer="props"
-          resetKey={String(quality.environment.detailLevel)}
         >
           <DioramaPropLayer animate={animate} onStatus={setPropStatus} quality={quality} />
         </EnvironmentLayerBoundary>

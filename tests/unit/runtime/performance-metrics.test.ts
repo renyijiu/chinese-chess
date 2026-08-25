@@ -1,8 +1,28 @@
 import { describe, expect, it } from "vitest";
 
-import { PerformanceMetrics } from "../../../components/xiangqi/runtime/performance-metrics";
+import {
+  PerformanceMetrics,
+  summarizeFrameIntervals,
+} from "../../../components/xiangqi/runtime/performance-metrics";
 
 describe("PerformanceMetrics", () => {
+  it("summarizes empty and nearest-rank frame interval distributions", () => {
+    expect(summarizeFrameIntervals([])).toEqual({
+      averageFrameIntervalMs: 0,
+      maximumFrameIntervalMs: 0,
+      p50FrameIntervalMs: 0,
+      p90FrameIntervalMs: 0,
+      p95FrameIntervalMs: 0,
+    });
+    expect(summarizeFrameIntervals([20, 12, 16, 14, 14])).toEqual({
+      averageFrameIntervalMs: 15.2,
+      maximumFrameIntervalMs: 20,
+      p50FrameIntervalMs: 14,
+      p90FrameIntervalMs: 20,
+      p95FrameIntervalMs: 20,
+    });
+  });
+
   it("records bounded frame intervals, p95, renderer peaks, and latest resource counts", () => {
     const metrics = new PerformanceMetrics(5);
     [10, 12, 20, 16, 18].forEach((frameIntervalMs, index) => {

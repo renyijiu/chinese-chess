@@ -25,13 +25,11 @@ export type BoardOrnamentPlacement = Readonly<{
 export type ClayTilePlacement = Readonly<{
   position: BoardPoint;
   rotation: number;
-  tone: number;
 }>;
 
 export type EnclosureWallPlacement = Readonly<{
   position: BoardPoint;
   scale: readonly [x: number, y: number, z: number];
-  tone: "inner" | "outer";
 }>;
 
 export const BOARD_HIT_RADIUS = 0.52;
@@ -112,7 +110,6 @@ export function makeClayTilePlacements(): ClayTilePlacement[] {
       placements.push({
         position: [(file - 3.5) * BOARD_SPACING, rankInterval * BOARD_SPACING],
         rotation: (variation - 0.5) * 0.018,
-        tone: variation,
       });
     }
   }
@@ -123,8 +120,8 @@ export function makeClayTilePlacements(): ClayTilePlacement[] {
 export function makeEnclosureWallPlacements(): EnclosureWallPlacement[] {
   const placements: EnclosureWallPlacement[] = [];
   const enclosures = [
-    { gateHalfWidth: 0.72, halfDepth: 6.82, halfWidth: 6.08, height: 0.34, thickness: 0.28, tone: "outer" },
-    { gateHalfWidth: 0.62, halfDepth: 6.28, halfWidth: 5.54, height: 0.25, thickness: 0.2, tone: "inner" },
+    { gateHalfWidth: 0.72, halfDepth: 6.82, halfWidth: 6.08, height: 0.34, thickness: 0.28 },
+    { gateHalfWidth: 0.62, halfDepth: 6.28, halfWidth: 5.54, height: 0.25, thickness: 0.2 },
   ] as const;
 
   for (const enclosure of enclosures) {
@@ -138,7 +135,6 @@ export function makeEnclosureWallPlacements(): EnclosureWallPlacement[] {
         placements.push({
           position: [x, z],
           scale: [horizontalLength, enclosure.height, enclosure.thickness],
-          tone: enclosure.tone,
         });
       }
     }
@@ -147,7 +143,6 @@ export function makeEnclosureWallPlacements(): EnclosureWallPlacement[] {
         placements.push({
           position: [x, z],
           scale: [enclosure.thickness, enclosure.height, verticalLength],
-          tone: enclosure.tone,
         });
       }
     }

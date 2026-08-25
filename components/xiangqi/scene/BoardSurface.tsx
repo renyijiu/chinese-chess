@@ -20,7 +20,7 @@ import {
   makeEnclosureWallPlacements,
   type BoardOrnamentKind,
 } from "./board-geometry";
-import { QIN_DIORAMA_THEME } from "./scene-theme";
+import { cssHex, QIN_DIORAMA_THEME } from "./scene-theme";
 
 const FILE_MIN = Math.min(...BOARD_FILE_POSITIONS);
 const FILE_MAX = Math.max(...BOARD_FILE_POSITIONS);
@@ -252,10 +252,6 @@ function GlazedRiver({ animate = true }: { animate?: boolean }) {
   );
 }
 
-function themeHex(color: number) {
-  return `#${color.toString(16).padStart(6, "0")}`;
-}
-
 function RiverInscription({ position, text }: { position: [number, number, number]; text: string }) {
   const materialRef = useRef<THREE.MeshBasicMaterial>(null);
   useEffect(() => {
@@ -265,8 +261,8 @@ function RiverInscription({ position, text }: { position: [number, number, numbe
     const context = canvas.getContext("2d");
     if (!context) return;
     context.font = '700 68px "Songti SC", "STSong", serif';
-    context.fillStyle = themeHex(QIN_DIORAMA_THEME.materials.chalk);
-    context.shadowColor = themeHex(QIN_DIORAMA_THEME.materials.blackLacquer);
+    context.fillStyle = cssHex(QIN_DIORAMA_THEME.materials.chalk);
+    context.shadowColor = cssHex(QIN_DIORAMA_THEME.materials.blackLacquer);
     context.shadowBlur = 7;
     context.textAlign = "center";
     context.textBaseline = "middle";

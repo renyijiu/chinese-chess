@@ -1,4 +1,4 @@
-import { FACTION_COLORS } from "../pieces/piece-palette";
+import { FACTION_COLORS } from "../pieces/faction-colors";
 
 export type ThemeStateIndicator = "dot" | "ring" | "double-outline" | "halo" | "seal";
 
@@ -11,7 +11,7 @@ function state(color: number, indicator: ThemeStateIndicator): ThemeStateToken {
   return Object.freeze({ color, indicator });
 }
 
-function cssHex(color: number) {
+export function cssHex(color: number) {
   return `#${color.toString(16).padStart(6, "0")}`;
 }
 

@@ -1,5 +1,5 @@
 import type { Role, Side } from "../../../lib/xiangqi/index";
-import { QIN_DIORAMA_THEME } from "../scene/scene-theme";
+import { cssHex, QIN_DIORAMA_THEME } from "../scene/scene-theme";
 
 export type VfxMotif = "qin-command-seal" | "tiger-tally" | "clay-earthshock" | "bronze-wheel" | "qin-lance" | "siege-bolt" | "spear-rank";
 export type VfxPayload = "command-blade" | "tally" | "earthshock" | "wheel" | "lance" | "bolt" | "spear";
@@ -60,24 +60,20 @@ export const PIECE_VFX_PROFILES: Readonly<Record<Role, NeutralProfile>> = Object
   },
 });
 
-function themeHex(color: number) {
-  return `#${color.toString(16).padStart(6, "0")}`;
-}
-
 const FACTION = {
   red: {
     colors: {
-      bright: themeHex(QIN_DIORAMA_THEME.factions.red.glow),
-      core: themeHex(QIN_DIORAMA_THEME.accents.cinnabar),
-      smoke: themeHex(QIN_DIORAMA_THEME.materials.firedClayShadow),
+      bright: cssHex(QIN_DIORAMA_THEME.factions.red.glow),
+      core: cssHex(QIN_DIORAMA_THEME.accents.cinnabar),
+      smoke: cssHex(QIN_DIORAMA_THEME.materials.firedClayShadow),
     },
     pattern: "cinnabar-seal" as const,
   },
   black: {
     colors: {
-      bright: themeHex(QIN_DIORAMA_THEME.factions.black.glow),
-      core: themeHex(QIN_DIORAMA_THEME.accents.verdigris),
-      smoke: themeHex(QIN_DIORAMA_THEME.materials.blackLacquer),
+      bright: cssHex(QIN_DIORAMA_THEME.factions.black.glow),
+      core: cssHex(QIN_DIORAMA_THEME.accents.verdigris),
+      smoke: cssHex(QIN_DIORAMA_THEME.materials.blackLacquer),
     },
     pattern: "verdigris-angle" as const,
   },

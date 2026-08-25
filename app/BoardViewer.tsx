@@ -66,7 +66,11 @@ export function BoardViewer({
 
   const handleSceneError = useCallback(() => setError(true), []);
   const handleEnvironmentStatusChange = useCallback(
-    (status: EnvironmentStatus) => setEnvironmentState({ quality, status }),
+    (status: EnvironmentStatus) => setEnvironmentState((current) => (
+      current.quality === quality && current.status === status
+        ? current
+        : { quality, status }
+    )),
     [quality],
   );
   const environmentStatus = environmentState.quality === quality

@@ -22,6 +22,28 @@ export type RuntimePerformanceSnapshot = Readonly<{
   textures: number;
 }>;
 
+export type FrameIntervalSummary = Readonly<{
+  averageFrameIntervalMs: number;
+  maximumFrameIntervalMs: number;
+  p50FrameIntervalMs: number;
+  p90FrameIntervalMs: number;
+  p95FrameIntervalMs: number;
+}>;
+
+export function summarizeFrameIntervals(intervals: readonly number[]): FrameIntervalSummary {
+  const sorted = [...intervals].sort((left, right) => left - right);
+  const percentile = (value: number) => sorted[Math.max(0, Math.ceil(sorted.length * value) - 1)] ?? 0;
+  return {
+    averageFrameIntervalMs: sorted.length > 0
+      ? sorted.reduce((total, interval) => total + interval, 0) / sorted.length
+      : 0,
+    maximumFrameIntervalMs: sorted.at(-1) ?? 0,
+    p50FrameIntervalMs: percentile(0.5),
+    p90FrameIntervalMs: percentile(0.9),
+    p95FrameIntervalMs: percentile(0.95),
+  };
+}
+
 const EMPTY_SNAPSHOT: RuntimePerformanceSnapshot = Object.freeze({
   averageFrameIntervalMs: 0,
   currentDrawCalls: 0,
@@ -64,22 +86,15 @@ export class PerformanceMetrics {
 
   snapshot(): RuntimePerformanceSnapshot {
     if (!this.current) return EMPTY_SNAPSHOT;
-    const sorted = [...this.intervals].sort((left, right) => left - right);
-    const percentile = (value: number) => sorted[Math.max(0, Math.ceil(sorted.length * value) - 1)] ?? 0;
+    const intervalSummary = summarizeFrameIntervals(this.intervals);
     return {
-      averageFrameIntervalMs: sorted.length > 0
-        ? sorted.reduce((total, interval) => total + interval, 0) / sorted.length
-        : 0,
+      ...intervalSummary,
       currentDrawCalls: this.current.drawCalls,
       currentTriangles: this.current.triangles,
       geometries: this.current.geometries,
-      maximumFrameIntervalMs: sorted.at(-1) ?? 0,
-      p50FrameIntervalMs: percentile(0.5),
-      p90FrameIntervalMs: percentile(0.9),
       peakDrawCalls: this.peakDrawCalls,
       peakTriangles: this.peakTriangles,
-      p95FrameIntervalMs: percentile(0.95),
-      sampleCount: sorted.length,
+      sampleCount: this.intervals.length,
       textures: this.current.textures,
     };
   }

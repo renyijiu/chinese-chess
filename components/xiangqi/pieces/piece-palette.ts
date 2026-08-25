@@ -1,40 +1,12 @@
 import * as THREE from "three";
 
 import type { Side } from "../../../lib/xiangqi/index";
+import { FACTION_COLORS } from "./faction-colors";
+
+export { FACTION_COLORS } from "./faction-colors";
+export type { FactionPalette } from "./faction-colors";
 
 type PaletteRegion = "bronze" | "clothPrimary" | "clothSecondary" | "trim";
-
-export type FactionPalette = Readonly<{
-  bronze: number;
-  clothPrimary: number;
-  clothSecondary: number;
-  glow: number;
-  trim: number;
-}>;
-
-function factionPalette(value: FactionPalette): FactionPalette {
-  return Object.freeze(value);
-}
-
-export const FACTION_COLORS: Readonly<Record<Side, FactionPalette>> = Object.freeze({
-  red: factionPalette({
-    // These targets are the sRGB encodings of the authoritative research
-    // materials' linear glTF base colors. Red pieces therefore retain the
-    // source lacquer, jade, cinnabar and dark-detail appearance exactly.
-    bronze: 0x5b4031,
-    clothPrimary: 0x6a4937,
-    clothSecondary: 0x6faf95,
-    glow: 0xd7a35d,
-    trim: 0xc44b2f,
-  }),
-  black: factionPalette({
-    bronze: 0x3f5d50,
-    clothPrimary: 0x284e43,
-    clothSecondary: 0x122621,
-    glow: 0x9dc8ae,
-    trim: 0x688a72,
-  }),
-});
 
 const SEMANTIC_REFERENCE_COLORS: readonly [PaletteRegion, THREE.Color][] = [
   ["clothPrimary", new THREE.Color(0.25, 0.018, 0.01)],

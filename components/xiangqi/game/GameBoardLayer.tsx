@@ -18,6 +18,7 @@ import {
 } from "../runtime/board-coordinates";
 import { getQualityProfile, type QualityTier } from "../runtime/quality";
 import { PieceLayer, type ScenePieceSlot } from "../scene/PieceLayer";
+import { BOARD_HIT_RADIUS } from "../scene/board-geometry";
 import { QIN_DIORAMA_THEME } from "../scene/scene-theme";
 import { PieceCombatVfx } from "../vfx/PieceCombatVfx";
 
@@ -56,7 +57,7 @@ function BoardHitGrid({ disabled, onSquarePress }: {
 
   return (
     <instancedMesh ref={ref} args={[undefined, undefined, ALL_SQUARES.length]} onClick={handleClick}>
-      <circleGeometry args={[0.52, 16]} />
+      <circleGeometry args={[BOARD_HIT_RADIUS, 16]} />
       <meshBasicMaterial colorWrite={false} depthWrite={false} opacity={0.001} transparent />
     </instancedMesh>
   );
