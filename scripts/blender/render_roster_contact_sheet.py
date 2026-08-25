@@ -15,9 +15,24 @@ SEMANTIC_REFERENCES = {
     "trim": (0.38, 0.18, 0.035),
     "bronze": (0.16, 0.078, 0.025),
 }
+PALETTE_HEX = {
+    # Keep these values in lockstep with components/xiangqi/pieces/piece-palette.ts.
+    "red": {"primary": 0x6A4937, "secondary": 0x6FAF95, "trim": 0xC44B2F, "bronze": 0x5B4031},
+    "black": {"primary": 0x284E43, "secondary": 0x122621, "trim": 0x688A72, "bronze": 0x3F5D50},
+}
+
+
+def srgb_channel_to_linear(channel):
+    return channel / 12.92 if channel <= 0.04045 else ((channel + 0.055) / 1.055) ** 2.4
+
+
+def linear_rgb(value):
+    return tuple(srgb_channel_to_linear(((value >> shift) & 0xFF) / 255) for shift in (16, 8, 0))
+
+
 PALETTES = {
-    "red": {"primary": (0.145, 0.067, 0.038), "secondary": (0.16, 0.43, 0.30), "trim": (0.55, 0.07, 0.028), "bronze": (0.105, 0.052, 0.031)},
-    "black": {"primary": (0.08, 0.18, 0.145), "secondary": (0.028, 0.066, 0.057), "trim": (0.24, 0.38, 0.29), "bronze": (0.15, 0.25, 0.19)},
+    side: {region: linear_rgb(value) for region, value in palette.items()}
+    for side, palette in PALETTE_HEX.items()
 }
 
 
@@ -142,7 +157,7 @@ bpy.ops.object.camera_add(location=(0, -14, 2.1))
 camera = bpy.context.object
 look_at(camera, (0, 0, 2.05))
 camera.data.type = "ORTHO"
-camera.data.ortho_scale = 8.5
+camera.data.ortho_scale = 9.8
 bpy.context.scene.camera = camera
 
 scene = bpy.context.scene

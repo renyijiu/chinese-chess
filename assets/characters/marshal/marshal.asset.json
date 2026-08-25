@@ -10,18 +10,25 @@
     "version": "5.2.0 LTS",
     "script": "scripts/blender/create_xiangqi_piece_assets.py"
   },
-  "reference": "assets/concepts/xiangqi-characters/qin-terracotta-roster-v1.png",
-  "license": "Original procedural project asset; no third-party geometry or bitmap textures",
+  "authoritativeVisualSource": {
+    "path": "assets/models/red-marshal-terracotta-cartoon-v2.glb",
+    "editableMaster": "assets/models/red-marshal-terracotta-cartoon-v2.blend"
+  },
+  "sourceCommit": "96cadeb",
+  "derivationMode": "authoritative-import",
+  "reference": "assets/models/README.md",
+  "license": "Repository-owned Qin-terracotta research asset; no third-party geometry or bitmap textures",
   "visualIntent": [
     "Qin terracotta general",
     "double-tail officer headdress",
     "command sword and broad lamellar mantle"
   ],
   "periodPolicy": "Qin terracotta visual fantasy: no gunpowder artillery; cannon role is represented by a heavy siege crossbow",
+  "derivation": "Authoritative research GLB normalized and decimated per LOD, then adapted to the shared runtime rig, actions, sockets and faction palette contract",
   "knownLimitations": [
-    "procedural forms remain a web-game asset rather than a scan-derived museum reconstruction",
-    "surface weathering is modeled and vertex-colored; bitmap normal maps are intentionally absent",
-    "broad automatic skin weights require manual deformation polish before an extreme close-up"
+    "first-pass broad automatic skin weights require manual deformation polish before an extreme close-up",
+    "source solid materials are baked to vertex colors; bitmap normal maps are intentionally absent",
+    "canonical runtime actions are adapters and may be iterated without changing the visual source authority"
   ],
   "texturePolicy": {
     "bitmapTextures": 0,

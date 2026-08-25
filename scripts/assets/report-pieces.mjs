@@ -64,4 +64,4 @@ for (const role of ROLE_NAMES) {
   }
 }
 console.log(`\n- LOD1 roster download: ${(lod1Bytes / 1024).toFixed(1)} KiB`);
-console.log("- Known visual boundary: role-specific procedural game assets with stable silhouettes; manual facial sculpt, baked normal detail, embroidery, cloth microfolds, and authored weathering remain an art-polish pass.");
+console.log("- Visual source: the imported terracotta cartoon role set is authoritative; runtime GLBs preserve its silhouettes and mineral-pigment palette while adding the shared rig, clips, sockets, LODs, and Meshopt delivery contract.");
