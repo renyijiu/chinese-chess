@@ -51,6 +51,7 @@ test("keeps the rule-correct board and modular R3F runtime wired", async () => {
     viewer,
     scene,
     surface,
+    boardGeometry,
     environment,
     runtime,
     loader,
@@ -71,6 +72,7 @@ test("keeps the rule-correct board and modular R3F runtime wired", async () => {
     readFile(new URL("../app/BoardViewer.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/xiangqi/scene/BoardScene.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/xiangqi/scene/BoardSurface.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../components/xiangqi/scene/board-geometry.ts", import.meta.url), "utf8"),
     readFile(new URL("../components/xiangqi/scene/FortressEnvironment.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/xiangqi/runtime/board-coordinates.ts", import.meta.url), "utf8"),
     readFile(new URL("../components/xiangqi/pieces/asset-loader.tsx", import.meta.url), "utf8"),
@@ -97,11 +99,15 @@ test("keeps the rule-correct board and modular R3F runtime wired", async () => {
   assert.match(viewer, /WebGL2/);
   assert.match(scene, /function BoardScene/);
   assert.match(scene, /PieceLayer|PrototypePieceLayer/);
-  assert.match(surface, /function makeBoardSegments/);
+  assert.match(surface, /QIN_DIORAMA_THEME/);
+  assert.match(surface, /function QinClayTiles/);
+  assert.match(surface, /function QinDoubleEnclosure/);
   assert.match(surface, /function BoardLines/);
-  assert.match(surface, /function River/);
-  assert.match(surface, /function StoneSlabs/);
+  assert.match(surface, /function GlazedRiver/);
+  assert.doesNotMatch(surface, /StoneSlabs|WetPatches|makeStone/);
   assert.match(surface, /instancedMesh/);
+  assert.match(boardGeometry, /function makeBoardSegments/);
+  assert.match(boardGeometry, /function makeBoardOrnamentPlacements/);
   assert.match(environment, /fortress-valley-v1\.jpg/);
   assert.match(environment, /attach="background"/);
   assert.match(runtime, /function squareToWorld/);

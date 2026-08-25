@@ -2,218 +2,76 @@
 
 /* eslint-disable react/no-unknown-property -- R3F scene graph props are valid custom JSX properties. */
 
+import { RoundedBox } from "@react-three/drei";
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
+import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 
 import {
   BOARD_FILE_POSITIONS,
-  BOARD_RANK_POSITIONS,
   BOARD_SPACING,
+  BOARD_SURFACE_Y,
 } from "../runtime/board-coordinates";
 import { useScheduledFrame } from "../runtime/FrameScheduler";
-
-type LineSegment = [[number, number], [number, number]];
+import {
+  makeBoardOrnamentPlacements,
+  makeBoardSegments,
+  makeClayTilePlacements,
+  makeEnclosureWallPlacements,
+  type BoardOrnamentKind,
+} from "./board-geometry";
+import { QIN_DIORAMA_THEME } from "./scene-theme";
 
 const FILE_MIN = Math.min(...BOARD_FILE_POSITIONS);
 const FILE_MAX = Math.max(...BOARD_FILE_POSITIONS);
-const RANK_MIN = Math.min(...BOARD_RANK_POSITIONS);
-const RANK_MAX = Math.max(...BOARD_RANK_POSITIONS);
-const ASCENDING_RANKS = [...BOARD_RANK_POSITIONS].sort((a, b) => a - b);
+const TILE_HEIGHT = 0.24;
+const TILE_TOP_Y = BOARD_SURFACE_Y - 0.035;
 
-function makeStoneBumpTexture() {
-  const size = 128;
-  const data = new Uint8Array(size * size);
-  let seed = 9301;
-
-  for (let index = 0; index < data.length; index += 1) {
-    seed = (seed * 49297 + 233280) % 233280;
-    const noise = seed / 233280;
-    const x = index % size;
-    const y = Math.floor(index / size);
-    const veins = Math.sin(x * 0.23 + Math.sin(y * 0.08) * 3) * 12;
-    data[index] = Math.max(0, Math.min(255, 116 + noise * 62 + veins));
-  }
-
-  const texture = new THREE.DataTexture(data, size, size, THREE.RedFormat);
-  texture.wrapS = THREE.RepeatWrapping;
-  texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(1.7, 1.7);
-  texture.needsUpdate = true;
-  return texture;
-}
-
-function makeStoneColorTexture() {
-  const size = 128;
-  const data = new Uint8Array(size * size * 4);
-  let seed = 1729;
-
-  for (let index = 0; index < size * size; index += 1) {
-    seed = (seed * 48271) % 2147483647;
-    const noise = seed / 2147483647;
-    const x = index % size;
-    const y = Math.floor(index / size);
-    const broadGrain = Math.sin(x * 0.08 + Math.sin(y * 0.055) * 2.8) * 7;
-    const fineGrain = (noise - 0.5) * 24;
-    const base = 150 + broadGrain + fineGrain;
-    const offset = index * 4;
-    data[offset] = Math.max(0, Math.min(255, base * 0.95));
-    data[offset + 1] = Math.max(0, Math.min(255, base));
-    data[offset + 2] = Math.max(0, Math.min(255, base * 0.96));
-    data[offset + 3] = 255;
-  }
-
-  const texture = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.wrapS = THREE.RepeatWrapping;
-  texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(1.45, 1.45);
-  texture.needsUpdate = true;
-  return texture;
-}
-
-export function StoneSlabs({ castShadow = true }: { castShadow?: boolean }) {
+function QinClayTiles({ castShadow = true }: { castShadow?: boolean }) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
-  const bumpTexture = useMemo(() => makeStoneBumpTexture(), []);
-  const colorTexture = useMemo(() => makeStoneColorTexture(), []);
-  const slabs = useMemo(() => {
-    const placements: Array<{ color: THREE.Color; position: [number, number, number]; rotation: number }> = [];
-    let seed = 41;
-
-    for (let file = 0; file < 8; file += 1) {
-      for (const rankInterval of [-4, -3, -2, -1, 1, 2, 3, 4]) {
-        seed = (seed * 16807) % 2147483647;
-        const variation = (seed % 100) / 100;
-        const tone = 0.8 + variation * 0.19;
-        placements.push({
-          color: new THREE.Color(0x4c504d).multiplyScalar(tone),
-          position: [
-            (file - 3.5) * BOARD_SPACING,
-            0.535 + variation * 0.018,
-            rankInterval * BOARD_SPACING,
-          ],
-          rotation: (variation - 0.5) * 0.007,
-        });
-      }
-    }
-    return placements;
-  }, []);
+  const geometry = useMemo(
+    () => new RoundedBoxGeometry(
+      BOARD_SPACING - 0.065,
+      TILE_HEIGHT,
+      BOARD_SPACING - 0.065,
+      2,
+      0.075,
+    ),
+    [],
+  );
+  const tiles = useMemo(() => makeClayTilePlacements(), []);
 
   useLayoutEffect(() => {
     const mesh = meshRef.current;
     if (!mesh) return;
     const transform = new THREE.Object3D();
-    slabs.forEach((slab, index) => {
-      transform.position.set(...slab.position);
-      transform.rotation.set(0, slab.rotation, 0);
+
+    tiles.forEach((tile, index) => {
+      transform.position.set(tile.position[0], TILE_TOP_Y - TILE_HEIGHT / 2, tile.position[1]);
+      transform.rotation.set(0, tile.rotation, 0);
       transform.updateMatrix();
       mesh.setMatrixAt(index, transform.matrix);
-      mesh.setColorAt(index, slab.color);
     });
     mesh.instanceMatrix.needsUpdate = true;
-    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-  }, [slabs]);
+  }, [tiles]);
 
-  useEffect(
-    () => () => {
-      bumpTexture.dispose();
-      colorTexture.dispose();
-    },
-    [bumpTexture, colorTexture],
-  );
+  useEffect(() => () => geometry.dispose(), [geometry]);
 
   return (
-    <instancedMesh ref={meshRef} args={[undefined, undefined, slabs.length]} castShadow={castShadow} receiveShadow>
-      <boxGeometry args={[BOARD_SPACING - 0.055, 0.22, BOARD_SPACING - 0.055, 2, 1, 2]} />
-      <meshPhysicalMaterial
-        bumpMap={bumpTexture}
-        bumpScale={0.055}
-        clearcoat={0.08}
-        clearcoatRoughness={0.55}
-        color={0xffffff}
-        map={colorTexture}
-        metalness={0.04}
-        roughness={0.82}
+    <instancedMesh
+      ref={meshRef}
+      args={[geometry, undefined, tiles.length]}
+      castShadow={castShadow}
+      name="qin-clay-tiles"
+      raycast={() => null}
+      receiveShadow
+    >
+      <meshStandardMaterial
+        color={QIN_DIORAMA_THEME.materials.firedClay}
+        roughness={0.92}
       />
     </instancedMesh>
   );
-}
-
-function WetPatches() {
-  const meshRef = useRef<THREE.InstancedMesh>(null);
-  const patches = useMemo(
-    () => [
-      [-3.74, -4.38, 0.36, 0.18, 0.3], [-1.44, -3.52, 0.44, 0.16, -0.5],
-      [1.74, -4.16, 0.31, 0.2, 0.1], [3.62, -2.16, 0.42, 0.14, 0.6],
-      [-3.3, -1.34, 0.28, 0.13, -0.3], [-0.92, -1.5, 0.48, 0.17, 0.2],
-      [2.38, 1.38, 0.38, 0.16, -0.7], [-3.72, 2.16, 0.34, 0.18, 0.4],
-      [-1.6, 3.44, 0.47, 0.17, -0.2], [0.72, 4.2, 0.3, 0.13, 0.8],
-      [3.42, 3.62, 0.4, 0.15, -0.4], [2.14, 4.66, 0.24, 0.12, 0.2],
-    ] as Array<[number, number, number, number, number]>,
-    [],
-  );
-
-  useLayoutEffect(() => {
-    const mesh = meshRef.current;
-    if (!mesh) return;
-    const transform = new THREE.Object3D();
-    patches.forEach(([x, z, width, depth, angle], index) => {
-      transform.position.set(x, 0.663, z);
-      transform.rotation.set(-Math.PI / 2, 0, angle);
-      transform.scale.set(width, depth, 1);
-      transform.updateMatrix();
-      mesh.setMatrixAt(index, transform.matrix);
-    });
-    mesh.instanceMatrix.needsUpdate = true;
-  }, [patches]);
-
-  return (
-    <instancedMesh ref={meshRef} args={[undefined, undefined, patches.length]} receiveShadow>
-      <circleGeometry args={[1, 24]} />
-      <meshPhysicalMaterial color={0x142927} depthWrite={false} metalness={0.2} opacity={0.21} roughness={0.2} transparent />
-    </instancedMesh>
-  );
-}
-
-function addCornerMark(segments: LineSegment[], x: number, z: number, xDirection: -1 | 1, zDirection: -1 | 1) {
-  const offset = 0.17;
-  const length = 0.12;
-  const cornerX = x + xDirection * offset;
-  const cornerZ = z + zDirection * offset;
-  segments.push([[cornerX, cornerZ], [cornerX - xDirection * length, cornerZ]]);
-  segments.push([[cornerX, cornerZ], [cornerX, cornerZ - zDirection * length]]);
-}
-
-export function makeBoardSegments() {
-  const segments: LineSegment[] = [];
-  ASCENDING_RANKS.forEach((z) => segments.push([[FILE_MIN, z], [FILE_MAX, z]]));
-  BOARD_FILE_POSITIONS.forEach((x, index) => {
-    if (index === 0 || index === BOARD_FILE_POSITIONS.length - 1) {
-      segments.push([[x, RANK_MIN], [x, RANK_MAX]]);
-      return;
-    }
-    segments.push([[x, RANK_MIN], [x, ASCENDING_RANKS[4]]]);
-    segments.push([[x, ASCENDING_RANKS[5]], [x, RANK_MAX]]);
-  });
-  segments.push(
-    [[-BOARD_SPACING, RANK_MIN], [BOARD_SPACING, ASCENDING_RANKS[2]]],
-    [[BOARD_SPACING, RANK_MIN], [-BOARD_SPACING, ASCENDING_RANKS[2]]],
-    [[-BOARD_SPACING, ASCENDING_RANKS[7]], [BOARD_SPACING, RANK_MAX]],
-    [[BOARD_SPACING, ASCENDING_RANKS[7]], [-BOARD_SPACING, RANK_MAX]],
-  );
-
-  const markedIntersections = [
-    ...[-3, 3].flatMap((file) => [-2.5, 2.5].map((rank) => [file * BOARD_SPACING, rank * BOARD_SPACING])),
-    ...[-4, -2, 0, 2, 4].flatMap((file) => [-1.5, 1.5].map((rank) => [file * BOARD_SPACING, rank * BOARD_SPACING])),
-  ] as Array<[number, number]>;
-
-  markedIntersections.forEach(([x, z]) => {
-    const xDirections: Array<-1 | 1> = x === FILE_MIN ? [1] : x === FILE_MAX ? [-1] : [-1, 1];
-    xDirections.forEach((xDirection) => {
-      addCornerMark(segments, x, z, xDirection, -1);
-      addCornerMark(segments, x, z, xDirection, 1);
-    });
-  });
-  return segments;
 }
 
 export function BoardLines({ castShadow = true }: { castShadow?: boolean }) {
@@ -229,8 +87,8 @@ export function BoardLines({ castShadow = true }: { castShadow?: boolean }) {
     const end = new THREE.Vector3();
     const direction = new THREE.Vector3();
     segments.forEach(([[x1, z1], [x2, z2]], index) => {
-      start.set(x1, 0.67, z1);
-      end.set(x2, 0.67, z2);
+      start.set(x1, BOARD_SURFACE_Y - 0.021, z1);
+      end.set(x2, BOARD_SURFACE_Y - 0.021, z2);
       direction.subVectors(end, start);
       const length = direction.length();
       transform.position.copy(start).add(end).multiplyScalar(0.5);
@@ -243,138 +101,326 @@ export function BoardLines({ castShadow = true }: { castShadow?: boolean }) {
   }, [segments]);
 
   return (
-    <instancedMesh ref={meshRef} args={[undefined, undefined, segments.length]} castShadow={castShadow}>
-      <cylinderGeometry args={[0.021, 0.021, 1, 8]} />
-      <meshStandardMaterial color={0x8c7149} metalness={0.82} roughness={0.39} />
+    <instancedMesh
+      ref={meshRef}
+      args={[undefined, undefined, segments.length]}
+      castShadow={castShadow}
+      name="black-lacquer-grid"
+      raycast={() => null}
+    >
+      <cylinderGeometry args={[0.024, 0.024, 1, 8]} />
+      <meshStandardMaterial
+        color={QIN_DIORAMA_THEME.materials.blackLacquer}
+        metalness={0.04}
+        roughness={0.72}
+      />
     </instancedMesh>
   );
 }
 
-const waterVertexShader = `
-  uniform float uTime; varying vec2 vUv; varying float vWave;
+const glazeVertexShader = `
+  uniform float uTime;
+  varying vec2 vUv;
+  varying float vWave;
+
   void main() {
-    vUv = uv; vec3 displaced = position;
-    float wave = sin(position.x * 2.3 + uTime * 0.9) * 0.028;
-    wave += sin(position.x * 5.1 - uTime * 1.25 + position.y * 4.0) * 0.012;
-    displaced.z += wave; vWave = wave;
+    vUv = uv;
+    vec3 displaced = position;
+    float wave = sin(position.x * 1.7 + uTime * 0.42) * 0.012;
+    wave += sin(position.x * 3.9 - uTime * 0.58 + position.y * 3.0) * 0.006;
+    displaced.z += wave;
+    vWave = wave;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(displaced, 1.0);
   }
 `;
 
-const waterFragmentShader = `
-  uniform float uTime; varying vec2 vUv; varying float vWave;
+const glazeFragmentShader = `
+  uniform float uTime;
+  uniform vec3 uDeepColor;
+  uniform vec3 uShallowColor;
+  uniform vec3 uGlintColor;
+  varying vec2 vUv;
+  varying float vWave;
+
   void main() {
-    float current = sin(vUv.x * 44.0 - uTime * 1.2 + sin(vUv.y * 12.0)) * 0.5 + 0.5;
-    float glint = smoothstep(0.86, 1.0, current) * 0.34;
-    vec3 deep = vec3(0.018, 0.105, 0.115); vec3 shallow = vec3(0.095, 0.29, 0.30);
-    vec3 color = mix(deep, shallow, vUv.y * 0.46 + 0.2 + vWave * 3.0);
-    color += vec3(0.45, 0.54, 0.49) * glint;
-    gl_FragColor = vec4(color, 0.96);
+    float current = sin(vUv.x * 24.0 - uTime * 0.48 + sin(vUv.y * 9.0)) * 0.5 + 0.5;
+    float swirl = sin(length(vUv - vec2(0.5)) * 42.0 - uTime * 0.34) * 0.5 + 0.5;
+    float glint = smoothstep(0.91, 1.0, current * 0.7 + swirl * 0.3) * 0.18;
+    float blend = clamp(vUv.y * 0.42 + 0.24 + vWave * 2.5, 0.0, 1.0);
+    vec3 color = mix(uDeepColor, uShallowColor, blend);
+    color += uGlintColor * glint;
+    gl_FragColor = vec4(color, 0.94);
   }
 `;
 
-export function River({ animate = true, castShadows = false }: { animate?: boolean; castShadows?: boolean }) {
+function GlazedRiver({ animate = true }: { animate?: boolean }) {
   const materialRef = useRef<THREE.ShaderMaterial>(null);
-  const uniforms = useMemo(() => ({ uTime: { value: 0 } }), []);
+  const uniforms = useMemo(() => {
+    const { accents, materials } = QIN_DIORAMA_THEME;
+    return {
+      uDeepColor: {
+        value: new THREE.Color(materials.blackLacquer).lerp(
+          new THREE.Color(accents.mineralBlue),
+          0.42,
+        ),
+      },
+      uGlintColor: { value: new THREE.Color(materials.chalk) },
+      uShallowColor: {
+        value: new THREE.Color(accents.mineralBlue).lerp(
+          new THREE.Color(accents.verdigris),
+          0.38,
+        ),
+      },
+      uTime: { value: 0 },
+    };
+  }, []);
+
   useScheduledFrame((elapsed) => {
     if (materialRef.current) materialRef.current.uniforms.uTime.value = elapsed;
   }, animate);
 
   return (
-    <group>
-      <mesh receiveShadow position={[0, 0.27, 0]}>
-        <boxGeometry args={[FILE_MAX - FILE_MIN + 0.08, 0.12, BOARD_SPACING - 0.08]} />
-        <meshStandardMaterial color={0x071b1d} metalness={0.15} roughness={0.38} />
+    <group name={animate ? "qin-glazed-river-animated" : "qin-glazed-river-static"}>
+      <mesh raycast={() => null} receiveShadow position={[0, 0.31, 0]}>
+        <boxGeometry args={[FILE_MAX - FILE_MIN + 0.14, 0.16, BOARD_SPACING - 0.06]} />
+        <meshStandardMaterial
+          color={QIN_DIORAMA_THEME.materials.blackLacquer}
+          metalness={0.08}
+          roughness={0.64}
+        />
       </mesh>
-      <mesh position={[0, 0.39, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[FILE_MAX - FILE_MIN, BOARD_SPACING - 0.13, 64, 10]} />
-        <shaderMaterial ref={materialRef} fragmentShader={waterFragmentShader} transparent uniforms={uniforms} vertexShader={waterVertexShader} />
+      <mesh raycast={() => null} position={[0, 0.455, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[FILE_MAX - FILE_MIN, BOARD_SPACING - 0.14, 32, 4]} />
+        <shaderMaterial
+          ref={materialRef}
+          fragmentShader={glazeFragmentShader}
+          transparent
+          uniforms={uniforms}
+          vertexShader={glazeVertexShader}
+        />
       </mesh>
       {[-BOARD_SPACING / 2, BOARD_SPACING / 2].map((z) => (
-        <mesh key={z} castShadow={castShadows} receiveShadow position={[0, 0.49, z]}>
-          <boxGeometry args={[FILE_MAX - FILE_MIN + 0.35, 0.24, 0.16]} />
-          <meshStandardMaterial color={0x353b39} metalness={0.12} roughness={0.86} />
+        <mesh key={z} raycast={() => null} receiveShadow position={[0, 0.525, z]}>
+          <boxGeometry args={[FILE_MAX - FILE_MIN + 0.32, 0.18, 0.15, 1, 1, 2]} />
+          <meshStandardMaterial
+            color={QIN_DIORAMA_THEME.materials.firedClayShadow}
+            metalness={0.02}
+            roughness={0.94}
+          />
         </mesh>
       ))}
     </group>
   );
+}
+
+function themeHex(color: number) {
+  return `#${color.toString(16).padStart(6, "0")}`;
 }
 
 function RiverInscription({ position, text }: { position: [number, number, number]; text: string }) {
   const materialRef = useRef<THREE.MeshBasicMaterial>(null);
   useEffect(() => {
     const canvas = document.createElement("canvas");
-    canvas.width = 512; canvas.height = 128;
+    canvas.width = 512;
+    canvas.height = 128;
     const context = canvas.getContext("2d");
     if (!context) return;
     context.font = '700 68px "Songti SC", "STSong", serif';
-    context.fillStyle = "#d1ae6b"; context.shadowColor = "rgba(0, 0, 0, 0.8)"; context.shadowBlur = 8;
-    context.textAlign = "center"; context.textBaseline = "middle";
+    context.fillStyle = themeHex(QIN_DIORAMA_THEME.materials.chalk);
+    context.shadowColor = themeHex(QIN_DIORAMA_THEME.materials.blackLacquer);
+    context.shadowBlur = 7;
+    context.textAlign = "center";
+    context.textBaseline = "middle";
     context.fillText(text, canvas.width / 2, canvas.height / 2 + 2);
     const texture = new THREE.CanvasTexture(canvas);
-    texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = 8;
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = 8;
     const material = materialRef.current;
-    if (material) { material.map = texture; material.needsUpdate = true; }
-    return () => { texture.dispose(); if (material) material.map = null; };
+    if (material) {
+      material.map = texture;
+      material.needsUpdate = true;
+    }
+    return () => {
+      texture.dispose();
+      if (material) material.map = null;
+    };
   }, [text]);
   return (
-    <mesh position={position} rotation={[-Math.PI / 2, 0, 0]}>
+    <mesh raycast={() => null} position={position} rotation={[-Math.PI / 2, 0, 0]}>
       <planeGeometry args={[2.5, 0.63]} />
       <meshBasicMaterial ref={materialRef} alphaTest={0.08} transparent toneMapped={false} />
     </mesh>
   );
 }
 
-function BoardFoundation({ castShadow }: { castShadow: boolean }) {
-  const crenelsRef = useRef<THREE.InstancedMesh>(null);
-  const crenels = useMemo(() => {
-    const placements: Array<[number, number, number]> = [];
-    for (let z = -6.15; z <= 6.15; z += 0.88) placements.push([-6.18, 1.01, z], [6.18, 1.01, z]);
-    for (let x = -5.72; x <= 5.72; x += 0.88) {
-      placements.push([x, 1.01, -6.88]);
-      if (Math.abs(x) > 2.15) placements.push([x, 1.01, 6.88]);
-    }
-    return placements;
-  }, []);
+function QinDoubleEnclosure({ castShadow }: { castShadow: boolean }) {
+  const wallRef = useRef<THREE.InstancedMesh>(null);
+  const wallGeometry = useMemo(() => new RoundedBoxGeometry(1, 1, 1, 2, 0.16), []);
+  const walls = useMemo(() => makeEnclosureWallPlacements(), []);
+
   useLayoutEffect(() => {
-    const mesh = crenelsRef.current;
+    const mesh = wallRef.current;
     if (!mesh) return;
     const transform = new THREE.Object3D();
-    crenels.forEach((position, index) => { transform.position.set(...position); transform.updateMatrix(); mesh.setMatrixAt(index, transform.matrix); });
+    walls.forEach((wall, index) => {
+      transform.position.set(wall.position[0], BOARD_SURFACE_Y - 0.2, wall.position[1]);
+      transform.scale.set(...wall.scale);
+      transform.updateMatrix();
+      mesh.setMatrixAt(index, transform.matrix);
+    });
     mesh.instanceMatrix.needsUpdate = true;
-  }, [crenels]);
+  }, [walls]);
+
+  useEffect(() => () => wallGeometry.dispose(), [wallGeometry]);
 
   return (
-    <group>
-      <mesh castShadow={castShadow} receiveShadow position={[0, -0.19, 0]}><boxGeometry args={[13.35, 0.74, 14.85]} /><meshStandardMaterial color={0x1d2221} metalness={0.06} roughness={0.94} /></mesh>
-      <mesh castShadow={castShadow} receiveShadow position={[0, 0.24, 0]}><boxGeometry args={[12.65, 0.25, 14.15]} /><meshStandardMaterial color={0x343937} metalness={0.12} roughness={0.86} /></mesh>
-      <mesh castShadow={castShadow} receiveShadow position={[-6.05, 0.59, 0]}><boxGeometry args={[0.42, 0.58, 13.95]} /><meshStandardMaterial color={0x292f2d} roughness={0.91} /></mesh>
-      <mesh castShadow={castShadow} receiveShadow position={[6.05, 0.59, 0]}><boxGeometry args={[0.42, 0.58, 13.95]} /><meshStandardMaterial color={0x292f2d} roughness={0.91} /></mesh>
-      <mesh castShadow={castShadow} receiveShadow position={[0, 0.59, -6.75]}><boxGeometry args={[12.5, 0.58, 0.42]} /><meshStandardMaterial color={0x292f2d} roughness={0.91} /></mesh>
-      <mesh castShadow={castShadow} receiveShadow position={[-4.12, 0.59, 6.75]}><boxGeometry args={[4, 0.58, 0.42]} /><meshStandardMaterial color={0x292f2d} roughness={0.91} /></mesh>
-      <mesh castShadow={castShadow} receiveShadow position={[4.12, 0.59, 6.75]}><boxGeometry args={[4, 0.58, 0.42]} /><meshStandardMaterial color={0x292f2d} roughness={0.91} /></mesh>
-      <instancedMesh ref={crenelsRef} args={[undefined, undefined, crenels.length]} castShadow={castShadow} receiveShadow>
-        <boxGeometry args={[0.48, 0.58, 0.48]} /><meshStandardMaterial color={0x343b38} metalness={0.08} roughness={0.88} />
+    <group name="qin-double-enclosure">
+      <RoundedBox
+        args={[13.3, 0.72, 14.78]}
+        castShadow={castShadow}
+        position={[0, 0.02, 0]}
+        radius={0.24}
+        raycast={() => null}
+        receiveShadow
+        smoothness={3}
+      >
+        <meshStandardMaterial
+          color={QIN_DIORAMA_THEME.materials.firedClayShadow}
+          metalness={0.02}
+          roughness={0.97}
+        />
+      </RoundedBox>
+      <RoundedBox
+        args={[12.76, 0.2, 14.22]}
+        castShadow={castShadow}
+        position={[0, 0.4, 0]}
+        radius={0.12}
+        raycast={() => null}
+        receiveShadow
+        smoothness={2}
+      >
+        <meshStandardMaterial
+          color={QIN_DIORAMA_THEME.materials.firedClay}
+          metalness={0.01}
+          roughness={0.95}
+        />
+      </RoundedBox>
+      <instancedMesh
+        ref={wallRef}
+        args={[wallGeometry, undefined, walls.length]}
+        castShadow={castShadow}
+        name="qin-mausoleum-double-wall"
+        raycast={() => null}
+        receiveShadow
+      >
+        <meshStandardMaterial
+          color={QIN_DIORAMA_THEME.materials.firedClayLight}
+          roughness={0.93}
+        />
       </instancedMesh>
-      {[0, 1, 2].map((step) => (
-        <mesh key={step} castShadow={castShadow} receiveShadow position={[0, -0.32 - step * 0.2, 7.24 + step * 0.36]}>
-          <boxGeometry args={[4.1 + step * 0.5, 0.22, 0.72]} /><meshStandardMaterial color={0x2d3331} roughness={0.94} />
-        </mesh>
-      ))}
+    </group>
+  );
+}
+
+function QinBoardOrnaments() {
+  const brickRef = useRef<THREE.InstancedMesh>(null);
+  const gateRef = useRef<THREE.InstancedMesh>(null);
+  const medallionRef = useRef<THREE.InstancedMesh>(null);
+  const swirlRef = useRef<THREE.InstancedMesh>(null);
+  const ornaments = useMemo(() => makeBoardOrnamentPlacements(), []);
+  const byKind = useMemo(() => {
+    const groups: Record<BoardOrnamentKind, ReturnType<typeof makeBoardOrnamentPlacements>> = {
+      "brick-impression": [],
+      "gate-cue": [],
+      "tile-medallion": [],
+      "water-swirl": [],
+    };
+    ornaments.forEach((placement) => groups[placement.kind].push(placement));
+    return groups;
+  }, [ornaments]);
+
+  useLayoutEffect(() => {
+    const transform = new THREE.Object3D();
+    const write = (
+      ref: typeof brickRef,
+      kind: BoardOrnamentKind,
+      y: number,
+      flatRotation = false,
+    ) => {
+      const mesh = ref.current;
+      if (!mesh) return;
+      byKind[kind].forEach((placement, index) => {
+        transform.position.set(placement.position[0], y, placement.position[1]);
+        transform.rotation.set(flatRotation ? Math.PI / 2 : 0, placement.rotation, 0);
+        transform.scale.set(placement.scale[0], 1, placement.scale[1]);
+        transform.updateMatrix();
+        mesh.setMatrixAt(index, transform.matrix);
+      });
+      mesh.instanceMatrix.needsUpdate = true;
+    };
+
+    write(brickRef, "brick-impression", 0.515);
+    write(gateRef, "gate-cue", 0.57);
+    write(medallionRef, "tile-medallion", 0.535);
+    write(swirlRef, "water-swirl", 0.55, true);
+  }, [byKind]);
+
+  return (
+    <group name="sparse-qin-impressions">
+      <instancedMesh
+        ref={brickRef}
+        args={[undefined, undefined, byKind["brick-impression"].length]}
+        raycast={() => null}
+      >
+        <boxGeometry args={[1, 0.025, 1]} />
+        <meshStandardMaterial color={QIN_DIORAMA_THEME.materials.blackLacquer} roughness={0.8} />
+      </instancedMesh>
+      <instancedMesh
+        ref={gateRef}
+        args={[undefined, undefined, byKind["gate-cue"].length]}
+        raycast={() => null}
+      >
+        <boxGeometry args={[1, 0.14, 1, 2, 1, 2]} />
+        <meshStandardMaterial
+          color={QIN_DIORAMA_THEME.materials.agedBronze}
+          metalness={0.34}
+          roughness={0.67}
+        />
+      </instancedMesh>
+      <instancedMesh
+        ref={medallionRef}
+        args={[undefined, undefined, byKind["tile-medallion"].length]}
+        raycast={() => null}
+      >
+        <cylinderGeometry args={[1, 1, 0.055, 12]} />
+        <meshStandardMaterial color={QIN_DIORAMA_THEME.materials.chalk} roughness={0.88} />
+      </instancedMesh>
+      <instancedMesh
+        ref={swirlRef}
+        args={[undefined, undefined, byKind["water-swirl"].length]}
+        raycast={() => null}
+      >
+        <torusGeometry args={[0.7, 0.12, 5, 18, Math.PI * 1.55]} />
+        <meshStandardMaterial
+          color={QIN_DIORAMA_THEME.accents.verdigris}
+          metalness={0.12}
+          roughness={0.76}
+        />
+      </instancedMesh>
     </group>
   );
 }
 
 export function BoardSurface({ animate, shadows }: { animate: boolean; shadows: boolean }) {
   return (
-    <>
-      <BoardFoundation castShadow={false} />
-      <StoneSlabs castShadow={shadows} />
-      <WetPatches />
-      <River animate={animate} />
+    <group name="qin-terracotta-mausoleum-board">
+      <QinDoubleEnclosure castShadow={false} />
+      <QinClayTiles castShadow={shadows} />
+      <GlazedRiver animate={animate} />
       <BoardLines castShadow={false} />
-      <RiverInscription position={[-2.42, 0.485, 0]} text="楚  河" />
-      <RiverInscription position={[2.42, 0.485, 0]} text="漢  界" />
-    </>
+      <RiverInscription position={[-2.42, 0.505, 0]} text="楚  河" />
+      <RiverInscription position={[2.42, 0.505, 0]} text="漢  界" />
+      <QinBoardOrnaments />
+    </group>
   );
 }

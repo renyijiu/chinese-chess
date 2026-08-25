@@ -7,6 +7,21 @@ import {
 } from "../../../components/xiangqi/runtime/board-coordinates";
 
 describe("squareToWorld", () => {
+  it("keeps the complete 90-square world-coordinate contract frozen", () => {
+    expect(BOARD_SPACING).toBe(1.14);
+    expect(BOARD_SURFACE_Y).toBe(0.69);
+
+    for (let rank = 0; rank < 10; rank += 1) {
+      for (let file = 0; file < 9; file += 1) {
+        expect(squareToWorld({ file, rank })).toEqual([
+          (file - 4) * 1.14,
+          0.69,
+          (4.5 - rank) * 1.14,
+        ]);
+      }
+    }
+  });
+
   it("maps the red home rank to the near, positive-Z edge", () => {
     expect(squareToWorld({ file: 4, rank: 0 })).toEqual([0, BOARD_SURFACE_Y, 4.5 * BOARD_SPACING]);
   });
