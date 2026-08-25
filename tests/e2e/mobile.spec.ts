@@ -21,11 +21,12 @@ test("390 × 844 touch layout keeps game controls usable", async ({ page }) => {
   await expect(page.getByRole("button", { name: /切换到黑方视角/ })).toBeVisible();
 
   await page.getByRole("button", { name: "俯视棋盘" }).click();
+  await page.getByRole("button", { name: /切换到黑方视角/ }).click();
   await page.waitForTimeout(2_000);
   const canvas = page.locator("canvas");
-  await tapBoardSquare(canvas, 0, 3);
+  await tapBoardSquare(canvas, 0, 3, "black");
   await expect(page.locator(".game-turn-card small")).toContainText("1 个合法落点");
-  await tapBoardSquare(canvas, 0, 4);
+  await tapBoardSquare(canvas, 0, 4, "black");
   await waitForRevision(page, 1);
   await expect(page.locator(".game-history")).toContainText("红·兵 a3 → a4");
 

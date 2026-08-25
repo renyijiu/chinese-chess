@@ -19,11 +19,11 @@ export function BattlePostprocessing() {
       <primitive object={bloomLight} />
       <EffectComposer depthBuffer={false} enableNormalPass={false} multisampling={0} resolutionScale={0.65}>
         <SelectiveBloom
-          intensity={0.82}
+          intensity={0.62}
           lights={[bloomLight]}
           luminanceSmoothing={0.18}
-          luminanceThreshold={0.2}
-          radius={0.55}
+          luminanceThreshold={0.28}
+          radius={0.46}
         />
       </EffectComposer>
     </>

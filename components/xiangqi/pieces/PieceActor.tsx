@@ -12,10 +12,11 @@ import type { AnimationRegistry } from "../animation/AnimationRegistry";
 import type { PieceLod } from "../runtime/quality";
 import { usePieceAsset } from "./asset-loader";
 import { pieceAssetUrl } from "./piece-catalog";
-import { FACTION_COLORS, semanticColor } from "./piece-palette";
+import { semanticColor } from "./piece-palette";
+import { QIN_DIORAMA_THEME } from "../scene/scene-theme";
 
 const SELECTION_MATERIAL = new THREE.MeshBasicMaterial({
-  color: 0xffd27a,
+  color: QIN_DIORAMA_THEME.states.selected.color,
   depthWrite: false,
   opacity: 0.9,
   transparent: true,
@@ -51,10 +52,19 @@ function factionGeometry(source: THREE.BufferGeometry, side: Side) {
 function SelectionAura({ side }: { side: Side }) {
   return (
     <group name="selection-aura">
-      <mesh material={SELECTION_MATERIAL} position={[0, 0.014, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh position={[0, 0.012, 0]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null}>
+        <circleGeometry args={[0.48, 32]} />
+        <meshBasicMaterial
+          color={QIN_DIORAMA_THEME.states.selected.color}
+          depthWrite={false}
+          opacity={0.16}
+          transparent
+        />
+      </mesh>
+      <mesh material={SELECTION_MATERIAL} position={[0, 0.014, 0]} raycast={() => null} rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[0.46, 0.53, 40]} />
       </mesh>
-      <pointLight color={FACTION_COLORS[side].glow} distance={2.4} intensity={0.7} position={[0, 0.5, 0]} />
+      <pointLight color={QIN_DIORAMA_THEME.factions[side].glow} distance={2.1} intensity={0.52} position={[0, 0.5, 0]} />
     </group>
   );
 }

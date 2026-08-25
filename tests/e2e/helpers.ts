@@ -4,7 +4,12 @@ import { squareToWorld } from "../../components/xiangqi/runtime/board-coordinate
 
 const CAMERA_FOV_DEGREES = 37;
 
-async function boardScreenPoint(canvas: Locator, file: number, rank: number) {
+async function boardScreenPoint(
+  canvas: Locator,
+  file: number,
+  rank: number,
+  side: "red" | "black" = "red",
+) {
   const box = await canvas.boundingBox();
   expect(box, "the WebGL canvas must have a visible bounding box").not.toBeNull();
 
@@ -13,19 +18,30 @@ async function boardScreenPoint(canvas: Locator, file: number, rank: number) {
   const verticalWorldSpan = 2 * Math.tan((CAMERA_FOV_DEGREES * Math.PI) / 360)
     * (cameraHeight - worldY);
   const pixelsPerWorldUnit = box!.height / verticalWorldSpan;
+  const orientation = side === "red" ? 1 : -1;
   return {
-    x: box!.x + box!.width / 2 + worldX * pixelsPerWorldUnit,
-    y: box!.y + box!.height / 2 + worldZ * pixelsPerWorldUnit,
+    x: box!.x + box!.width / 2 + worldX * pixelsPerWorldUnit * orientation,
+    y: box!.y + box!.height / 2 + worldZ * pixelsPerWorldUnit * orientation,
   };
 }
 
-export async function clickBoardSquare(canvas: Locator, file: number, rank: number) {
-  const point = await boardScreenPoint(canvas, file, rank);
+export async function clickBoardSquare(
+  canvas: Locator,
+  file: number,
+  rank: number,
+  side: "red" | "black" = "red",
+) {
+  const point = await boardScreenPoint(canvas, file, rank, side);
   await canvas.page().mouse.click(point.x, point.y);
 }
 
-export async function tapBoardSquare(canvas: Locator, file: number, rank: number) {
-  const point = await boardScreenPoint(canvas, file, rank);
+export async function tapBoardSquare(
+  canvas: Locator,
+  file: number,
+  rank: number,
+  side: "red" | "black" = "red",
+) {
+  const point = await boardScreenPoint(canvas, file, rank, side);
   await canvas.page().touchscreen.tap(point.x, point.y);
 }
 

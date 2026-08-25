@@ -1,4 +1,5 @@
 import type { Role, Side } from "../../../lib/xiangqi/index";
+import { QIN_DIORAMA_THEME } from "../scene/scene-theme";
 
 export type VfxMotif = "qin-command-seal" | "tiger-tally" | "clay-earthshock" | "bronze-wheel" | "qin-lance" | "siege-bolt" | "spear-rank";
 export type VfxPayload = "command-blade" | "tally" | "earthshock" | "wheel" | "lance" | "bolt" | "spear";
@@ -16,56 +17,68 @@ type NeutralProfile = Omit<PieceVfxProfile, "colors" | "pattern">;
 
 export const PIECE_VFX_PROFILES: Readonly<Record<Role, NeutralProfile>> = Object.freeze({
   general: {
-    impactRadius: 0.72,
+    impactRadius: 0.58,
     motif: "qin-command-seal",
     particleCount: 12,
     payload: "command-blade",
   },
   advisor: {
-    impactRadius: 0.68,
+    impactRadius: 0.54,
     motif: "tiger-tally",
     particleCount: 10,
     payload: "tally",
   },
   elephant: {
-    impactRadius: 0.78,
+    impactRadius: 0.62,
     motif: "clay-earthshock",
     particleCount: 14,
     payload: "earthshock",
   },
   chariot: {
-    impactRadius: 0.7,
+    impactRadius: 0.56,
     motif: "bronze-wheel",
     particleCount: 12,
     payload: "wheel",
   },
   horse: {
-    impactRadius: 0.7,
+    impactRadius: 0.56,
     motif: "qin-lance",
     particleCount: 11,
     payload: "lance",
   },
   cannon: {
-    impactRadius: 0.76,
+    impactRadius: 0.6,
     motif: "siege-bolt",
     particleCount: 16,
     payload: "bolt",
   },
   soldier: {
-    impactRadius: 0.64,
+    impactRadius: 0.5,
     motif: "spear-rank",
     particleCount: 8,
     payload: "spear",
   },
 });
 
+function themeHex(color: number) {
+  return `#${color.toString(16).padStart(6, "0")}`;
+}
+
 const FACTION = {
   red: {
-    colors: { bright: "#d7aa72", core: "#8a4334", smoke: "#6a5142" },
+    colors: {
+      bright: themeHex(QIN_DIORAMA_THEME.factions.red.glow),
+      core: themeHex(QIN_DIORAMA_THEME.accents.cinnabar),
+      smoke: themeHex(QIN_DIORAMA_THEME.materials.firedClayShadow),
+    },
     pattern: "cinnabar-seal" as const,
   },
   black: {
-    colors: { bright: "#a9bdae", core: "#477267", smoke: "#4d5c55" },
+    colors: {
+      bright: themeHex(QIN_DIORAMA_THEME.factions.black.glow),
+      core: themeHex(QIN_DIORAMA_THEME.accents.verdigris),
+      smoke: themeHex(QIN_DIORAMA_THEME.materials.blackLacquer),
+    },
     pattern: "verdigris-angle" as const,
   },
 };

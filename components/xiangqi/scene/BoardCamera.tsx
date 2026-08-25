@@ -17,8 +17,8 @@ function CameraRig({ side, view }: { side: BoardViewSide; view: BoardView }) {
       return new THREE.Vector3(0, narrowViewport ? 31.5 : 23.5, side === "red" ? 0.001 : -0.001);
     }
     const redDestination = narrowViewport
-      ? new THREE.Vector3(14.7, 13, 19.4)
-      : new THREE.Vector3(10.2, 8.7, 13.4);
+      ? new THREE.Vector3(13.9, 12.15, 18.3)
+      : new THREE.Vector3(9.45, 7.75, 12.75);
     return side === "red"
       ? redDestination
       : new THREE.Vector3(-redDestination.x, redDestination.y, -redDestination.z);

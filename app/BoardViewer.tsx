@@ -91,7 +91,9 @@ export function BoardViewer({
                 gl.info.autoReset = false;
                 gl.outputColorSpace = THREE.SRGBColorSpace;
                 gl.toneMapping = THREE.ACESFilmicToneMapping;
-                gl.toneMappingExposure = 1.17;
+                // Preserve pigment and clay mid-tones instead of pushing the
+                // bright panorama and chalk feedback toward the same white.
+                gl.toneMappingExposure = 1.08;
                 gl.shadowMap.enabled = qualityProfile.shadows;
                 gl.shadowMap.type = THREE.PCFShadowMap;
               }}

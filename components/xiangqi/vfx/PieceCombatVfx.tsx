@@ -72,10 +72,10 @@ function EffectParticles({ color, count, strength, target }: {
   }, [count]);
 
   return (
-    <group position={target} scale={0.55 + strength * 0.75} visible={strength > 0 && strength < 1}>
+    <group position={target} scale={0.5 + strength * 0.55} visible={strength > 0 && strength < 1}>
       <instancedMesh ref={mesh} args={[undefined, undefined, 16]} raycast={() => null}>
         <tetrahedronGeometry args={[0.055, 0]} />
-        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.18} metalness={0.03} opacity={1 - strength} roughness={0.92} transparent />
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.12} metalness={0.02} opacity={1 - strength} roughness={0.94} transparent />
       </instancedMesh>
     </group>
   );
@@ -130,7 +130,7 @@ export function PieceCombatVfx({
       <group position={fromWorld} visible={telegraph > 0}>
         <mesh rotation={[-Math.PI / 2, 0, progress * Math.PI * (angular ? -1 : 1)]} scale={0.72 + telegraph * 0.18} raycast={() => null}>
           <ringGeometry args={[0.28, 0.39, angular ? 6 : role === "advisor" ? 8 : 24]} />
-          <meshBasicMaterial color={profile.colors.bright} depthWrite={false} opacity={telegraph * 0.72 * intensity} transparent />
+          <meshBasicMaterial color={profile.colors.bright} depthWrite={false} opacity={telegraph * 0.64 * intensity} transparent />
         </mesh>
         <mesh position={[0, 0.018, 0]} rotation={[-Math.PI / 2, 0, -progress * 2.2]} raycast={() => null}>
           {role === "advisor"
@@ -138,19 +138,19 @@ export function PieceCombatVfx({
             : role === "chariot"
               ? <torusGeometry args={[0.19, 0.026, 5, 16]} />
               : <ringGeometry args={[0.12, 0.18, angular ? 4 : 12]} />}
-          <meshBasicMaterial color={profile.colors.core} depthWrite={false} opacity={telegraph * 0.62 * intensity} transparent />
+          <meshBasicMaterial color={profile.colors.core} depthWrite={false} opacity={telegraph * 0.58 * intensity} transparent />
         </mesh>
       </group>
 
       <group position={payloadPosition} quaternion={payloadQuaternion} visible={!reducedMotion && release > 0}>
         <mesh scale={role === "elephant" ? [1.5, 1, 1.5] : role === "soldier" ? [1, 1.25, 1] : 1} raycast={() => null}>
           <PayloadGeometry payload={profile.payload} />
-          <meshBasicMaterial color={profile.colors.bright} depthWrite={false} opacity={release * 0.86} transparent />
+          <meshBasicMaterial color={profile.colors.bright} depthWrite={false} opacity={release * 0.78} transparent />
         </mesh>
         {role === "cannon" ? (
           <mesh position={[0, 0.36, 0]} raycast={() => null}>
             <coneGeometry args={[0.065, 0.16, 8]} />
-            <meshStandardMaterial color={profile.colors.bright} emissive={profile.colors.core} emissiveIntensity={0.22} metalness={0.55} roughness={0.52} transparent opacity={release * 0.9} />
+            <meshStandardMaterial color={profile.colors.bright} emissive={profile.colors.core} emissiveIntensity={0.16} metalness={0.12} roughness={0.72} transparent opacity={release * 0.82} />
           </mesh>
         ) : null}
         {role === "cannon" ? (
@@ -164,14 +164,14 @@ export function PieceCombatVfx({
       <group position={toWorld} visible={impact > 0}>
         <mesh rotation={[-Math.PI / 2, 0, angular ? Math.PI / 4 : 0]} scale={0.48 + impact * profile.impactRadius} raycast={() => null}>
           <ringGeometry args={[0.16, role === "elephant" ? 0.33 : 0.27, angular ? 6 : 28]} />
-          <meshBasicMaterial color={profile.colors.bright} depthWrite={false} opacity={impact * 0.78 * intensity} transparent />
+          <meshBasicMaterial color={profile.colors.bright} depthWrite={false} opacity={impact * 0.68 * intensity} transparent />
         </mesh>
         <mesh position={[0, role === "elephant" ? 0.05 : 0.16, 0]} scale={0.09 + impact * 0.18} raycast={() => null}>
           {role === "elephant" ? <octahedronGeometry args={[1, 0]} /> : role === "cannon" ? <icosahedronGeometry args={[1, 1]} /> : <dodecahedronGeometry args={[1, 0]} />}
-          <meshBasicMaterial color={profile.colors.core} depthWrite={false} opacity={impact * 0.46 * intensity} transparent />
+          <meshBasicMaterial color={profile.colors.core} depthWrite={false} opacity={impact * 0.42 * intensity} transparent />
         </mesh>
         {quality.dynamicEffectLights && !reducedMotion ? (
-          <pointLight color={profile.colors.bright} distance={2} intensity={impact * 1.8} />
+          <pointLight color={profile.colors.bright} distance={1.65} intensity={impact * 1.25} />
         ) : null}
       </group>
 

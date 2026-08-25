@@ -5,6 +5,7 @@ import {
   PIECE_VFX_PROFILES,
   getPieceVfxProfile,
 } from "../../../components/xiangqi/vfx/piece-vfx-profiles";
+import { QIN_DIORAMA_THEME } from "../../../components/xiangqi/scene/scene-theme";
 
 const ROLES: readonly Role[] = [
   "general",
@@ -23,7 +24,7 @@ describe("piece combat VFX profiles", () => {
 
     for (const role of ROLES) {
       const profile = getPieceVfxProfile(role, "red");
-      expect(profile.impactRadius).toBeLessThanOrEqual(0.78);
+      expect(profile.impactRadius).toBeLessThanOrEqual(0.62);
     }
   });
 
@@ -35,5 +36,22 @@ describe("piece combat VFX profiles", () => {
       expect(red.pattern).not.toBe(black.pattern);
       expect(red.colors.core).not.toBe(black.colors.core);
     }
+  });
+
+  it("derives faction effects from the Qin diorama theme", () => {
+    const hex = (color: number) => `#${color.toString(16).padStart(6, "0")}`;
+    const red = getPieceVfxProfile("general", "red");
+    const black = getPieceVfxProfile("general", "black");
+
+    expect(red.colors).toEqual({
+      bright: hex(QIN_DIORAMA_THEME.factions.red.glow),
+      core: hex(QIN_DIORAMA_THEME.accents.cinnabar),
+      smoke: hex(QIN_DIORAMA_THEME.materials.firedClayShadow),
+    });
+    expect(black.colors).toEqual({
+      bright: hex(QIN_DIORAMA_THEME.factions.black.glow),
+      core: hex(QIN_DIORAMA_THEME.accents.verdigris),
+      smoke: hex(QIN_DIORAMA_THEME.materials.blackLacquer),
+    });
   });
 });

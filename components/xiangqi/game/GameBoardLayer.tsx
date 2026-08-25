@@ -18,6 +18,7 @@ import {
 } from "../runtime/board-coordinates";
 import { getQualityProfile, type QualityTier } from "../runtime/quality";
 import { PieceLayer, type ScenePieceSlot } from "../scene/PieceLayer";
+import { QIN_DIORAMA_THEME } from "../scene/scene-theme";
 import { PieceCombatVfx } from "../vfx/PieceCombatVfx";
 
 const ALL_SQUARES: readonly Square[] = Object.freeze(
@@ -61,41 +62,56 @@ function BoardHitGrid({ disabled, onSquarePress }: {
   );
 }
 
-function LegalMoveMarkers({ game, moves }: { game: GameState; moves: readonly Square[] }) {
+function MoveMarkerInstances({ capture, squares }: { capture: boolean; squares: readonly Square[] }) {
   const ref = useRef<THREE.InstancedMesh>(null);
-  const colors = useMemo(
-    () => moves.map((square) => game.board[boardIndex(square)]
-      ? new THREE.Color(0xcc5441)
-      : new THREE.Color(0xe3b75e)),
-    [game.board, moves],
-  );
 
   useLayoutEffect(() => {
     const mesh = ref.current;
     if (!mesh) return;
     const transform = new THREE.Object3D();
-    moves.forEach((square, index) => {
+    squares.forEach((square, index) => {
       const [x, , z] = squareToWorld(square);
       transform.position.set(x, BOARD_SURFACE_Y + 0.033, z);
       transform.rotation.set(-Math.PI / 2, 0, 0);
       transform.updateMatrix();
       mesh.setMatrixAt(index, transform.matrix);
-      mesh.setColorAt(index, colors[index]!);
     });
     mesh.instanceMatrix.needsUpdate = true;
-    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-  }, [colors, moves]);
+  }, [squares]);
+
+  return (
+    <instancedMesh ref={ref} args={[undefined, undefined, squares.length]} raycast={() => null}>
+      {capture
+        ? <ringGeometry args={[0.135, 0.25, 28]} />
+        : <circleGeometry args={[0.125, 20]} />}
+      <meshBasicMaterial
+        color={capture
+          ? QIN_DIORAMA_THEME.states.capture.color
+          : QIN_DIORAMA_THEME.states.legal.color}
+        depthWrite={false}
+        opacity={capture ? 0.94 : 0.9}
+        transparent
+      />
+    </instancedMesh>
+  );
+}
+
+function LegalMoveMarkers({ game, moves }: { game: GameState; moves: readonly Square[] }) {
+  const legalMoves = useMemo(
+    () => moves.filter((square) => !game.board[boardIndex(square)]),
+    [game.board, moves],
+  );
+  const captureMoves = useMemo(
+    () => moves.filter((square) => Boolean(game.board[boardIndex(square)])),
+    [game.board, moves],
+  );
 
   if (moves.length === 0) return null;
   return (
-    <instancedMesh
-      ref={ref}
-      args={[undefined, undefined, moves.length]}
-      raycast={() => null}
-    >
-      <ringGeometry args={[0.12, 0.2, 24]} />
-      <meshBasicMaterial depthWrite={false} opacity={0.88} transparent vertexColors />
-    </instancedMesh>
+    <group name="legal-move-markers" raycast={() => null}>
+      {legalMoves.length > 0 ? <MoveMarkerInstances capture={false} squares={legalMoves} /> : null}
+      {captureMoves.length > 0 ? <MoveMarkerInstances capture squares={captureMoves} /> : null}
+    </group>
   );
 }
 
@@ -104,11 +120,21 @@ function KeyboardFocusMarker({ square }: { square: Square }) {
     <group position={squareToWorld(square)} raycast={() => null}>
       <mesh position={[0, 0.039, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[0.31, 0.39, 32]} />
-        <meshBasicMaterial color="#f4e4a4" depthWrite={false} opacity={0.96} transparent />
+        <meshBasicMaterial
+          color={QIN_DIORAMA_THEME.states.keyboardFocus.color}
+          depthWrite={false}
+          opacity={0.96}
+          transparent
+        />
       </mesh>
       <mesh position={[0, 0.041, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[0.45, 0.48, 32]} />
-        <meshBasicMaterial color="#789f94" depthWrite={false} opacity={0.78} transparent />
+        <meshBasicMaterial
+          color={QIN_DIORAMA_THEME.materials.chalk}
+          depthWrite={false}
+          opacity={0.76}
+          transparent
+        />
       </mesh>
     </group>
   );
@@ -135,7 +161,12 @@ function PieceContactShadows({ pieces }: { pieces: readonly ScenePieceSlot<Piece
   return (
     <instancedMesh ref={ref} args={[undefined, undefined, pieces.length]} raycast={() => null}>
       <circleGeometry args={[0.62, 20]} />
-      <meshBasicMaterial color="#030504" depthWrite={false} opacity={0.3} transparent />
+      <meshBasicMaterial
+        color={QIN_DIORAMA_THEME.materials.blackLacquer}
+        depthWrite={false}
+        opacity={0.28}
+        transparent
+      />
     </instancedMesh>
   );
 }
