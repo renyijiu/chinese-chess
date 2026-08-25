@@ -1,5 +1,11 @@
 # Xiangqi character asset contract
 
+> **Status:** This directory is the current runtime derivative layer and is
+> pending adaptation to the authoritative red Qin-terracotta cartoon research
+> roster documented in [`../models/README.md`](../models/README.md). Preserve
+> the runtime contract below while transferring the new appearance; the models
+> here and in `public/models/pieces/**` are not the visual authority.
+
 Character sources are organized as `assets/characters/{role}/source`, with raw
 exports in the sibling `exports` directory. Runtime GLBs are generated into
 `public/models/pieces/v1` and described by its versioned manifest.
