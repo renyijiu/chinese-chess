@@ -2,14 +2,37 @@
 
 /* eslint-disable react/no-unknown-property -- R3F scene graph props are valid custom JSX properties. */
 
-import { useLayoutEffect, useMemo, useRef } from "react";
-import { Select } from "@react-three/postprocessing";
+import { useContext, useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
+import { selectionContext } from "@react-three/postprocessing";
 import * as THREE from "three";
 
 import type { Role, Side, Square } from "../../../lib/xiangqi/index";
 import type { QualityProfile } from "../runtime/quality";
 import { squareToWorld } from "../runtime/board-coordinates";
 import { getPieceVfxProfile, type VfxPayload } from "./piece-vfx-profiles";
+
+function StableSelect({ children, enabled }: { children: ReactNode; enabled: boolean }) {
+  const group = useRef<THREE.Group>(null);
+  const selection = useContext(selectionContext);
+  const select = selection?.select;
+
+  useEffect(() => {
+    if (!enabled || !select || !group.current) return;
+    const meshes = group.current.getObjectsByProperty("type", "Mesh");
+    select((current) => {
+      const additions = meshes.filter((mesh) => !current.includes(mesh));
+      return additions.length > 0 ? [...current, ...additions] : current;
+    });
+    return () => {
+      select((current) => {
+        const next = current.filter((object) => !meshes.includes(object));
+        return next.length === current.length ? current : next;
+      });
+    };
+  }, [enabled, select]);
+
+  return <group ref={group}>{children}</group>;
+}
 
 function clampedRange(value: number, start: number, end: number) {
   return Math.min(1, Math.max(0, (value - start) / Math.max(0.001, end - start)));
@@ -102,7 +125,7 @@ export function PieceCombatVfx({
   const angular = profile.pattern === "verdigris-angle";
 
   return (
-    <Select enabled={active}>
+    <StableSelect enabled={active}>
       <group name={`piece-combat-vfx:${profile.motif}`} visible={active}>
       <group position={fromWorld} visible={telegraph > 0}>
         <mesh rotation={[-Math.PI / 2, 0, progress * Math.PI * (angular ? -1 : 1)]} scale={0.72 + telegraph * 0.18} raycast={() => null}>
@@ -154,6 +177,6 @@ export function PieceCombatVfx({
 
         <EffectParticles color={profile.colors.smoke} count={particleCount} strength={fracture} target={toWorld} />
       </group>
-    </Select>
+    </StableSelect>
   );
 }

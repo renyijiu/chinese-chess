@@ -4,6 +4,12 @@ import { openCleanGame, pressSequence, setReducedMotion, startGame, waitForRevis
 
 test("keyboard can select, cancel, move, capture, restore, undo, and resign", async ({ page }) => {
   test.setTimeout(120_000);
+  let updateDepthError: string | undefined;
+  page.on("console", (message) => {
+    if (!updateDepthError && message.type() === "error" && message.text().includes("Maximum update depth exceeded")) {
+      updateDepthError = message.text();
+    }
+  });
   await openCleanGame(page);
   const keyboard = await startGame(page);
   await setReducedMotion(page);
@@ -51,4 +57,5 @@ test("keyboard can select, cancel, move, capture, restore, undo, and resign", as
   await page.getByRole("button", { name: "认输" }).click();
   await page.getByRole("button", { name: "确认认输" }).click();
   await expect(page.getByRole("heading", { name: /胜 · 认输/ })).toBeVisible();
+  expect(updateDepthError, "presentation frames must not recursively update React").toBeUndefined();
 });
