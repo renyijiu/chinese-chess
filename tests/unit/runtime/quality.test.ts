@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { isScheduledFrameDue } from "../../../components/xiangqi/runtime/FrameScheduler";
-import { QUALITY_PROFILES, getQualityProfile } from "../../../components/xiangqi/runtime/quality";
+import {
+  QUALITY_PROFILES,
+  getQualityProfile,
+  resolveEnvironmentMotion,
+} from "../../../components/xiangqi/runtime/quality";
 
 describe("quality profiles", () => {
   it("does not halve a 60 Hz request because RAF timestamps are fractional", () => {
@@ -26,6 +30,49 @@ describe("quality profiles", () => {
     expect(medium.particleScale).toBeGreaterThan(low.particleScale);
     expect(high.ambientFps).toBeGreaterThan(medium.ambientFps);
     expect(medium.ambientFps).toBeGreaterThan(low.ambientFps);
+    expect(high.environment.detailLevel).toBeGreaterThan(medium.environment.detailLevel);
+    expect(medium.environment.detailLevel).toBeGreaterThan(low.environment.detailLevel);
+
+    const panoramaCost = { high: 3, medium: 2, low: 1 } as const;
+    expect(panoramaCost[high.environment.panorama]).toBeGreaterThan(panoramaCost[medium.environment.panorama]);
+    expect(panoramaCost[medium.environment.panorama]).toBeGreaterThan(panoramaCost[low.environment.panorama]);
+  });
+
+  it("classifies environment shadows and dynamic lights for every tier", () => {
+    expect(getQualityProfile("high").environment).toMatchObject({
+      dynamicLightStrategy: "animated",
+      shadowStrategy: "static-full",
+    });
+    expect(getQualityProfile("medium").environment).toMatchObject({
+      dynamicLightStrategy: "static",
+      shadowStrategy: "static-reduced",
+    });
+    expect(getQualityProfile("low").environment).toMatchObject({
+      dynamicLightStrategy: "none",
+      shadowStrategy: "none",
+    });
+  });
+
+  it("turns off ambient environment motion without changing piece LOD or static detail", () => {
+    for (const tier of ["high", "medium", "low"] as const) {
+      const profile = getQualityProfile(tier);
+      const lod = profile.lod;
+      const detailLevel = profile.environment.detailLevel;
+      const panorama = profile.environment.panorama;
+
+      expect(resolveEnvironmentMotion(profile, false)).toBe(profile.environment.motion);
+      const reducedMotion = resolveEnvironmentMotion(profile, true);
+      expect(reducedMotion).toEqual({
+        dust: false,
+        dynamicLightUpdates: false,
+        flags: false,
+        river: false,
+      });
+      expect(Object.isFrozen(reducedMotion)).toBe(true);
+      expect(profile.lod).toBe(lod);
+      expect(profile.environment.detailLevel).toBe(detailLevel);
+      expect(profile.environment.panorama).toBe(panorama);
+    }
   });
 
   it("keeps advanced presentation exclusive to high quality", () => {
@@ -46,6 +93,9 @@ describe("quality profiles", () => {
 
   it("returns immutable shared profiles rather than mutable copies", () => {
     expect(Object.isFrozen(getQualityProfile("high"))).toBe(true);
+    expect(Object.isFrozen(getQualityProfile("high").dpr)).toBe(true);
+    expect(Object.isFrozen(getQualityProfile("high").environment)).toBe(true);
+    expect(Object.isFrozen(getQualityProfile("high").environment.motion)).toBe(true);
     expect(getQualityProfile("high")).toBe(QUALITY_PROFILES.high);
   });
 });

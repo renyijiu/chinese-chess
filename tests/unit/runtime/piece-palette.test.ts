@@ -9,6 +9,12 @@ function hex(value: string) {
 }
 
 describe("piece faction palette", () => {
+  it("exposes frozen shared faction colors", () => {
+    expect(Object.isFrozen(FACTION_COLORS)).toBe(true);
+    expect(Object.isFrozen(FACTION_COLORS.red)).toBe(true);
+    expect(Object.isFrozen(FACTION_COLORS.black)).toBe(true);
+  });
+
   it("keeps the authoritative red research materials as the red faction targets", () => {
     expect(FACTION_COLORS.red).toMatchObject({
       bronze: 0x5b4031,
