@@ -45,6 +45,12 @@ test("@visual Qin diorama menu, legal move, capture, and terminal states", async
   await clickBoardSquare(canvas, 0, 5);
   await waitForRevision(page, 2);
   await clickBoardSquare(canvas, 0, 4);
+  await expect(page.locator(".game-turn-card small")).toHaveText("1 个合法落点");
+  await settleVisualScene(page);
+  await expect(page.locator(".viewer-shell")).toHaveScreenshot(
+    "desktop-low-pre-capture.png",
+    screenshotOptions,
+  );
   await clickBoardSquare(canvas, 0, 5);
   await waitForRevision(page, 3);
   await expect(page.locator(".game-history")).toContainText("吃");

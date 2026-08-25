@@ -60,4 +60,14 @@ describe("Qin diorama scene theme", () => {
       "--qin-mineral-blue": cssHex(QIN_DIORAMA_THEME.accents.mineralBlue),
     });
   });
+
+  it("owns the brazier flame and light palette in the canonical environment theme", () => {
+    expect(QIN_DIORAMA_THEME.environment).toMatchObject({
+      brazierFlame: expect.any(Number),
+      brazierLight: expect.any(Number),
+    });
+    expect(QIN_DIORAMA_THEME.environment.brazierFlame).not.toBe(
+      QIN_DIORAMA_THEME.environment.brazierLight,
+    );
+  });
 });

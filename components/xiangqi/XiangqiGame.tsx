@@ -109,6 +109,45 @@ function describeKeyboardSquare(game: GameState, square: Square) {
   return `${piece.side === "red" ? "红方" : "黑方"}${ROLE_LABELS[piece.role]}`;
 }
 
+function GameInitializationShell({
+  onContinue,
+  onStart,
+}: {
+  onContinue: () => void;
+  onStart: () => void;
+}) {
+  return (
+    <section
+      aria-busy="true"
+      aria-label="Q 版秦俑沙盘中国象棋棋盘三维预览"
+      className="viewer-shell board-viewer"
+      data-environment-status="loading"
+    >
+      <div aria-hidden="true" className="viewer-canvas viewer-canvas--initializing" />
+      <div className="viewer-corner-label" aria-hidden="true">
+        <span>QIN DIORAMA</span>
+        <strong>秦俑沙盘 · 01</strong>
+      </div>
+      <div className="viewer-hud" aria-hidden="true">
+        <div className="viewer-controls">
+          <button className="viewer-control" disabled type="button">俯视棋盘</button>
+          <button className="viewer-control" disabled type="button">自动巡游</button>
+          <button className="viewer-control" disabled type="button">换边视角 · 红</button>
+        </div>
+      </div>
+      <div className="game-overlay">
+        <GameMenu
+          hasSave={false}
+          loading
+          onContinue={onContinue}
+          onStart={onStart}
+        />
+      </div>
+      <p className="sr-only" role="status">正在读取本地棋局与画质设置。</p>
+    </section>
+  );
+}
+
 export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
   const [animations] = useState(() => new AnimationRegistry());
   const [audio] = useState(() => new AudioEngine());
@@ -398,71 +437,75 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
       data-reduced-motion={settings.reducedMotion ? "true" : "false"}
     >
       <div inert={confirmation ? true : undefined} aria-hidden={confirmation ? true : undefined}>
-        <BoardViewer
-          animations={animations}
-          audio={audio}
-          overlay={phase === "menu" ? (
-            <GameMenu
-              hasSave={Boolean(savedGame)}
-              loading={loading}
-              onContinue={handleContinue}
-              onStart={handleStart}
-              warning={storageWarning}
-            />
-          ) : (
-            <>
-              <GameHud
-                game={game}
-                interactionLocked={interactionLocked}
-                onResign={() => setConfirmation({ kind: "resign", revision: game.revision, side: game.sideToMove })}
-                onRestart={() => setConfirmation({ kind: "restart" })}
-                onUndo={() => applyCommand({ type: "undo", expectedRevision: game.revision })}
-                onSettingsChange={handleSettingsChange}
-                onSkip={() => presentation.skip("skipped")}
-                selectedMoveCount={selection.legalMoves.length}
-                settings={settings}
+        {loading ? (
+          <GameInitializationShell onContinue={handleContinue} onStart={handleStart} />
+        ) : (
+          <BoardViewer
+            animations={animations}
+            audio={audio}
+            overlay={phase === "menu" ? (
+              <GameMenu
+                hasSave={Boolean(savedGame)}
+                loading={false}
+                onContinue={handleContinue}
+                onStart={handleStart}
                 warning={storageWarning}
               />
-              {game.status.kind === "playing" ? (
-                <KeyboardBoardControl
-                  active={keyboardActive}
-                  announcement={describeKeyboardSquare(game, keyboardSquare)}
-                  controlRef={keyboardControlRef}
-                  coordinate={formatSquareCoordinate(keyboardSquare)}
-                  interactionLocked={interactionLocked}
-                  onBlur={() => setKeyboardActive(false)}
-                  onFocus={() => setKeyboardActive(true)}
-                  onKeyDown={handleKeyboardBoardKeyDown}
-                />
-              ) : null}
-              {game.status.kind === "ended" ? (
-                <GameOverPanel
-                  canUndo={game.lastAction?.kind === "move" && !interactionLocked}
+            ) : (
+              <>
+                <GameHud
                   game={game}
+                  interactionLocked={interactionLocked}
+                  onResign={() => setConfirmation({ kind: "resign", revision: game.revision, side: game.sideToMove })}
                   onRestart={() => setConfirmation({ kind: "restart" })}
                   onUndo={() => applyCommand({ type: "undo", expectedRevision: game.revision })}
+                  onSettingsChange={handleSettingsChange}
+                  onSkip={() => presentation.skip("skipped")}
+                  selectedMoveCount={selection.legalMoves.length}
+                  settings={settings}
+                  warning={storageWarning}
                 />
-              ) : null}
-            </>
-          )}
-          pieceLayer={(
-            <GameBoardLayer
-              animations={animations}
-              disabled={phase !== "playing" || interactionLocked || game.status.kind === "ended"}
-              game={game}
-              keyboardSquare={keyboardActive ? keyboardSquare : null}
-              legalMoves={selection.legalMoves}
-              onSquarePress={handleSquarePress}
-              presentation={presentation}
-              quality={settings.quality}
-              selectedPieceId={selection.pieceId}
-            />
-          )}
-          quality={settings.quality}
-          presentation={presentation}
-          reducedMotion={settings.reducedMotion}
-          status={boardStatus}
-        />
+                {game.status.kind === "playing" ? (
+                  <KeyboardBoardControl
+                    active={keyboardActive}
+                    announcement={describeKeyboardSquare(game, keyboardSquare)}
+                    controlRef={keyboardControlRef}
+                    coordinate={formatSquareCoordinate(keyboardSquare)}
+                    interactionLocked={interactionLocked}
+                    onBlur={() => setKeyboardActive(false)}
+                    onFocus={() => setKeyboardActive(true)}
+                    onKeyDown={handleKeyboardBoardKeyDown}
+                  />
+                ) : null}
+                {game.status.kind === "ended" ? (
+                  <GameOverPanel
+                    canUndo={game.lastAction?.kind === "move" && !interactionLocked}
+                    game={game}
+                    onRestart={() => setConfirmation({ kind: "restart" })}
+                    onUndo={() => applyCommand({ type: "undo", expectedRevision: game.revision })}
+                  />
+                ) : null}
+              </>
+            )}
+            pieceLayer={(
+              <GameBoardLayer
+                animations={animations}
+                disabled={phase !== "playing" || interactionLocked || game.status.kind === "ended"}
+                game={game}
+                keyboardSquare={keyboardActive ? keyboardSquare : null}
+                legalMoves={selection.legalMoves}
+                onSquarePress={handleSquarePress}
+                presentation={presentation}
+                quality={settings.quality}
+                selectedPieceId={selection.pieceId}
+              />
+            )}
+            quality={settings.quality}
+            presentation={presentation}
+            reducedMotion={settings.reducedMotion}
+            status={boardStatus}
+          />
+        )}
       </div>
 
       {confirmation ? (

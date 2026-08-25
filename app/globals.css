@@ -203,6 +203,12 @@ h1 {
   width: 100%;
 }
 
+.viewer-canvas--initializing {
+  background:
+    radial-gradient(circle at 50% 43%, color-mix(in srgb, var(--qin-fired-clay) 30%, transparent), transparent 38%),
+    linear-gradient(155deg, var(--qin-hud-surface-raised), var(--qin-black-lacquer) 68%);
+}
+
 .viewer-canvas canvas {
   cursor: grab;
   display: block;

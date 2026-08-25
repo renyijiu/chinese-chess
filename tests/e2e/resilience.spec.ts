@@ -9,6 +9,7 @@ import {
   waitForEnvironmentSettled,
   waitForRevision,
 } from "./helpers";
+import { getPanoramaUrl } from "../../components/xiangqi/scene/diorama-environment";
 
 test("a failed optional panorama degrades locally and leaves the board playable", async ({ page }) => {
   await page.route("**/background/qin-diorama-panorama-v1-*.webp", (route) => route.abort("failed"));
@@ -28,6 +29,75 @@ test("a failed optional panorama degrades locally and leaves the board playable"
   await waitForEnvironmentSettled(page, "degraded");
 });
 
+test("a failed optional river degrades locally and leaves authoritative moves playable", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__XIANGQI_TEST_FAULTS__ = { riverRender: true };
+  });
+  await openCleanGame(page);
+  await waitForEnvironmentSettled(page, "degraded");
+
+  const keyboard = await startGame(page);
+  await keyboard.focus();
+  await pressSequence(keyboard, ["ArrowLeft", "ArrowLeft", "ArrowLeft", "ArrowLeft", "ArrowUp", "ArrowUp", "ArrowUp", "Enter", "ArrowUp", "Enter"]);
+  await waitForRevision(page, 1);
+  await expect(page.locator(".game-history")).toContainText("红·兵 a3 → a4");
+  await waitForEnvironmentSettled(page, "degraded");
+});
+
+test("a failed optional ambient task degrades its owner without blocking the game", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__XIANGQI_TEST_FAULTS__ = { ambientTask: true };
+  });
+  await openCleanGame(page, "high");
+  await waitForEnvironmentSettled(page, "degraded");
+
+  const keyboard = await startGame(page);
+  await keyboard.focus();
+  await pressSequence(keyboard, ["ArrowLeft", "ArrowLeft", "ArrowLeft", "ArrowLeft", "ArrowUp", "ArrowUp", "ArrowUp", "Enter", "ArrowUp", "Enter"]);
+  await waitForRevision(page, 1);
+});
+
+test("high-quality ambient motion keeps resources stable across 100 browser frames", async ({ page }, testInfo) => {
+  test.setTimeout(90_000);
+  await openCleanGame(page, "high", false);
+  await waitForEnvironmentSettled(page, "ready");
+  await expect(page.locator(".xiangqi-game-shell")).toHaveAttribute("data-reduced-motion", "false");
+  await expect.poll(
+    () => page.evaluate(() => window.__XIANGQI_PERFORMANCE__?.geometries ?? 0),
+  ).toBeGreaterThan(0);
+  const baseline = await page.evaluate(() => window.__XIANGQI_PERFORMANCE__!);
+
+  const browserFrames = await page.evaluate(() => new Promise<{
+    elapsedMs: number;
+    frameCount: number;
+  }>((resolve) => {
+    const startedAt = performance.now();
+    let frameCount = 0;
+    const sample = () => {
+      frameCount += 1;
+      if (frameCount >= 120) {
+        resolve({ elapsedMs: performance.now() - startedAt, frameCount });
+        return;
+      }
+      window.requestAnimationFrame(sample);
+    };
+    window.requestAnimationFrame(sample);
+  }));
+  const settled = await page.evaluate(() => window.__XIANGQI_PERFORMANCE__!);
+  const evidence = { baseline, browserFrames, settled };
+  console.info(`AMBIENT_LIFECYCLE ${JSON.stringify(evidence)}`);
+  await testInfo.attach("ambient-lifecycle.json", {
+    body: Buffer.from(JSON.stringify(evidence, null, 2)),
+    contentType: "application/json",
+  });
+
+  await waitForEnvironmentSettled(page, "ready");
+  expect(browserFrames.frameCount).toBeGreaterThanOrEqual(100);
+  expect(browserFrames.elapsedMs).toBeGreaterThan(0);
+  expect(Math.abs(settled.geometries - baseline.geometries)).toBeLessThanOrEqual(1);
+  expect(Math.abs(settled.textures - baseline.textures)).toBeLessThanOrEqual(1);
+});
+
 test("high-low-high environment switching settles without cumulative renderer growth", async ({ page }, testInfo) => {
   test.setTimeout(120_000);
   await openCleanGame(page, "high");
@@ -43,17 +113,27 @@ test("high-low-high environment switching settles without cumulative renderer gr
     await expect.poll(
       () => page.evaluate(() => window.__XIANGQI_PERFORMANCE__?.geometries ?? 0),
     ).toBeGreaterThan(0);
+    // Renderer memory counters are published at 500 ms intervals; wait for a
+    // post-transition sample instead of re-reading the outgoing tier.
+    await page.waitForTimeout(1_500);
     return page.evaluate(() => {
       const metrics = window.__XIANGQI_PERFORMANCE__;
-      return { geometries: metrics?.geometries ?? 0, textures: metrics?.textures ?? 0 };
+      const diagnostics = window.__XIANGQI_ENVIRONMENT_DIAGNOSTICS__;
+      return {
+        activePanoramaUrls: diagnostics?.activePanoramaUrls ?? [],
+        disposedPanoramaCount: diagnostics?.disposedPanoramaCount ?? 0,
+        geometries: metrics?.geometries ?? 0,
+        textures: metrics?.textures ?? 0,
+      };
     });
   };
 
-  await switchQuality("low");
+  const initialHigh = await switchQuality("high");
+  const lowAfterHigh = await switchQuality("low");
   const warmedHigh = await switchQuality("high");
-  await switchQuality("low");
+  const secondLow = await switchQuality("low");
   const settledHigh = await switchQuality("high");
-  const evidence = { settledHigh, warmedHigh };
+  const evidence = { initialHigh, lowAfterHigh, secondLow, settledHigh, warmedHigh };
   console.info(`ENVIRONMENT_LIFECYCLE ${JSON.stringify(evidence)}`);
   await testInfo.attach("environment-lifecycle.json", {
     body: Buffer.from(JSON.stringify(evidence, null, 2)),
@@ -61,6 +141,18 @@ test("high-low-high environment switching settles without cumulative renderer gr
   });
   expect(settledHigh.geometries).toBeLessThanOrEqual(warmedHigh.geometries + 1);
   expect(settledHigh.textures).toBeLessThanOrEqual(warmedHigh.textures + 1);
+  expect(secondLow.geometries).toBeLessThanOrEqual(lowAfterHigh.geometries + 1);
+  expect(secondLow.textures).toBeLessThanOrEqual(lowAfterHigh.textures + 1);
+  expect(lowAfterHigh.textures).toBeLessThanOrEqual(initialHigh.textures + 1);
+  expect(initialHigh.activePanoramaUrls).toEqual([getPanoramaUrl("high")]);
+  expect(lowAfterHigh.activePanoramaUrls).toEqual([getPanoramaUrl("low")]);
+  expect(warmedHigh.activePanoramaUrls).toEqual([getPanoramaUrl("high")]);
+  expect(secondLow.activePanoramaUrls).toEqual([getPanoramaUrl("low")]);
+  expect(settledHigh.activePanoramaUrls).toEqual([getPanoramaUrl("high")]);
+  expect(lowAfterHigh.disposedPanoramaCount).toBeGreaterThan(initialHigh.disposedPanoramaCount);
+  expect(warmedHigh.disposedPanoramaCount).toBeGreaterThan(lowAfterHigh.disposedPanoramaCount);
+  expect(secondLow.disposedPanoramaCount).toBeGreaterThan(warmedHigh.disposedPanoramaCount);
+  expect(settledHigh.disposedPanoramaCount).toBeGreaterThan(secondLow.disposedPanoramaCount);
 });
 
 test("authoritative rules continue through a WebGL context loss and restore", async ({ page }) => {

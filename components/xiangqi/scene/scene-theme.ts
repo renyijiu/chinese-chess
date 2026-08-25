@@ -48,6 +48,8 @@ const HUD = Object.freeze({
 
 const ENVIRONMENT = Object.freeze({
   background: MATERIALS.blackLacquer,
+  brazierFlame: 0xffa247,
+  brazierLight: 0xff9a55,
   fillLight: ACCENTS.mineralBlue,
   fog: 0x33271f,
   keyLight: MATERIALS.firedClayLight,

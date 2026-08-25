@@ -1,6 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { isScheduledFrameDue } from "../../../components/xiangqi/runtime/FrameScheduler";
+import {
+  isScheduledFrameDue,
+  runScheduledFrameTasks,
+  type ScheduledFrameRegistration,
+} from "../../../components/xiangqi/runtime/FrameScheduler";
 import {
   QUALITY_PROFILES,
   getQualityProfile,
@@ -8,6 +12,26 @@ import {
 } from "../../../components/xiangqi/runtime/quality";
 
 describe("quality profiles", () => {
+  it("isolates a failed ambient task and keeps the remaining tasks scheduled", () => {
+    const failed = vi.fn(() => {
+      throw new Error("optional layer failed");
+    });
+    const healthy = vi.fn();
+    const onError = vi.fn();
+    const tasks = new Set<ScheduledFrameRegistration>([
+      { onError, task: failed },
+      { task: healthy },
+    ]);
+
+    runScheduledFrameTasks(tasks, 1, 1 / 60);
+    runScheduledFrameTasks(tasks, 2, 1 / 60);
+
+    expect(failed).toHaveBeenCalledTimes(1);
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(healthy).toHaveBeenCalledTimes(2);
+    expect(tasks.size).toBe(1);
+  });
+
   it("does not halve a 60 Hz request because RAF timestamps are fractional", () => {
     expect(isScheduledFrameDue(16.65, 60)).toBe(true);
     expect(isScheduledFrameDue(12, 60)).toBe(false);

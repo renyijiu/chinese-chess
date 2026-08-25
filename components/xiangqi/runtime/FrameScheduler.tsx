@@ -12,7 +12,15 @@ import {
 } from "react";
 
 type ScheduledFrame = (elapsedSeconds: number, deltaSeconds: number) => void;
-type RegisterFrame = (task: ScheduledFrame) => () => void;
+type ScheduledFrameErrorHandler = (error: unknown) => void;
+export type ScheduledFrameRegistration = Readonly<{
+  onError?: ScheduledFrameErrorHandler;
+  task: ScheduledFrame;
+}>;
+type RegisterFrame = (
+  task: ScheduledFrame,
+  onError?: ScheduledFrameErrorHandler,
+) => () => void;
 
 const FrameSchedulerContext = createContext<RegisterFrame | null>(null);
 const FRAME_INTERVAL_TOLERANCE_MS = 0.75;
@@ -20,6 +28,25 @@ const FRAME_INTERVAL_TOLERANCE_MS = 0.75;
 export function isScheduledFrameDue(elapsedMs: number, ambientFps: number) {
   const minimumInterval = 1000 / Math.max(1, ambientFps);
   return elapsedMs + FRAME_INTERVAL_TOLERANCE_MS >= minimumInterval;
+}
+
+export function runScheduledFrameTasks(
+  tasks: Set<ScheduledFrameRegistration>,
+  elapsedSeconds: number,
+  deltaSeconds: number,
+) {
+  for (const registration of tasks) {
+    try {
+      registration.task(elapsedSeconds, deltaSeconds);
+    } catch (error) {
+      tasks.delete(registration);
+      try {
+        registration.onError?.(error);
+      } catch (reportingError) {
+        console.warn("Unable to report an optional scheduled-frame failure", reportingError);
+      }
+    }
+  }
 }
 
 export function FrameScheduler({
@@ -31,19 +58,20 @@ export function FrameScheduler({
 }) {
   const gl = useThree((state) => state.gl);
   const invalidate = useThree((state) => state.invalidate);
-  const tasks = useRef(new Set<ScheduledFrame>());
+  const tasks = useRef(new Set<ScheduledFrameRegistration>());
   const frameRequest = useRef<number | null>(null);
   const lastFrame = useRef(0);
   const contextLost = useRef(false);
   const requestNextFrame = useRef<() => void>(() => undefined);
 
   const register = useCallback<RegisterFrame>(
-    (task) => {
-      tasks.current.add(task);
+    (task, onError) => {
+      const registration = { onError, task };
+      tasks.current.add(registration);
       invalidate();
       requestNextFrame.current();
       return () => {
-        tasks.current.delete(task);
+        tasks.current.delete(registration);
         if (tasks.current.size === 0 && frameRequest.current !== null) {
           window.cancelAnimationFrame(frameRequest.current);
           frameRequest.current = null;
@@ -70,7 +98,7 @@ export function FrameScheduler({
         lastFrame.current = timestamp;
         const elapsedSeconds = timestamp / 1000;
         const deltaSeconds = Math.min((timestamp - previous) / 1000, 0.1);
-        tasks.current.forEach((task) => task(elapsedSeconds, deltaSeconds));
+        runScheduledFrameTasks(tasks.current, elapsedSeconds, deltaSeconds);
         invalidate();
       }
       schedule();
@@ -125,12 +153,16 @@ export function FrameScheduler({
   return <FrameSchedulerContext.Provider value={value}>{children}</FrameSchedulerContext.Provider>;
 }
 
-export function useScheduledFrame(task: ScheduledFrame, enabled = true) {
+export function useScheduledFrame(
+  task: ScheduledFrame,
+  enabled = true,
+  onError?: ScheduledFrameErrorHandler,
+) {
   const register = useContext(FrameSchedulerContext);
 
   useEffect(() => {
     if (!enabled) return;
     if (!register) throw new Error("useScheduledFrame must be used within FrameScheduler");
-    return register(task);
-  }, [enabled, register, task]);
+    return register(task, onError);
+  }, [enabled, onError, register, task]);
 }

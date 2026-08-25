@@ -2,11 +2,9 @@
 
 /* eslint-disable react/no-unknown-property -- R3F scene graph props are valid custom JSX properties. */
 
-import { useTexture } from "@react-three/drei";
 import { useThree } from "@react-three/fiber";
 import {
   Component,
-  Suspense,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -19,7 +17,12 @@ import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 
 import { useScheduledFrame } from "../runtime/FrameScheduler";
+import {
+  markPanoramaActive,
+  markPanoramaDisposed,
+} from "../runtime/environment-diagnostics";
 import type { QualityProfile } from "../runtime/quality";
+import { isTestFaultEnabled } from "../runtime/test-faults";
 import {
   getDioramaPropPlacements,
   getPanoramaUrl,
@@ -132,26 +135,51 @@ function QinPanorama({
   onStatus: (status: EnvironmentLayerStatus) => void;
   url: string;
 }) {
-  const texture = useTexture(url);
   const invalidate = useThree((state) => state.invalidate);
-  const panorama = useMemo(() => {
-    const prepared = texture.clone();
-    prepared.colorSpace = THREE.SRGBColorSpace;
-    prepared.mapping = THREE.UVMapping;
-    prepared.minFilter = THREE.LinearMipmapLinearFilter;
-    prepared.magFilter = THREE.LinearFilter;
-    prepared.needsUpdate = true;
-    return prepared;
-  }, [texture]);
+  const [panorama, setPanorama] = useState<THREE.Texture | null>(null);
 
   useEffect(() => {
-    onStatus("ready");
-    invalidate();
+    let active = true;
+    let ownedTexture: THREE.Texture | null = null;
+    let publishedActive = false;
+    onStatus("loading");
+    const loader = new THREE.TextureLoader();
+    loader.load(
+      url,
+      (loaded) => {
+        ownedTexture = loaded;
+        loaded.colorSpace = THREE.SRGBColorSpace;
+        loaded.mapping = THREE.UVMapping;
+        loaded.minFilter = THREE.LinearMipmapLinearFilter;
+        loaded.magFilter = THREE.LinearFilter;
+        loaded.needsUpdate = true;
+        if (!active) {
+          loaded.dispose();
+          return;
+        }
+        publishedActive = true;
+        markPanoramaActive(url);
+        setPanorama(loaded);
+        onStatus("ready");
+        invalidate();
+      },
+      undefined,
+      (error) => {
+        if (!active) return;
+        console.warn(`Optional Qin panorama degraded: ${url}`, error);
+        onStatus("degraded");
+        invalidate();
+      },
+    );
     return () => {
-      panorama.dispose();
+      active = false;
+      ownedTexture?.dispose();
+      if (publishedActive) markPanoramaDisposed(url);
       invalidate();
     };
-  }, [invalidate, onStatus, panorama]);
+  }, [invalidate, onStatus, url]);
+
+  if (!panorama) return null;
   return (
     <mesh frustumCulled={false} name="qin-diorama-panorama" raycast={() => null} renderOrder={-1000}>
       <sphereGeometry args={[76, 48, 24]} />
@@ -260,11 +288,13 @@ function CampDetails({
   animateFlags,
   animateLights,
   dynamicLightStrategy,
+  onDegraded,
   placements,
 }: {
   animateFlags: boolean;
   animateLights: boolean;
   dynamicLightStrategy: QualityProfile["environment"]["dynamicLightStrategy"];
+  onDegraded: () => void;
   placements: readonly DioramaPropPlacement[];
 }) {
   const flames = useMemo(() => placements.filter((placement) => placement.kind === "brazier"), [placements]);
@@ -278,6 +308,9 @@ function CampDetails({
   const matrixTransform = useMemo(() => new THREE.Object3D(), []);
 
   const updateFlames = useCallback((elapsed: number) => {
+    if (elapsed > 0 && isTestFaultEnabled("ambientTask")) {
+      throw new Error("Forced ambient task failure for resilience coverage");
+    }
     writeMatrices(flameRef.current, flames, (transform, placement, index) => {
       const pulse = 1 + Math.sin(elapsed * 5.1 + index * 1.7) * 0.09;
       transform.position.set(placement.position[0], placement.position[1] + 0.52, placement.position[2]);
@@ -307,13 +340,13 @@ function CampDetails({
     updateFlames(0);
     updateFlags(0);
   }, [banners, flames, updateFlags, updateFlames]);
-  useScheduledFrame(updateFlames, animateLights && flames.length > 0);
-  useScheduledFrame(updateFlags, animateFlags && banners.length > 0);
+  useScheduledFrame(updateFlames, animateLights && flames.length > 0, onDegraded);
+  useScheduledFrame(updateFlags, animateFlags && banners.length > 0, onDegraded);
   useScheduledFrame((elapsed) => {
     lightGroupRef.current?.children.forEach((child, index) => {
       if (child instanceof THREE.PointLight) child.intensity = 10 + Math.sin(elapsed * 4.4 + index * 1.8) * 1.8;
     });
-  }, animateLights && dynamicLightStrategy === "animated");
+  }, animateLights && dynamicLightStrategy === "animated", onDegraded);
 
   return (
     <group name="qin-diorama-camp-details">
@@ -325,12 +358,12 @@ function CampDetails({
           </instancedMesh>
           <instancedMesh ref={flameRef} args={[undefined, undefined, flames.length]} raycast={() => null}>
             <coneGeometry args={[1, 1, 7]} />
-            <meshBasicMaterial color={0xffa247} toneMapped={false} />
+            <meshBasicMaterial color={QIN_DIORAMA_THEME.environment.brazierFlame} toneMapped={false} />
           </instancedMesh>
           {dynamicLightStrategy !== "none" ? (
             <group ref={lightGroupRef}>
               {flames.slice(0, 2).map((placement, index) => (
-                <pointLight key={`${placement.position.join(":")}:${index}`} color={0xff9a55} decay={2} distance={4.4} intensity={10} position={[placement.position[0], 1.25, placement.position[2]]} />
+                <pointLight key={`${placement.position.join(":")}:${index}`} color={QIN_DIORAMA_THEME.environment.brazierLight} decay={2} distance={4.4} intensity={10} position={[placement.position[0], 1.25, placement.position[2]]} />
               ))}
             </group>
           ) : null}
@@ -366,7 +399,15 @@ function CampDetails({
   );
 }
 
-function DustMotes({ animate, density }: { animate: boolean; density: number }) {
+function DustMotes({
+  animate,
+  density,
+  onDegraded,
+}: {
+  animate: boolean;
+  density: number;
+  onDegraded: () => void;
+}) {
   const pointsRef = useRef<THREE.Points>(null);
   const positions = useMemo(() => {
     const values = new Float32Array(density * 3);
@@ -385,7 +426,7 @@ function DustMotes({ animate, density }: { animate: boolean; density: number }) 
     if (!points) return;
     points.rotation.y = elapsed * 0.018;
     points.position.y = Math.sin(elapsed * 0.24) * 0.08;
-  }, animate && density > 0);
+  }, animate && density > 0, onDegraded);
 
   if (density === 0) return null;
   return (
@@ -421,6 +462,7 @@ function DioramaPropLayer({
     return grouped;
   }, [placements]);
   const castShadow = quality.environment.shadowStrategy !== "none";
+  const reportMotionFailure = useCallback(() => onStatus("degraded"), [onStatus]);
 
   useEffect(() => onStatus("ready"), [onStatus]);
   return (
@@ -436,11 +478,13 @@ function DioramaPropLayer({
         animateFlags={animate && quality.environment.motion.flags}
         animateLights={animate && quality.environment.motion.dynamicLightUpdates}
         dynamicLightStrategy={quality.environment.dynamicLightStrategy}
+        onDegraded={reportMotionFailure}
         placements={placements}
       />
       <DustMotes
         animate={animate && quality.environment.motion.dust}
         density={quality.environment.motion.dust ? quality.environment.detailLevel * 12 : 0}
+        onDegraded={reportMotionFailure}
       />
     </group>
   );
@@ -482,14 +526,7 @@ export function DioramaEnvironment({
       />
       <directionalLight color={QIN_DIORAMA_THEME.environment.fillLight} intensity={1.1} position={[10, 7, -10]} />
 
-      <EnvironmentLayerBoundary
-        fallback={<LayerStatusSignal onStatus={setPanoramaStatus} status="degraded" />}
-        layer="panorama"
-      >
-        <Suspense fallback={<LayerStatusSignal onStatus={setPanoramaStatus} status="loading" />}>
-          <QinPanorama onStatus={setPanoramaStatus} url={panoramaUrl} />
-        </Suspense>
-      </EnvironmentLayerBoundary>
+      <QinPanorama onStatus={setPanoramaStatus} url={panoramaUrl} />
       <group name="qin-hybrid-diorama-environment">
         <EnvironmentLayerBoundary
           fallback={<LayerStatusSignal onStatus={setPropStatus} status="degraded" />}

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useSyncExternalStore, type ReactNode, type RefObject } from "react";
+import { Suspense, useCallback, useEffect, useState, useSyncExternalStore, type ReactNode, type RefObject } from "react";
 import { Selection } from "@react-three/postprocessing";
 
 import { AnimationDirector } from "../animation/AnimationDirector";
@@ -19,7 +19,11 @@ import { BattlePostprocessing } from "./BattlePostprocessing";
 import { CameraFeedback } from "./CameraFeedback";
 import { BoardSurface } from "./BoardSurface";
 import { DioramaEnvironment } from "./DioramaEnvironment";
-import type { EnvironmentStatus } from "./diorama-environment";
+import {
+  resolveEnvironmentStatus,
+  type EnvironmentLayerStatus,
+  type EnvironmentStatus,
+} from "./diorama-environment";
 import { PieceLayer, type ScenePieceSlot } from "./PieceLayer";
 import { PrototypeMarshal } from "./PrototypeMarshal";
 
@@ -84,16 +88,24 @@ function AmbientScene({
     getActionSnapshot,
   );
   const animateEnvironment = animate && !actionActive;
+  const [dioramaStatus, setDioramaStatus] = useState<EnvironmentLayerStatus>("loading");
+  const [riverStatus, setRiverStatus] = useState<EnvironmentLayerStatus>("loading");
+  const environmentStatus = resolveEnvironmentStatus([dioramaStatus, riverStatus]);
+
+  useEffect(
+    () => onEnvironmentStatusChange?.(environmentStatus),
+    [environmentStatus, onEnvironmentStatusChange],
+  );
   return (
     <>
       <DioramaEnvironment
         animate={animateEnvironment}
-        key={`${quality.environment.panorama}:${quality.environment.detailLevel}`}
-        onStatusChange={onEnvironmentStatusChange}
+        onStatusChange={setDioramaStatus}
         quality={quality}
       />
       <BoardSurface
         animate={animateEnvironment && quality.environment.motion.river}
+        onRiverStatusChange={setRiverStatus}
         shadows={quality.shadows}
       />
     </>
@@ -123,6 +135,7 @@ export function BoardScene({
           <StaticShadowMap enabled={quality.shadows} />
           <AmbientScene
             animate={ambientMotion}
+            key={`${quality.environment.panorama}:${quality.environment.detailLevel}`}
             onEnvironmentStatusChange={onEnvironmentStatusChange}
             presentation={presentation}
             quality={quality}

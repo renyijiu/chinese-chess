@@ -3,7 +3,7 @@
 /* eslint-disable react/no-unknown-property -- R3F scene graph props are valid custom JSX properties. */
 
 import { RoundedBox } from "@react-three/drei";
-import { Component, useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
+import { Component, useCallback, useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 
@@ -13,6 +13,7 @@ import {
   BOARD_SURFACE_Y,
 } from "../runtime/board-coordinates";
 import { useScheduledFrame } from "../runtime/FrameScheduler";
+import { isTestFaultEnabled } from "../runtime/test-faults";
 import {
   makeBoardOrnamentPlacements,
   makeBoardSegments,
@@ -21,6 +22,7 @@ import {
   type BoardOrnamentKind,
 } from "./board-geometry";
 import { cssHex, QIN_DIORAMA_THEME } from "./scene-theme";
+import type { EnvironmentLayerStatus } from "./diorama-environment";
 
 const FILE_MIN = Math.min(...BOARD_FILE_POSITIONS);
 const FILE_MAX = Math.max(...BOARD_FILE_POSITIONS);
@@ -153,7 +155,10 @@ const glazeFragmentShader = `
   }
 `;
 
-class OptionalRiverBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+class OptionalRiverBoundary extends Component<{
+  children: ReactNode;
+  onStatus: (status: EnvironmentLayerStatus) => void;
+}, { failed: boolean }> {
   state = { failed: false };
 
   static getDerivedStateFromError() {
@@ -162,6 +167,7 @@ class OptionalRiverBoundary extends Component<{ children: ReactNode }, { failed:
 
   componentDidCatch(error: Error) {
     console.warn("Animated Qin glaze degraded to its static river surface", error);
+    this.props.onStatus("degraded");
   }
 
   render() {
@@ -192,7 +198,16 @@ function StaticGlazedRiver() {
   );
 }
 
-function GlazedRiver({ animate = true }: { animate?: boolean }) {
+function GlazedRiver({
+  animate = true,
+  onStatus,
+}: {
+  animate?: boolean;
+  onStatus: (status: EnvironmentLayerStatus) => void;
+}) {
+  if (isTestFaultEnabled("riverRender")) {
+    throw new Error("Forced Qin river fallback for resilience coverage");
+  }
   const materialRef = useRef<THREE.ShaderMaterial>(null);
   const uniforms = useMemo(() => {
     const { accents, materials } = QIN_DIORAMA_THEME;
@@ -214,9 +229,12 @@ function GlazedRiver({ animate = true }: { animate?: boolean }) {
     };
   }, []);
 
-  useScheduledFrame((elapsed) => {
+  const updateRiver = useCallback((elapsed: number) => {
     if (materialRef.current) materialRef.current.uniforms.uTime.value = elapsed;
-  }, animate);
+  }, []);
+  const reportAnimationFailure = useCallback(() => onStatus("degraded"), [onStatus]);
+  useScheduledFrame(updateRiver, animate, reportAnimationFailure);
+  useEffect(() => onStatus("ready"), [onStatus]);
 
   return (
     <group name={animate ? "qin-glazed-river-animated" : "qin-glazed-river-static"}>
@@ -446,13 +464,21 @@ function QinBoardOrnaments() {
   );
 }
 
-export function BoardSurface({ animate, shadows }: { animate: boolean; shadows: boolean }) {
+export function BoardSurface({
+  animate,
+  onRiverStatusChange,
+  shadows,
+}: {
+  animate: boolean;
+  onRiverStatusChange: (status: EnvironmentLayerStatus) => void;
+  shadows: boolean;
+}) {
   return (
     <group name="qin-terracotta-mausoleum-board">
       <QinDoubleEnclosure castShadow={false} />
       <QinClayTiles castShadow={shadows} />
-      <OptionalRiverBoundary>
-        <GlazedRiver animate={animate} />
+      <OptionalRiverBoundary onStatus={onRiverStatusChange}>
+        <GlazedRiver animate={animate} onStatus={onRiverStatusChange} />
       </OptionalRiverBoundary>
       <BoardLines castShadow={false} />
       <RiverInscription position={[-2.42, 0.505, 0]} text="楚  河" />

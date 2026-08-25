@@ -115,6 +115,7 @@ test("keeps the rule-correct board and modular R3F runtime wired", async () => {
   assert.match(environment, /EnvironmentLayerBoundary/);
   assert.match(environment, /QinGradientSky/);
   assert.match(environment, /useScheduledFrame/);
+  assert.doesNotMatch(environment, /useTexture/);
   assert.doesNotMatch(environment, /useTexture\.preload/);
   assert.match(runtime, /function squareToWorld/);
   assert.match(runtime, /BOARD_SPACING = 1\.14/);

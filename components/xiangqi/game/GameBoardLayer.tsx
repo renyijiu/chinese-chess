@@ -83,7 +83,7 @@ function MoveMarkerInstances({ capture, squares }: { capture: boolean; squares: 
   return (
     <instancedMesh ref={ref} args={[undefined, undefined, squares.length]} raycast={() => null}>
       {capture
-        ? <ringGeometry args={[0.135, 0.25, 28]} />
+        ? <ringGeometry args={[0.48, 0.54, 36]} />
         : <circleGeometry args={[0.125, 20]} />}
       <meshBasicMaterial
         color={capture
