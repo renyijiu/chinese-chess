@@ -1,5 +1,6 @@
 """Render the deterministic Qin-terracotta red/black roster review sheet."""
 
+import json
 from pathlib import Path
 
 import bpy
@@ -15,10 +16,19 @@ SEMANTIC_REFERENCES = {
     "trim": (0.38, 0.18, 0.035),
     "bronze": (0.16, 0.078, 0.025),
 }
+MANIFEST = json.loads((ROOT / "public/models/pieces/v1/manifest.json").read_text())
+PALETTE_KEYS = {
+    "primary": "faction_cloth_primary",
+    "secondary": "faction_cloth_secondary",
+    "trim": "faction_trim",
+    "bronze": "aged_bronze",
+}
 PALETTE_HEX = {
-    # Keep these values in lockstep with components/xiangqi/pieces/piece-palette.ts.
-    "red": {"primary": 0x6A4937, "secondary": 0x6FAF95, "trim": 0xC44B2F, "bronze": 0x5B4031},
-    "black": {"primary": 0x284E43, "secondary": 0x122621, "trim": 0x688A72, "bronze": 0x3F5D50},
+    side: {
+        region: int(MANIFEST["factions"][side]["palette"][manifest_key].removeprefix("#"), 16)
+        for region, manifest_key in PALETTE_KEYS.items()
+    }
+    for side in ("red", "black")
 }
 
 

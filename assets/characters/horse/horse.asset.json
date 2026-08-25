@@ -12,7 +12,14 @@
   },
   "authoritativeVisualSource": {
     "path": "assets/models/red-horse-terracotta-cartoon-v1.glb",
-    "editableMaster": "assets/models/red-horse-terracotta-cartoon-v1.blend"
+    "sha256": "ae61dc95b58f89c3c0d0462a242cb2c8d358c3d29eb66c5b99f20587da6a6e06",
+    "editableMaster": "assets/models/red-horse-terracotta-cartoon-v1.blend",
+    "editableMasterSha256": "1b131ef91748f473f759d116ff015449a853142066e257d575c205e96c5bdfbe"
+  },
+  "derivedRawLods": {
+    "lod0": { "path": "assets/characters/horse/exports/horse-lod0-raw.glb", "sha256": "cdcc8914f50c4fc303b8d5e49b5b09b4d62f90b66e1d0f15b03ba929ab0f3c39" },
+    "lod1": { "path": "assets/characters/horse/exports/horse-lod1-raw.glb", "sha256": "c9c09fb7171b74a43843c07b887bd06f84917bcf62aa8cba6af8f31233f11f24" },
+    "lod2": { "path": "assets/characters/horse/exports/horse-lod2-raw.glb", "sha256": "a03f602a138eae74a350041e8c933cfe5393a8993f9af19340a4dd1c88c032e4" }
   },
   "sourceCommit": "96cadeb",
   "derivationMode": "authoritative-import",

@@ -12,7 +12,14 @@
   },
   "authoritativeVisualSource": {
     "path": "assets/models/red-elephant-terracotta-cartoon-v1.glb",
-    "editableMaster": "assets/models/red-elephant-terracotta-cartoon-v1.blend"
+    "sha256": "796d476755033ff71cf7c9530f795619b08ad0f0ca268b590a68b4ca7bf54359",
+    "editableMaster": "assets/models/red-elephant-terracotta-cartoon-v1.blend",
+    "editableMasterSha256": "f00ba5bf579b93da5fbc552e649b33bb7bfe5545a90e6a8e779d2a86d4f52047"
+  },
+  "derivedRawLods": {
+    "lod0": { "path": "assets/characters/elephant/exports/elephant-lod0-raw.glb", "sha256": "282038e8e5809056f6758a244a1baf439a6a80feb07394d78533a47ca768465d" },
+    "lod1": { "path": "assets/characters/elephant/exports/elephant-lod1-raw.glb", "sha256": "82f7a7acfba4d8a7c3750139ac0127ad003f5490d49ed12025791e947f7883c6" },
+    "lod2": { "path": "assets/characters/elephant/exports/elephant-lod2-raw.glb", "sha256": "15b354218408fd7339ee50d5ca892697d7e7c4b01dc5905d5ec17b266e364a50" }
   },
   "sourceCommit": "96cadeb",
   "derivationMode": "authoritative-import",

@@ -2,6 +2,11 @@ import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 
 import { FACTION_COLORS, semanticColor } from "../../../components/xiangqi/pieces/piece-palette";
+import manifest from "../../../public/models/pieces/v1/manifest.json";
+
+function hex(value: string) {
+  return Number.parseInt(value.slice(1), 16);
+}
 
 describe("piece faction palette", () => {
   it("keeps the authoritative red research materials as the red faction targets", () => {
@@ -11,6 +16,19 @@ describe("piece faction palette", () => {
       clothSecondary: 0x6faf95,
       trim: 0xc44b2f,
     });
+  });
+
+  it("uses the same faction palette as the runtime asset manifest", () => {
+    for (const side of ["red", "black"] as const) {
+      const palette = manifest.factions[side].palette;
+      expect(FACTION_COLORS[side]).toEqual({
+        bronze: hex(palette.aged_bronze),
+        clothPrimary: hex(palette.faction_cloth_primary),
+        clothSecondary: hex(palette.faction_cloth_secondary),
+        glow: hex(palette.energy),
+        trim: hex(palette.faction_trim),
+      });
+    }
   });
 
   it("maps an authored cloth color to each faction without calling a missing THREE.Color method", () => {

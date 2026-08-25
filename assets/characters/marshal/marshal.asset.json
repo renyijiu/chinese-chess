@@ -12,7 +12,14 @@
   },
   "authoritativeVisualSource": {
     "path": "assets/models/red-marshal-terracotta-cartoon-v2.glb",
-    "editableMaster": "assets/models/red-marshal-terracotta-cartoon-v2.blend"
+    "sha256": "a84955b6b0c6e0123c6caebd45a2af350b1cb695d3d7579a09355c1e74b750be",
+    "editableMaster": "assets/models/red-marshal-terracotta-cartoon-v2.blend",
+    "editableMasterSha256": "e6fb767f4257a80f5a6c651186058d7d0ccb76517d253b72cb2421a3d599da76"
+  },
+  "derivedRawLods": {
+    "lod0": { "path": "assets/characters/marshal/exports/marshal-lod0-raw.glb", "sha256": "3c39d39699056507d13e9fa5ad45680960cb40dcbd157c6e7852c57518431526" },
+    "lod1": { "path": "assets/characters/marshal/exports/marshal-lod1-raw.glb", "sha256": "f0dabd2e26c38b80e5f38eab35e8667b8bc2c64597750a18ed05d42baee06912" },
+    "lod2": { "path": "assets/characters/marshal/exports/marshal-lod2-raw.glb", "sha256": "4d8500b7b6585df96f4d748d451775ad2ffdb6b85b55607e8cc7b7973026b625" }
   },
   "sourceCommit": "96cadeb",
   "derivationMode": "authoritative-import",

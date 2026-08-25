@@ -4,6 +4,11 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { validateBytes } from "gltf-validator";
 
+import {
+  readSourceLock,
+  verifyAuthoritativeSources,
+  verifyRawLods,
+} from "./authoritative-source-lock.mjs";
 import { LODS, ROLE_NAMES } from "./piece-contract.mjs";
 
 const root = resolve(import.meta.dirname, "../..");
@@ -27,10 +32,6 @@ const requiredClips = [
   "hit_react",
   "destroy",
 ];
-const authoritativeSources = Object.fromEntries(ROLE_NAMES.map((role) => [
-  role,
-  `assets/models/red-${role}-terracotta-cartoon-${role === "marshal" ? "v2" : "v1"}.glb`,
-]));
 const semanticReferences = [
   ["faction_cloth_primary", [0.25, 0.018, 0.01]],
   ["faction_cloth_secondary", [0.065, 0.008, 0.006]],
@@ -41,20 +42,6 @@ const semanticReferences = [
   ["faction_trim", [0.28, 0.14, 0.035]],
   ["aged_bronze", [0.115, 0.068, 0.028]],
 ];
-const factionTargets = {
-  red: {
-    faction_cloth_primary: [0x72 / 255, 0x14 / 255, 0x0d / 255],
-    faction_cloth_secondary: [0x33 / 255, 0x09 / 255, 0x06 / 255],
-    faction_trim: [0xb8 / 255, 0x7b / 255, 0x20 / 255],
-    aged_bronze: [0x70 / 255, 0x42 / 255, 0x18 / 255],
-  },
-  black: {
-    faction_cloth_primary: [0x0d / 255, 0x29 / 255, 0x23 / 255],
-    faction_cloth_secondary: [0x07 / 255, 0x15 / 255, 0x11 / 255],
-    faction_trim: [0x53 / 255, 0x7b / 255, 0x66 / 255],
-    aged_bronze: [0x35 / 255, 0x5d / 255, 0x4e / 255],
-  },
-};
 const semanticDistanceSquared = 0.00018;
 
 function fail(message) {
@@ -142,6 +129,26 @@ function squaredDistance(left, right) {
   return left.reduce((sum, value, axis) => sum + (value - right[axis]) ** 2, 0);
 }
 
+function hexRgb(value, label) {
+  if (typeof value !== "string" || !/^#[0-9a-f]{6}$/i.test(value)) {
+    fail(`${label} must be a six-digit hex color`);
+  }
+  const numeric = Number.parseInt(value.slice(1), 16);
+  return [(numeric >> 16) / 255, ((numeric >> 8) & 0xff) / 255, (numeric & 0xff) / 255];
+}
+
+function factionTargetsFromManifest(manifest) {
+  return Object.fromEntries(["red", "black"].map((side) => {
+    const palette = manifest.factions?.[side]?.palette;
+    return [side, Object.fromEntries([
+      "faction_cloth_primary",
+      "faction_cloth_secondary",
+      "faction_trim",
+      "aged_bronze",
+    ].map((region) => [region, hexRgb(palette?.[region], `${side}.${region}`)]))];
+  }));
+}
+
 function classifySemantic(color) {
   let best = null;
   let distance = Infinity;
@@ -155,7 +162,7 @@ function classifySemantic(color) {
   return distance <= semanticDistanceSquared ? best : null;
 }
 
-function validateFactionRemap(gltf, binary, role, lod) {
+function validateFactionRemap(gltf, binary, role, lod, factionTargets) {
   const character = (gltf.nodes ?? []).find((node) => node.name === "character_mesh");
   const primitive = gltf.meshes?.[character?.mesh]?.primitives?.[0];
   const colors = readColorAccessor(gltf, binary, primitive?.attributes?.COLOR_0);
@@ -285,7 +292,7 @@ function validateNoRootMotion(relativePath, lod) {
   }
 }
 
-async function validateGlb(relativePath, rawRelativePath, role, lod, budget, declaredFootprint) {
+async function validateGlb(relativePath, rawRelativePath, role, lod, budget, declaredFootprint, factionTargets) {
   const path = resolve(root, "public", relativePath.replace(/^\//, ""));
   const validator = await validateBytes(new Uint8Array(readFileSync(path)), {
     uri: path,
@@ -360,7 +367,7 @@ async function validateGlb(relativePath, rawRelativePath, role, lod, budget, dec
   if (triangleCount(rawGltf) !== triangles) {
     fail(`${role}/${lod}: runtime triangle count ${triangles} differs from authoring GLB ${triangleCount(rawGltf)}`);
   }
-  const factionRemap = validateFactionRemap(rawGltf, rawBinary, role, lod);
+  const factionRemap = validateFactionRemap(rawGltf, rawBinary, role, lod, factionTargets);
   return {
     role,
     lod,
@@ -379,6 +386,10 @@ async function validateGlb(relativePath, rawRelativePath, role, lod, budget, dec
 
 async function main() {
   const manifest = readJson(manifestPath, "piece manifest");
+  const sourceLock = readSourceLock(root, ROLE_NAMES);
+  verifyAuthoritativeSources(root, sourceLock, ROLE_NAMES);
+  verifyRawLods(root, sourceLock, ROLE_NAMES, LODS);
+  const factionTargets = factionTargetsFromManifest(manifest);
   const roles = validateManifest(manifest);
   const allResults = [];
   for (const role of ROLE_NAMES) {
@@ -393,22 +404,27 @@ async function main() {
     if (metadata.derivationMode !== "authoritative-import") {
       fail(`${role} metadata must come from the authoritative import pipeline`);
     }
+    const lockedSource = sourceLock.roles?.[role];
+    if (!lockedSource?.visual || !lockedSource?.editableMaster) fail(`${role} is missing from the authoritative source lock`);
     const authoritativePath = metadata.authoritativeVisualSource?.path;
-    if (authoritativePath !== authoritativeSources[role]) {
-      fail(`${role} metadata must identify ${authoritativeSources[role]} as its authoritative visual source`);
-    }
-    if (!existsSync(resolve(root, authoritativePath))) {
-      fail(`${role} authoritative visual source is missing: ${authoritativePath}`);
+    if (authoritativePath !== lockedSource.visual.path || metadata.authoritativeVisualSource?.sha256 !== lockedSource.visual.sha256) {
+      fail(`${role} metadata must identify the locked authoritative GLB and SHA-256`);
     }
     const editableMaster = metadata.authoritativeVisualSource?.editableMaster;
-    const expectedMaster = authoritativeSources[role].replace(/\.glb$/, ".blend");
-    if (editableMaster !== expectedMaster || !existsSync(resolve(root, expectedMaster))) {
-      fail(`${role} metadata must identify the existing editable master ${expectedMaster}`);
+    if (editableMaster !== lockedSource.editableMaster.path || metadata.authoritativeVisualSource?.editableMasterSha256 !== lockedSource.editableMaster.sha256) {
+      fail(`${role} metadata must identify the locked editable master and SHA-256`);
     }
-    for (const lod of LODS) validateNoRootMotion(asset.source.rawLods[lod], `${role}/${lod}`);
+    for (const lod of LODS) {
+      const rawRecord = metadata.derivedRawLods?.[lod];
+      const lockedRaw = lockedSource.rawLods?.[lod];
+      if (rawRecord?.path !== asset.source.rawLods[lod] || rawRecord?.path !== lockedRaw?.path || rawRecord?.sha256 !== lockedRaw?.sha256) {
+        fail(`${role}/${lod} metadata must bind the raw LOD path and SHA-256`);
+      }
+      validateNoRootMotion(asset.source.rawLods[lod], `${role}/${lod}`);
+    }
     const results = await Promise.all(LODS.map((lod) => validateGlb(
       asset.variants.red.lods[lod], asset.source.rawLods[lod], role, lod,
-      asset.lodBudgets[lod].triangles, asset.dimensions.maxFootprint,
+      asset.lodBudgets[lod].triangles, asset.dimensions.maxFootprint, factionTargets,
     )));
     if (!(results[0].triangles > results[1].triangles && results[1].triangles > results[2].triangles)) {
       fail(`${role} triangle counts must decrease by LOD: ${results.map((result) => result.triangles).join(" > ")}`);

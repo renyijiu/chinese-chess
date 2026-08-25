@@ -12,7 +12,14 @@
   },
   "authoritativeVisualSource": {
     "path": "assets/models/red-advisor-terracotta-cartoon-v1.glb",
-    "editableMaster": "assets/models/red-advisor-terracotta-cartoon-v1.blend"
+    "sha256": "c1ac303a40125da5909501b9b90962da2270e890c7c0d2dda41d992f4c2a5a19",
+    "editableMaster": "assets/models/red-advisor-terracotta-cartoon-v1.blend",
+    "editableMasterSha256": "d2de727b8ab5cb8cd68d2f87ab86517d88b3faa79822fb5a9c6b2396a7bdbdc0"
+  },
+  "derivedRawLods": {
+    "lod0": { "path": "assets/characters/advisor/exports/advisor-lod0-raw.glb", "sha256": "69b396f7a5da607ddd5e61a2f4f346bf0281f97e8fd98934770ad5610455a361" },
+    "lod1": { "path": "assets/characters/advisor/exports/advisor-lod1-raw.glb", "sha256": "bee165d10abbad0c2c0ec64f9137041fc1e2a444830f9dafb70e7fc25f2b50e8" },
+    "lod2": { "path": "assets/characters/advisor/exports/advisor-lod2-raw.glb", "sha256": "53255ded1b4582bbf9aad02115476f4a142f5979b5c90bccea6ca69f1363553b" }
   },
   "sourceCommit": "96cadeb",
   "derivationMode": "authoritative-import",

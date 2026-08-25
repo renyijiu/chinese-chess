@@ -1,0 +1,174 @@
+{
+  "schema": "xiangqi-authoritative-piece-sources/v1",
+  "sourceCommit": "96cadeb",
+  "roles": {
+    "marshal": {
+      "visual": {
+        "path": "assets/models/red-marshal-terracotta-cartoon-v2.glb",
+        "sha256": "a84955b6b0c6e0123c6caebd45a2af350b1cb695d3d7579a09355c1e74b750be"
+      },
+      "editableMaster": {
+        "path": "assets/models/red-marshal-terracotta-cartoon-v2.blend",
+        "sha256": "e6fb767f4257a80f5a6c651186058d7d0ccb76517d253b72cb2421a3d599da76"
+      },
+      "rawLods": {
+        "lod0": {
+          "path": "assets/characters/marshal/exports/marshal-lod0-raw.glb",
+          "sha256": "3c39d39699056507d13e9fa5ad45680960cb40dcbd157c6e7852c57518431526"
+        },
+        "lod1": {
+          "path": "assets/characters/marshal/exports/marshal-lod1-raw.glb",
+          "sha256": "f0dabd2e26c38b80e5f38eab35e8667b8bc2c64597750a18ed05d42baee06912"
+        },
+        "lod2": {
+          "path": "assets/characters/marshal/exports/marshal-lod2-raw.glb",
+          "sha256": "4d8500b7b6585df96f4d748d451775ad2ffdb6b85b55607e8cc7b7973026b625"
+        }
+      }
+    },
+    "advisor": {
+      "visual": {
+        "path": "assets/models/red-advisor-terracotta-cartoon-v1.glb",
+        "sha256": "c1ac303a40125da5909501b9b90962da2270e890c7c0d2dda41d992f4c2a5a19"
+      },
+      "editableMaster": {
+        "path": "assets/models/red-advisor-terracotta-cartoon-v1.blend",
+        "sha256": "d2de727b8ab5cb8cd68d2f87ab86517d88b3faa79822fb5a9c6b2396a7bdbdc0"
+      },
+      "rawLods": {
+        "lod0": {
+          "path": "assets/characters/advisor/exports/advisor-lod0-raw.glb",
+          "sha256": "69b396f7a5da607ddd5e61a2f4f346bf0281f97e8fd98934770ad5610455a361"
+        },
+        "lod1": {
+          "path": "assets/characters/advisor/exports/advisor-lod1-raw.glb",
+          "sha256": "bee165d10abbad0c2c0ec64f9137041fc1e2a444830f9dafb70e7fc25f2b50e8"
+        },
+        "lod2": {
+          "path": "assets/characters/advisor/exports/advisor-lod2-raw.glb",
+          "sha256": "53255ded1b4582bbf9aad02115476f4a142f5979b5c90bccea6ca69f1363553b"
+        }
+      }
+    },
+    "elephant": {
+      "visual": {
+        "path": "assets/models/red-elephant-terracotta-cartoon-v1.glb",
+        "sha256": "796d476755033ff71cf7c9530f795619b08ad0f0ca268b590a68b4ca7bf54359"
+      },
+      "editableMaster": {
+        "path": "assets/models/red-elephant-terracotta-cartoon-v1.blend",
+        "sha256": "f00ba5bf579b93da5fbc552e649b33bb7bfe5545a90e6a8e779d2a86d4f52047"
+      },
+      "rawLods": {
+        "lod0": {
+          "path": "assets/characters/elephant/exports/elephant-lod0-raw.glb",
+          "sha256": "282038e8e5809056f6758a244a1baf439a6a80feb07394d78533a47ca768465d"
+        },
+        "lod1": {
+          "path": "assets/characters/elephant/exports/elephant-lod1-raw.glb",
+          "sha256": "82f7a7acfba4d8a7c3750139ac0127ad003f5490d49ed12025791e947f7883c6"
+        },
+        "lod2": {
+          "path": "assets/characters/elephant/exports/elephant-lod2-raw.glb",
+          "sha256": "15b354218408fd7339ee50d5ca892697d7e7c4b01dc5905d5ec17b266e364a50"
+        }
+      }
+    },
+    "chariot": {
+      "visual": {
+        "path": "assets/models/red-chariot-terracotta-cartoon-v1.glb",
+        "sha256": "dcdc24adff351ac0032636980c838b5b0e9c939ce38fd9a28b7b66b09afe6eaa"
+      },
+      "editableMaster": {
+        "path": "assets/models/red-chariot-terracotta-cartoon-v1.blend",
+        "sha256": "705020bbc3334cf87bb8247efcdf1c28b4efea5bd09e0518c777287682b44c02"
+      },
+      "rawLods": {
+        "lod0": {
+          "path": "assets/characters/chariot/exports/chariot-lod0-raw.glb",
+          "sha256": "6e5009f4425502d2ed0f17a246ef6667eb09f89d6a7e5435053edff345f2544c"
+        },
+        "lod1": {
+          "path": "assets/characters/chariot/exports/chariot-lod1-raw.glb",
+          "sha256": "f29a8efeecb03061a595311d45865f3ddb3fc19779f9f713b472c48a8113a0d7"
+        },
+        "lod2": {
+          "path": "assets/characters/chariot/exports/chariot-lod2-raw.glb",
+          "sha256": "a5c7e36401335478416d765ec4fecac7db9756d17db55ff7f16c87180f3aea4e"
+        }
+      }
+    },
+    "horse": {
+      "visual": {
+        "path": "assets/models/red-horse-terracotta-cartoon-v1.glb",
+        "sha256": "ae61dc95b58f89c3c0d0462a242cb2c8d358c3d29eb66c5b99f20587da6a6e06"
+      },
+      "editableMaster": {
+        "path": "assets/models/red-horse-terracotta-cartoon-v1.blend",
+        "sha256": "1b131ef91748f473f759d116ff015449a853142066e257d575c205e96c5bdfbe"
+      },
+      "rawLods": {
+        "lod0": {
+          "path": "assets/characters/horse/exports/horse-lod0-raw.glb",
+          "sha256": "cdcc8914f50c4fc303b8d5e49b5b09b4d62f90b66e1d0f15b03ba929ab0f3c39"
+        },
+        "lod1": {
+          "path": "assets/characters/horse/exports/horse-lod1-raw.glb",
+          "sha256": "c9c09fb7171b74a43843c07b887bd06f84917bcf62aa8cba6af8f31233f11f24"
+        },
+        "lod2": {
+          "path": "assets/characters/horse/exports/horse-lod2-raw.glb",
+          "sha256": "a03f602a138eae74a350041e8c933cfe5393a8993f9af19340a4dd1c88c032e4"
+        }
+      }
+    },
+    "cannon": {
+      "visual": {
+        "path": "assets/models/red-cannon-terracotta-cartoon-v1.glb",
+        "sha256": "e5058ecbe016bfa50bd3187154fef1a31119cce879dd5b915d83b60ade7e88d2"
+      },
+      "editableMaster": {
+        "path": "assets/models/red-cannon-terracotta-cartoon-v1.blend",
+        "sha256": "3ce4fdef7739c256dbdc44131284a73dc6555b549f24c5ffbdf011f1f2119e7f"
+      },
+      "rawLods": {
+        "lod0": {
+          "path": "assets/characters/cannon/exports/cannon-lod0-raw.glb",
+          "sha256": "83321250ca25a188bc1990135a7f2941ae592f1e03b032feaaae45926f9d7cd8"
+        },
+        "lod1": {
+          "path": "assets/characters/cannon/exports/cannon-lod1-raw.glb",
+          "sha256": "593a81f70b18f76d4fa54d073a07b3ffc2848ef0074c2c48a521cec08b9a0d5c"
+        },
+        "lod2": {
+          "path": "assets/characters/cannon/exports/cannon-lod2-raw.glb",
+          "sha256": "85339ebbf38a160cb0e1e860afb0fbf2f72b3c38281c425d57ee23355cf201ff"
+        }
+      }
+    },
+    "soldier": {
+      "visual": {
+        "path": "assets/models/red-soldier-terracotta-cartoon-v1.glb",
+        "sha256": "8c491be659e434189585e7bb543509871f44c0dee0d0f015b9ba991d3e4fb149"
+      },
+      "editableMaster": {
+        "path": "assets/models/red-soldier-terracotta-cartoon-v1.blend",
+        "sha256": "cd9437f2fc140aafeb0f0869b6ba1e28ccd561fb430fd47a6133f5c9f02fe9ba"
+      },
+      "rawLods": {
+        "lod0": {
+          "path": "assets/characters/soldier/exports/soldier-lod0-raw.glb",
+          "sha256": "f958e432a635c76cf9fa0c1aac6e461a95974a646c2d90c96268c9598f9df7d9"
+        },
+        "lod1": {
+          "path": "assets/characters/soldier/exports/soldier-lod1-raw.glb",
+          "sha256": "3c59a73e2ec1abae77b89fe42291f58538d59e68e647a46b8780031c6ecde539"
+        },
+        "lod2": {
+          "path": "assets/characters/soldier/exports/soldier-lod2-raw.glb",
+          "sha256": "bbc39ca7082cd7a35864edeb2fbf4715d577be199e06b495ba86e0f3db8e5311"
+        }
+      }
+    }
+  }
+}

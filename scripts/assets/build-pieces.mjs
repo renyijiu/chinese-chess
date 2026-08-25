@@ -4,6 +4,11 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 
+import {
+  readSourceLock,
+  verifyAuthoritativeSources,
+  verifyRawLods,
+} from "./authoritative-source-lock.mjs";
 import { createManifest, LODS, ROLE_NAMES } from "./piece-contract.mjs";
 
 const root = resolve(import.meta.dirname, "../..");
@@ -67,6 +72,9 @@ function readRawAsset(role, lod) {
 }
 
 try {
+  const sourceLock = readSourceLock(root, ROLE_NAMES);
+  verifyAuthoritativeSources(root, sourceLock, ROLE_NAMES);
+  if (skipBlender) verifyRawLods(root, sourceLock, ROLE_NAMES, LODS);
   if (!toolAvailable("blender") && !skipBlender) {
     throw new Error("Blender 5.2 is required. Install it or rerun with --skip-blender after raw GLBs are generated.");
   }

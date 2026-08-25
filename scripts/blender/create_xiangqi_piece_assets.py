@@ -9,6 +9,7 @@ with the older procedural runtime placeholders.
 from __future__ import annotations
 
 import json
+import hashlib
 import math
 import os
 from pathlib import Path
@@ -30,14 +31,10 @@ DISPLAY_NAMES = {
     "cannon": {"red": "炮", "black": "砲"},
     "soldier": {"red": "兵", "black": "卒"},
 }
-SOURCE_COMMIT = "96cadeb"
+SOURCE_LOCK = json.loads((ROOT / "assets/models/authoritative-piece-sources.lock.json").read_text())
+SOURCE_COMMIT = SOURCE_LOCK["sourceCommit"]
 AUTHORITATIVE_MODEL_FILES = {
-    role: (
-        f"assets/models/red-{role}-terracotta-cartoon-v2.glb"
-        if role == "marshal"
-        else f"assets/models/red-{role}-terracotta-cartoon-v1.glb"
-    )
-    for role in ROLES
+    role: SOURCE_LOCK["roles"][role]["visual"]["path"] for role in ROLES
 }
 CONTRACT_DIMENSIONS = {
     "marshal": {"footprint": 0.8900, "height": 1.6830},
@@ -630,6 +627,9 @@ def import_authoritative_geometry(role):
             f"{role}: missing authoritative visual source {relative_path}; "
             "runtime builds do not fall back to placeholder geometry"
         )
+    expected_sha256 = SOURCE_LOCK["roles"][role]["visual"]["sha256"]
+    if sha256_file(source_path) != expected_sha256:
+        raise RuntimeError(f"{role}: authoritative GLB does not match source lock {expected_sha256}")
     before = set(bpy.context.scene.objects)
     bpy.ops.import_scene.gltf(filepath=str(source_path))
     imported_meshes = [
@@ -836,14 +836,43 @@ def create_actions(rig, role):
     reset_pose(rig)
 
 
+def sha256_file(path):
+    digest = hashlib.sha256()
+    with path.open("rb") as file_:
+        for chunk in iter(lambda: file_.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def write_metadata(role):
     directory = OUTPUT_ROOT / "assets" / "characters" / role
     directory.mkdir(parents=True, exist_ok=True)
-    authoritative_path = AUTHORITATIVE_MODEL_FILES[role]
+    locked_source = SOURCE_LOCK["roles"][role]
+    authoritative_path = locked_source["visual"]["path"]
+    editable_master = locked_source["editableMaster"]["path"]
+    if sha256_file(ROOT / authoritative_path) != locked_source["visual"]["sha256"]:
+        raise RuntimeError(f"{role}: authoritative GLB digest differs from source lock")
+    if sha256_file(ROOT / editable_master) != locked_source["editableMaster"]["sha256"]:
+        raise RuntimeError(f"{role}: editable master digest differs from source lock")
+    derived_raw_lods = {}
+    for lod_name in LOD_SETTINGS:
+        raw_path = directory / "exports" / f"{role}-{lod_name}-raw.glb"
+        if not raw_path.is_file():
+            continue
+        derived_raw_lods[lod_name] = {
+            "path": str(raw_path.relative_to(OUTPUT_ROOT)),
+            "sha256": sha256_file(raw_path),
+        }
     metadata = {
         "schema": "xiangqi-source-asset/v1", "role": role, "displayNames": DISPLAY_NAMES[role],
         "generator": {"application": "Blender", "version": bpy.app.version_string, "script": "scripts/blender/create_xiangqi_piece_assets.py"},
-        "authoritativeVisualSource": {"path": authoritative_path, "editableMaster": authoritative_path.replace(".glb", ".blend")},
+        "authoritativeVisualSource": {
+            "path": authoritative_path,
+            "sha256": locked_source["visual"]["sha256"],
+            "editableMaster": editable_master,
+            "editableMasterSha256": locked_source["editableMaster"]["sha256"],
+        },
+        "derivedRawLods": derived_raw_lods,
         "sourceCommit": SOURCE_COMMIT,
         "derivationMode": "procedural-development-fallback" if os.environ.get("XIANGQI_USE_PROCEDURAL_FALLBACK") == "1" else "authoritative-import",
         "reference": "assets/models/README.md",
@@ -893,8 +922,8 @@ selected_roles = tuple(role for role in GENERATED_ROLES if role in os.environ.ge
 selected_lods = tuple(lod for lod in LOD_SETTINGS if lod in os.environ.get("XIANGQI_LODS", ",".join(LOD_SETTINGS)).split(","))
 
 for current_role in selected_roles:
-    write_metadata(current_role)
     for current_lod in selected_lods:
         build_lod(current_role, current_lod, LOD_SETTINGS[current_lod])
+    write_metadata(current_role)
 
 print(f"XIANGQI_ASSET generatedRoles={len(selected_roles)} preservedRoles=0 runtimeAssets={len(selected_roles) * len(selected_lods)}")

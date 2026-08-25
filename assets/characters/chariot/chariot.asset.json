@@ -12,7 +12,14 @@
   },
   "authoritativeVisualSource": {
     "path": "assets/models/red-chariot-terracotta-cartoon-v1.glb",
-    "editableMaster": "assets/models/red-chariot-terracotta-cartoon-v1.blend"
+    "sha256": "dcdc24adff351ac0032636980c838b5b0e9c939ce38fd9a28b7b66b09afe6eaa",
+    "editableMaster": "assets/models/red-chariot-terracotta-cartoon-v1.blend",
+    "editableMasterSha256": "705020bbc3334cf87bb8247efcdf1c28b4efea5bd09e0518c777287682b44c02"
+  },
+  "derivedRawLods": {
+    "lod0": { "path": "assets/characters/chariot/exports/chariot-lod0-raw.glb", "sha256": "6e5009f4425502d2ed0f17a246ef6667eb09f89d6a7e5435053edff345f2544c" },
+    "lod1": { "path": "assets/characters/chariot/exports/chariot-lod1-raw.glb", "sha256": "f29a8efeecb03061a595311d45865f3ddb3fc19779f9f713b472c48a8113a0d7" },
+    "lod2": { "path": "assets/characters/chariot/exports/chariot-lod2-raw.glb", "sha256": "a5c7e36401335478416d765ec4fecac7db9756d17db55ff7f16c87180f3aea4e" }
   },
   "sourceCommit": "96cadeb",
   "derivationMode": "authoritative-import",
