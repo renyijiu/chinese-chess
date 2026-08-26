@@ -19,13 +19,17 @@ export const DEFAULT_AUDIO_MIX: AudioMix = Object.freeze({
 });
 
 export type AudioRole = "marshal" | "advisor" | "elephant" | "chariot" | "horse" | "cannon" | "soldier";
+export type AudioTransientCueId =
+  | "system.capture"
+  | "system.check"
+  | "system.victory"
+  | "system.defeat"
+  | "system.draw";
 export type AudioCueId =
   | "music.fortress"
   | "ambient.fortress"
   | "ui.select"
   | "ui.invalid"
   | "ui.confirm"
-  | "system.check"
-  | "system.victory"
-  | "system.defeat"
+  | AudioTransientCueId
   | `${AudioRole}.${"move" | "release" | "impact" | "fracture"}`;

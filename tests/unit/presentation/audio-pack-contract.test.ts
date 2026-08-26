@@ -11,6 +11,10 @@ import {
   type QinAudioPackManifestV1,
   type QinSynthFallbackId,
 } from "../../../components/xiangqi/audio/qin-audio-pack-contract";
+import {
+  resolveQinAudioPublicUrl,
+  validateQinAudioPackManifest,
+} from "../../../components/xiangqi/audio/qin-audio-pack";
 import { validateAudioPackage } from "../../../scripts/verify-audio-assets.mjs";
 
 const temporaryRoots: string[] = [];
@@ -122,6 +126,45 @@ async function expectFailure(
 }
 
 describe("Qin audio pack contract", () => {
+  it("validates the runtime identity, order, media metadata, and versioned URLs", () => {
+    const { manifest } = makeFixture();
+
+    expect(validateQinAudioPackManifest(manifest).loadOrder).toEqual(QIN_AUDIO_ASSET_IDS);
+    expect(resolveQinAudioPublicUrl("/audio/qin-diorama/v1/manifest.json", "/chess/")).toBe(
+      "/chess/audio/qin-diorama/v1/manifest.json",
+    );
+
+    const wrongOrder = structuredClone(manifest);
+    [wrongOrder.loadOrder[0], wrongOrder.loadOrder[1]] = [wrongOrder.loadOrder[1]!, wrongOrder.loadOrder[0]!];
+    expect(() => validateQinAudioPackManifest(wrongOrder)).toThrow(/load order/i);
+
+    const wrongCodec = structuredClone(manifest);
+    wrongCodec.assets[1]!.codec = "mp3" as "pcm_s16le";
+    expect(() => validateQinAudioPackManifest(wrongCodec)).toThrow(/capture-clay.*codec/i);
+
+    const wrongIdentity = structuredClone(manifest);
+    wrongIdentity.assets[2]!.id = "system.draw";
+    expect(() => validateQinAudioPackManifest(wrongIdentity)).toThrow(/asset 2.*system\.check/i);
+
+    const wrongUrl = structuredClone(manifest);
+    wrongUrl.assets[3]!.url = "/audio/unversioned/result.wav";
+    expect(() => validateQinAudioPackManifest(wrongUrl)).toThrow(/victory.*versioned url/i);
+  });
+
+  it("rejects runtime loop and numeric duration metadata before media fetch", () => {
+    const missingLoop = structuredClone(makeFixture().manifest);
+    missingLoop.assets[0]!.loop = undefined;
+    expect(() => validateQinAudioPackManifest(missingLoop)).toThrow(/loop/i);
+
+    const reversedLoop = structuredClone(makeFixture().manifest);
+    reversedLoop.assets[0]!.loop = { startSeconds: 60, endSeconds: 4 };
+    expect(() => validateQinAudioPackManifest(reversedLoop)).toThrow(/loop range/i);
+
+    const invalidDuration = structuredClone(makeFixture().manifest);
+    invalidDuration.assets[4]!.durationSeconds = Number.NaN;
+    expect(() => validateQinAudioPackManifest(invalidDuration)).toThrow(/defeat.*duration/i);
+  });
+
   it("accepts the complete six-asset package and reports encoded and decoded budgets", async () => {
     const fixture = makeFixture();
 
