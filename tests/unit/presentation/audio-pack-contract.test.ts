@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
@@ -112,7 +112,14 @@ function makeFixture() {
     };
   };
 
-  return { assets, manifest, manifestPath, probeAudio, rootDir };
+  const probeLosslessSource = async (path: string) => {
+    if (!readFileSync(path, "utf8").startsWith("source:")) {
+      throw new Error(`Unreadable lossless source fixture: ${path}`);
+    }
+    return { channels: 1, durationSeconds: 1, sampleRate: 48_000 };
+  };
+
+  return { assets, manifest, manifestPath, probeAudio, probeLosslessSource, rootDir };
 }
 
 async function expectFailure(
@@ -247,5 +254,20 @@ describe("Qin audio pack contract", () => {
     await expectFailure(({ manifest }) => {
       manifest.sourceRecords[4] = { ...manifest.sourceRecords[4], claimBoundary: "" };
     }, /source\.4.*claim boundary/i);
+  });
+
+  it("rejects LFS pointers and non-decodable files declared as lossless sources", async () => {
+    await expectFailure(({ manifest, rootDir }) => {
+      const sourcePath = manifest.sourceRecords[0]!.sourcePaths[0]!;
+      writeFileSync(
+        join(rootDir, sourcePath),
+        "version https://git-lfs.github.com/spec/v1\noid sha256:abc\nsize 1\n",
+      );
+    }, /source\.0.*Git LFS pointer/i);
+
+    await expectFailure(({ manifest, rootDir }) => {
+      const sourcePath = manifest.sourceRecords[1]!.sourcePaths[0]!;
+      writeFileSync(join(rootDir, sourcePath), "not a decodable FLAC file");
+    }, /source\.1.*lossless source/i);
   });
 });

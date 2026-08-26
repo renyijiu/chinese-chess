@@ -25,6 +25,7 @@ const EXPECTED_ASSETS = Object.freeze([
 const EXPECTED_IDS = EXPECTED_ASSETS.map(([id]) => id);
 const ALLOWED_BUSES = new Set(["music", "sfx"]);
 const LOSSLESS_SOURCE_EXTENSIONS = new Set([".aif", ".aiff", ".flac", ".wav"]);
+const GIT_LFS_POINTER_PREFIX = Buffer.from("version https://git-lfs.github.com/spec/v1");
 const CLAIM_BOUNDARY = /qin-inspired.+not (?:a )?historical\s+reconstruction/is;
 
 function fail(message) {
@@ -93,7 +94,19 @@ function defaultProbeAudio(path) {
   };
 }
 
-function validateSourceRecords(manifest, rootDir, ledgerPath) {
+function isGitLfsPointer(path) {
+  return readFileSync(path).subarray(0, GIT_LFS_POINTER_PREFIX.length).equals(GIT_LFS_POINTER_PREFIX);
+}
+
+function validateLosslessSourceProbe(probe, label) {
+  for (const field of ["channels", "sampleRate", "durationSeconds"]) {
+    if (typeof probe?.[field] !== "number" || !Number.isFinite(probe[field]) || probe[field] <= 0) {
+      fail(`${label} ${field} must be a positive finite number`);
+    }
+  }
+}
+
+async function validateSourceRecords(manifest, rootDir, ledgerPath, probeLosslessSource) {
   if (!Array.isArray(manifest.sourceRecords)) fail("Manifest sourceRecords must be an array");
   const records = new Map();
   for (const record of manifest.sourceRecords) {
@@ -112,7 +125,14 @@ function validateSourceRecords(manifest, rootDir, ledgerPath) {
       }
       const absolutePath = resolve(rootDir, sourcePath);
       if (!existsSync(absolutePath)) fail(`${id} source path does not exist: ${sourcePath}`);
-      if (LOSSLESS_SOURCE_EXTENSIONS.has(extname(sourcePath).toLowerCase())) hasLosslessSource = true;
+      if (!LOSSLESS_SOURCE_EXTENSIONS.has(extname(sourcePath).toLowerCase())) continue;
+      hasLosslessSource = true;
+      if (isGitLfsPointer(absolutePath)) fail(`${id} source path is an unhydrated Git LFS pointer: ${sourcePath}`);
+      try {
+        validateLosslessSourceProbe(await probeLosslessSource(absolutePath), `${id} lossless source ${sourcePath}`);
+      } catch (error) {
+        fail(`${id} lossless source could not be inspected: ${sourcePath}: ${error.message}`);
+      }
     }
     if (!hasLosslessSource) fail(`${id} must include an editable or lossless source path`);
     records.set(id, record);
@@ -236,6 +256,7 @@ export async function validateAudioPackage(options = {}) {
   const manifestPath = resolve(options.manifestPath ?? resolve(rootDir, "public/audio/qin-diorama/v1/manifest.json"));
   const ledgerPath = resolve(options.ledgerPath ?? resolve(rootDir, "assets/audio/qin-diorama/v1/SOURCES.md"));
   const probeAudio = options.probeAudio ?? defaultProbeAudio;
+  const probeLosslessSource = options.probeLosslessSource ?? defaultProbeAudio;
   const budgets = options.budgets ?? AUDIO_PACK_BUDGETS;
   const manifest = options.manifest ?? readJson(manifestPath, "Qin audio manifest");
   const manifestBytes = existsSync(manifestPath) ? statSync(manifestPath).size : Buffer.byteLength(JSON.stringify(manifest));
@@ -249,7 +270,7 @@ export async function validateAudioPackage(options = {}) {
     validateAssetShape(asset, expected, order);
   }
   const budgetReport = validateBudgets(manifest, manifestBytes, budgets);
-  const sourceRecords = validateSourceRecords(manifest, rootDir, ledgerPath);
+  const sourceRecords = await validateSourceRecords(manifest, rootDir, ledgerPath, probeLosslessSource);
 
   for (const asset of manifest.assets) {
     if (!sourceRecords.has(asset.sourceRecordId)) {
