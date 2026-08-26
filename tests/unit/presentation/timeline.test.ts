@@ -42,9 +42,9 @@ describe("TimelineDirector", () => {
     });
 
     director.tick(100);
-    director.skip("13:0");
+    director.skip("13:0", "user-skip");
 
-    await expect(finished).resolves.toMatchObject({ progress: 1, reason: "skipped" });
+    await expect(finished).resolves.toMatchObject({ progress: 1, reason: "user-skip" });
     expect(onMarker).not.toHaveBeenCalled();
     expect(director.activeCount).toBe(0);
   });
@@ -72,7 +72,7 @@ describe("TimelineDirector", () => {
 
     director.tick(150);
 
-    await expect(finished).resolves.toMatchObject({ progress: 1, reason: "error" });
+    await expect(finished).resolves.toMatchObject({ progress: 1, reason: "presentation-error" });
     expect(director.activeCount).toBe(0);
   });
 });

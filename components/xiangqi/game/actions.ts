@@ -1,4 +1,4 @@
-import type { DomainEvent, GameState } from "../../../lib/xiangqi/index";
+import type { DomainEvent, GameState, Side } from "../../../lib/xiangqi/index";
 
 export type GameActionTransition = Readonly<{
   actionId: string;
@@ -6,6 +6,8 @@ export type GameActionTransition = Readonly<{
   after: GameState;
   events: readonly DomainEvent[];
   reducedMotion: boolean;
+  /** Board-view perspective captured when the command was accepted. */
+  viewSide: Side;
 }>;
 
 /** A Promise keeps board input locked for the handler's full visual timeline. */

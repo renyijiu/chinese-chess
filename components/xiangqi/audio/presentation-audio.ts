@@ -35,10 +35,4 @@ export function handlePresentationAudioCue(engine: AudioEngine, cue: Presentatio
       if (line) engine.speak(line);
     }
   }
-
-  if (cue.marker === "complete") {
-    if (cue.transition.events.some((event) => event.type === "CheckDeclared")) engine.play("system.check");
-    const ended = cue.transition.events.find((event) => event.type === "GameEnded");
-    if (ended?.type === "GameEnded") engine.play(ended.status.winner ? "system.victory" : "system.defeat");
-  }
 }

@@ -32,6 +32,8 @@ export function BoardViewer({
   quality = "high",
   reducedMotion = false,
   status = "9 × 10 线位 · 双九宫 · 本机双人",
+  viewSide,
+  onViewSideChange,
 }: {
   animations: AnimationRegistry;
   audio: AudioEngine;
@@ -41,6 +43,8 @@ export function BoardViewer({
   quality?: QualityTier;
   reducedMotion?: boolean;
   status?: string;
+  viewSide: BoardViewSide;
+  onViewSideChange: (side: BoardViewSide) => void;
 }) {
   const drawCallsRef = useRef<HTMLSpanElement>(null);
   const [autoTour, setAutoTour] = useState(false);
@@ -50,7 +54,6 @@ export function BoardViewer({
   }>({ quality, status: "loading" });
   const [error, setError] = useState(false);
   const [view, setView] = useState<BoardView>("battle");
-  const [viewSide, setViewSide] = useState<BoardViewSide>("red");
   const [webglAvailable, setWebglAvailable] = useState(true);
   const qualityProfile = useMemo(() => getQualityProfile(quality), [quality]);
 
@@ -167,7 +170,7 @@ export function BoardViewer({
             aria-label={`切换到${viewSide === "red" ? "黑方" : "红方"}视角`}
             className="viewer-control"
             type="button"
-            onClick={() => setViewSide((side) => (side === "red" ? "black" : "red"))}
+            onClick={() => onViewSideChange(viewSide === "red" ? "black" : "red")}
           >
             换边视角 · {viewSide === "red" ? "红" : "黑"}
           </button>

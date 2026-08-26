@@ -4,7 +4,17 @@ export type TimelineMarker = Readonly<{
   id: string;
 }>;
 
-export type TimelineEndReason = "complete" | "skipped" | "timeout" | "error" | "replaced";
+export type TimelineEndReason =
+  | "complete"
+  | "user-skip"
+  | "timeout"
+  | "presentation-error"
+  | "visibility-hidden"
+  | "match-reset"
+  | "game-replaced"
+  | "dispose";
+
+export type TimelineInterruptionReason = Exclude<TimelineEndReason, "complete">;
 
 export type TimelineResult = Readonly<{
   id: string;
@@ -47,7 +57,7 @@ export class TimelineDirector {
   }
 
   play(spec: TimelineSpec): Promise<TimelineResult> {
-    this.skip(spec.id, "replaced");
+    this.skip(spec.id, "game-replaced");
     const durationMs = Math.max(1, spec.durationMs);
     const markers = [...spec.markers]
       .map((marker) => ({ ...marker, at: normalized(marker.at) }))
@@ -90,7 +100,7 @@ export class TimelineDirector {
           }
         }
       } catch {
-        this.settle(spec.id, "error");
+        this.settle(spec.id, "presentation-error");
         continue;
       }
 
@@ -98,7 +108,7 @@ export class TimelineDirector {
     }
   }
 
-  skip(id?: string, reason: TimelineEndReason = "skipped") {
+  skip(id?: string, reason: TimelineInterruptionReason = "user-skip") {
     if (id) {
       this.settle(id, reason);
       return;

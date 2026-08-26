@@ -12,12 +12,14 @@ import {
   type DomainEvent,
   type GameCommand,
   type GameState,
+  type Side,
   type Square,
 } from "../../lib/xiangqi/index";
 import type { GameActionHandler, GameActionTransition } from "./game/actions";
 import { AnimationRegistry } from "./animation/AnimationRegistry";
 import { AudioEngine } from "./audio/AudioEngine";
 import { handlePresentationAudioCue } from "./audio/presentation-audio";
+import { SemanticAudioDirector } from "./audio/SemanticAudioDirector";
 import {
   deriveSelection,
   moveKeyboardCursor,
@@ -151,6 +153,7 @@ function GameInitializationShell({
 export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
   const [animations] = useState(() => new AnimationRegistry());
   const [audio] = useState(() => new AudioEngine());
+  const [semanticAudio] = useState(() => new SemanticAudioDirector(audio));
   const [confirmation, setConfirmation] = useState<Confirmation>(null);
   const [game, setGame] = useState<GameState>(() => createInitialGame());
   const [interactionLocked, setInteractionLocked] = useState(false);
@@ -165,9 +168,11 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
   const [settings, setSettings] = useState<GameSettings>(DEFAULT_GAME_SETTINGS);
   const [storageWarning, setStorageWarning] = useState<string>();
   const [unsafeSavePresent, setUnsafeSavePresent] = useState(false);
+  const [viewSide, setViewSide] = useState<Side>("red");
   const actionInFlight = useRef(false);
   const keyboardControlRef = useRef<HTMLButtonElement>(null);
   const mounted = useRef(true);
+  const matchEpoch = useRef(0);
   const storageRef = useRef<StorageLike | null>(null);
 
   const selection = useMemo(
@@ -206,21 +211,25 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
 
     return () => {
       mounted.current = false;
+      semanticAudio.dispose();
       presentation.dispose();
       animations.dispose();
       window.cancelAnimationFrame(initializationFrame);
     };
-  }, [animations, presentation]);
+  }, [animations, presentation, semanticAudio]);
 
   useEffect(() => {
-    const unsubscribeCue = presentation.subscribeCue((cue) => handlePresentationAudioCue(audio, cue));
+    const unsubscribeCue = presentation.subscribeCue((cue) => {
+      semanticAudio.marker(cue.actionId, cue.marker);
+      handlePresentationAudioCue(audio, cue);
+    });
     const detachVisibility = audio.attachVisibility(document);
     return () => {
       unsubscribeCue();
       detachVisibility();
       void audio.dispose();
     };
-  }, [audio, presentation]);
+  }, [audio, presentation, semanticAudio]);
 
   useEffect(() => {
     audio.setMix({
@@ -282,19 +291,33 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     setNotice(eventAnnouncement(result.events, result.state));
     persist(result.state);
 
+    const domainEventId = result.events[0]?.eventId ?? `${result.state.revision}:ui`;
     const transition: GameActionTransition = {
-      actionId: result.events[0]?.eventId ?? `${result.state.revision}:ui`,
+      actionId: `${matchEpoch.current}:${domainEventId}`,
       before: game,
       after: result.state,
       events: result.events,
       reducedMotion: settings.reducedMotion,
+      viewSide,
     };
     try {
+      if (presentation.active) {
+        semanticAudio.cancelAll("game-replaced");
+        presentation.skip("game-replaced");
+      }
+      semanticAudio.begin(transition);
       const visualAction = presentation.play(transition);
+      const settledVisualAction = visualAction.then((result) => {
+        semanticAudio.settle(
+          transition.actionId,
+          result.reason === "duplicate" ? "game-replaced" : result.reason,
+        );
+        return result;
+      });
       const externalAction = onAction
         ? Promise.resolve().then(() => onAction(transition))
         : Promise.resolve();
-      void Promise.allSettled([visualAction, externalAction])
+      void Promise.allSettled([settledVisualAction, externalAction])
         .then((settled) => {
           if (settled.some((result) => result.status === "rejected") && mounted.current) {
             setNotice("演出未能完成，棋盘已直接对齐到正确局面。");
@@ -302,15 +325,17 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
         })
         .finally(finishAction);
     } catch {
-      presentation.skip("error");
+      semanticAudio.settle(transition.actionId, "presentation-error");
+      presentation.skip("presentation-error");
       setNotice("演出未能启动，棋盘已直接对齐到正确局面。");
       finishAction();
     }
-  }, [audio, finishAction, game, onAction, persist, presentation, settings.reducedMotion]);
+  }, [audio, finishAction, game, onAction, persist, presentation, semanticAudio, settings.reducedMotion, viewSide]);
 
   const startFreshGame = useCallback(() => {
     const fresh = createInitialGame();
-    presentation.skip("skipped");
+    semanticAudio.cancelAll("match-reset");
+    presentation.skip("match-reset");
     actionInFlight.current = false;
     setGame(fresh);
     setKeyboardSquare({ file: 4, rank: 0 });
@@ -322,8 +347,9 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     setPhase("playing");
     setNotice("新局开始，红方先行。 ");
     persist(fresh);
+    matchEpoch.current += 1;
     window.requestAnimationFrame(() => keyboardControlRef.current?.focus());
-  }, [persist, presentation]);
+  }, [persist, presentation, semanticAudio]);
 
   const unlockAudio = useCallback(async () => {
     try {
@@ -349,11 +375,16 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     await unlockAudio();
     audio.play("ui.confirm");
     if (!savedGame) return;
+    semanticAudio.cancelAll("game-replaced");
+    presentation.skip("game-replaced");
     setGame(savedGame);
     setKeyboardSquare(savedGame.lastAction?.kind === "move" ? savedGame.lastAction.move.to : { file: 4, rank: 0 });
     setPhase("playing");
     setSelectedPieceId(null);
     setNotice(savedGame.status.kind === "ended" ? formatGameOutcome(savedGame) : `${savedGame.sideToMove === "red" ? "红方" : "黑方"}继续行动。`);
+    // An ended save can still be resumed through Undo, but adoption itself
+    // never creates a presentation action or replays the historical result.
+    matchEpoch.current += 1;
     window.requestAnimationFrame(() => keyboardControlRef.current?.focus());
   };
 
@@ -460,7 +491,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
                   onRestart={() => setConfirmation({ kind: "restart" })}
                   onUndo={() => applyCommand({ type: "undo", expectedRevision: game.revision })}
                   onSettingsChange={handleSettingsChange}
-                  onSkip={() => presentation.skip("skipped")}
+                  onSkip={() => presentation.skip("user-skip")}
                   selectedMoveCount={selection.legalMoves.length}
                   settings={settings}
                   warning={storageWarning}
@@ -504,6 +535,8 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
             presentation={presentation}
             reducedMotion={settings.reducedMotion}
             status={boardStatus}
+            viewSide={viewSide}
+            onViewSideChange={setViewSide}
           />
         )}
       </div>

@@ -20,6 +20,7 @@ function firstSoldierMove() {
     before,
     events: result.events,
     reducedMotion: false,
+    viewSide: "red",
   } as const;
 }
 
@@ -37,7 +38,7 @@ describe("PresentationStore", () => {
     expect(store.getSnapshot().active?.progress).toBeGreaterThan(0);
     expect(transition.after.board[4 * 9]?.id).toBe("red:soldier:0");
 
-    store.skip();
+    store.skip("user-skip");
     await finished;
     expect(store.getSnapshot().active).toBeNull();
   });
@@ -60,7 +61,7 @@ describe("PresentationStore", () => {
     const duplicate = store.play(transition);
 
     expect(duplicate).toBe(first);
-    store.skip();
+    store.skip("user-skip");
     await first;
   });
 
@@ -87,7 +88,7 @@ describe("PresentationStore", () => {
     expect(store.resourceCounts).toEqual({ activeTimelines: 1, cueListeners: 1, listeners: 1, timers: 1 });
     store.dispose();
 
-    await expect(finished).resolves.toMatchObject({ reason: "skipped" });
+    await expect(finished).resolves.toMatchObject({ reason: "dispose" });
     expect(store.resourceCounts).toEqual({ activeTimelines: 0, cueListeners: 0, listeners: 0, timers: 0 });
     await vi.runAllTimersAsync();
     expect(cueListener).not.toHaveBeenCalled();
@@ -102,11 +103,34 @@ describe("PresentationStore", () => {
       const unsubscribeCue = store.subscribeCue(() => undefined);
       const transition = { ...firstSoldierMove(), actionId: `cycle:${index}`, reducedMotion: true };
       const finished = store.play(transition);
-      store.skip();
+      store.skip("user-skip");
       await finished;
       unsubscribeCue();
       unsubscribeState();
       expect(store.resourceCounts).toEqual({ activeTimelines: 0, cueListeners: 0, listeners: 0, timers: 0 });
     }
+  });
+
+  it("preserves the classified early-settlement reason", async () => {
+    const store = new PresentationStore();
+    const transition = firstSoldierMove();
+
+    const hidden = store.play(transition);
+    store.skip("visibility-hidden");
+    await expect(hidden).resolves.toMatchObject({ reason: "visibility-hidden" });
+
+    const replacement = store.play({ ...transition, actionId: "2:1:0" });
+    store.skip("game-replaced");
+    await expect(replacement).resolves.toMatchObject({ reason: "game-replaced" });
+  });
+
+  it("classifies an in-flight action displaced by a new action as game replacement", async () => {
+    const store = new PresentationStore();
+    const first = store.play(firstSoldierMove());
+    const second = store.play({ ...firstSoldierMove(), actionId: "2:1:0" });
+
+    await expect(first).resolves.toMatchObject({ reason: "game-replaced" });
+    store.skip("user-skip");
+    await second;
   });
 });

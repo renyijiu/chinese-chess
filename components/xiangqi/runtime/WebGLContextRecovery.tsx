@@ -20,7 +20,7 @@ export function WebGLContextRecovery({
     const canvas = gl.domElement;
     const handleLost = (event: Event) => {
       event.preventDefault();
-      presentation.skip("error");
+      presentation.skip("presentation-error");
       animations.clearUrgentAnimations();
     };
     const handleRestored = () => invalidate();

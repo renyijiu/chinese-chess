@@ -23,7 +23,7 @@ export function AnimationDirector({
         invalidate();
         return;
       }
-      presentation.skip("skipped");
+      presentation.skip("visibility-hidden");
       animations.clearUrgentAnimations();
     };
     document.addEventListener("visibilitychange", handleVisibility);
@@ -36,7 +36,7 @@ export function AnimationDirector({
       presentation.tick(Math.min(2_000, Math.max(0, deltaSeconds * 1_000)));
       animations.update(deltaSeconds);
     } catch {
-      presentation.skip("error");
+      presentation.skip("presentation-error");
       animations.clearUrgentAnimations();
     }
     if (presentation.active || animations.hasUrgentAnimation) invalidate();

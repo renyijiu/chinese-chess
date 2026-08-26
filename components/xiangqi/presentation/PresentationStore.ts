@@ -1,7 +1,7 @@
 import type { GameActionTransition } from "../game/actions";
 import {
   TimelineDirector,
-  type TimelineEndReason,
+  type TimelineInterruptionReason,
   type TimelineMarker,
   type TimelineResult,
 } from "../animation/TimelineDirector";
@@ -106,7 +106,7 @@ export class PresentationStore {
     }
 
     this.clearFallbackTimer();
-    this.timeline.skip(undefined, "replaced");
+    this.timeline.skip(undefined, "game-replaced");
     const capture = isCapture(transition);
     const moving = isMove(transition);
     const terminalDefeat = isTerminalDefeat(transition);
@@ -169,13 +169,13 @@ export class PresentationStore {
     this.timeline.tick(deltaMs);
   }
 
-  skip(reason: TimelineEndReason = "skipped") {
+  skip(reason: TimelineInterruptionReason = "user-skip") {
     this.clearFallbackTimer();
     this.timeline.skip(undefined, reason);
   }
 
   dispose() {
-    this.skip("skipped");
+    this.skip("dispose");
     this.cueListeners.clear();
     this.listeners.clear();
     this.snapshot = IDLE_SNAPSHOT;

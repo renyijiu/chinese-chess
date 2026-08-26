@@ -229,6 +229,7 @@ export function GameHud({
             <input checked={settings.reducedMotion} type="checkbox" onChange={(event) => onSettingsChange({ ...settings, reducedMotion: event.target.checked })} />
             <span>减少动态效果</span>
           </label>
+          <p role="note">配乐与视觉采用秦风灵感的幻想沙盘设定，并非历史音乐或史实复原。</p>
         </section>
       ) : null}
     </div>
