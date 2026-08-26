@@ -278,13 +278,13 @@ export class AudioEngine {
   private authoredMusic: ActiveSource | null = null;
   private buses: Partial<Record<"master" | AudioBus, GainNodeLike>> = {};
   private context: AudioContextLike | null = null;
+  private contextGeneration = 0;
   private contextQueue: Promise<void> = Promise.resolve();
   private deadlineHandle: DeadlineHandle | null = null;
   private disposed = false;
   private disposePromise: Promise<void> | null = null;
   private foregroundEligible = false;
   private foregroundVisible = true;
-  private generation = 0;
   private loadingAuthoredBuffers = new Map<QinAudioAssetId, AudioBuffer>();
   private manifest: QinAudioPackManifestV1 | null = null;
   private maxInFlightDecodes = 0;
@@ -293,6 +293,7 @@ export class AudioEngine {
   private musicMode: MusicMode = "synth";
   private muted = false;
   private packAbort: AbortController | null = null;
+  private packGeneration = 0;
   private packState: AudioPackState = "unrequested";
   private pendingDecodes = 0;
   private pendingFetches = 0;
@@ -345,12 +346,12 @@ export class AudioEngine {
       }
       this.createGraph(this.context);
     }
-    const generation = this.generation;
-    const resumed = await this.enqueueContextOperation(generation, async (context) => {
+    const contextGeneration = this.contextGeneration;
+    const resumed = await this.enqueueContextOperation(contextGeneration, async (context) => {
       if (context.state !== "running") await context.resume();
       return context.state === "running";
     });
-    if (!resumed || this.disposed || generation !== this.generation) return;
+    if (!resumed || this.disposed || contextGeneration !== this.contextGeneration) return;
     if (!this.unlocked) {
       this.unlocked = true;
       this.foregroundEligible = this.foregroundVisible && !this.muted;
@@ -407,7 +408,7 @@ export class AudioEngine {
     });
     if (authored) return true;
     const fallbackPlayed = this.playInternal(cue, false, options.position);
-    this.failPack(this.generation, false);
+    this.failPack(this.packGeneration, false);
     return fallbackPlayed;
   }
 
@@ -464,20 +465,25 @@ export class AudioEngine {
         this.foregroundVisible = false;
         this.foregroundEligible = false;
         this.speech?.cancel();
-        const generation = this.generation;
-        void this.enqueueContextOperation(generation, async (context) => {
+        const contextGeneration = this.contextGeneration;
+        void this.enqueueContextOperation(contextGeneration, async (context) => {
           if (context.state === "running") await context.suspend();
           return false;
         });
       } else {
         this.foregroundVisible = true;
         this.foregroundEligible = false;
-        const generation = this.generation;
-        void this.enqueueContextOperation(generation, async (context) => {
+        const contextGeneration = this.contextGeneration;
+        void this.enqueueContextOperation(contextGeneration, async (context) => {
           if (context.state !== "running") await context.resume();
           return context.state === "running";
         }).then((running) => {
-          if (!running || generation !== this.generation || !this.foregroundVisible || this.disposed) return;
+          if (
+            !running ||
+            contextGeneration !== this.contextGeneration ||
+            !this.foregroundVisible ||
+            this.disposed
+          ) return;
           this.foregroundEligible = this.computeForegroundEligibility();
           this.maybeStartAuthoredMusic();
         });
@@ -505,9 +511,9 @@ export class AudioEngine {
       authoredDecodedBytes: this.authoredDecodedBytes(),
       cachedBuffers: this.buffers.size,
       contextPresent: this.context !== null,
+      contextGeneration: this.contextGeneration,
       disposed: this.disposed,
       foregroundEligible: this.isTransientEligible(),
-      generation: this.generation,
       listenerAttachments: this.visibilityDetachers.size,
       loadingAuthoredBufferCount: this.loadingAuthoredBuffers.size,
       maxInFlightDecodes: this.maxInFlightDecodes,
@@ -517,6 +523,7 @@ export class AudioEngine {
       packState: this.packState,
       pendingDecodes: this.pendingDecodes,
       pendingFetches: this.pendingFetches,
+      packGeneration: this.packGeneration,
       sourceEnds: this.sourceEnds,
       sourceEndsByKind: { ...this.sourceEndsByKind },
       sourceStartAttemptsByKind: { ...this.sourceStartAttemptsByKind },
@@ -540,7 +547,8 @@ export class AudioEngine {
     this.disposed = true;
     this.foregroundEligible = false;
     this.foregroundVisible = false;
-    this.generation += 1;
+    this.contextGeneration += 1;
+    this.packGeneration += 1;
     this.abortPack();
     this.clearPackDeadline();
     this.speech?.cancel();
@@ -606,13 +614,18 @@ export class AudioEngine {
   }
 
   private enqueueContextOperation(
-    generation: number,
+    contextGeneration: number,
     operation: (context: AudioContextLike) => Promise<boolean>,
   ) {
     let result = false;
     const run = this.contextQueue.then(async () => {
       const context = this.context;
-      if (!context || this.disposed || generation !== this.generation || context.state === "closed") return;
+      if (
+        !context ||
+        this.disposed ||
+        contextGeneration !== this.contextGeneration ||
+        context.state === "closed"
+      ) return;
       result = await operation(context);
     });
     this.contextQueue = run.catch(() => undefined);
@@ -635,7 +648,7 @@ export class AudioEngine {
       (this.packState === "loading" || this.packState === "ready") &&
       this.totalDecodedBytes() > ENGINE_DECODED_BUDGET_BYTES
     ) {
-      this.failPack(this.generation);
+      this.failPack(this.packGeneration);
     }
     return buffer;
   }
@@ -753,29 +766,29 @@ export class AudioEngine {
       return;
     }
     this.packState = "loading";
-    const generation = ++this.generation;
+    const packGeneration = ++this.packGeneration;
     this.packAbort = new AbortController();
     this.deadlineHandle = this.scheduleDeadline(() => {
-      if (!this.isCurrentPackGeneration(generation) || this.packState !== "loading") return;
+      if (!this.isCurrentPackGeneration(packGeneration) || this.packState !== "loading") return;
       this.abortPack();
-      this.failPack(generation, false);
+      this.failPack(packGeneration, false);
     }, this.packDeadlineMs);
-    void this.loadPack(generation, this.packAbort.signal).catch(() => this.failPack(generation));
+    void this.loadPack(packGeneration, this.packAbort.signal).catch(() => this.failPack(packGeneration));
   }
 
-  private async loadPack(generation: number, signal: AbortSignal) {
+  private async loadPack(packGeneration: number, signal: AbortSignal) {
     const manifestBytes = await this.fetchBytes(
       resolveQinAudioPublicUrl(QIN_AUDIO_MANIFEST_URL, this.baseUrl),
       "application/json",
       signal,
     );
-    this.guardPackGeneration(generation);
+    this.guardPackGeneration(packGeneration);
     const manifest = validateQinAudioPackManifest(JSON.parse(new TextDecoder().decode(manifestBytes)));
     const decoded = new Map<QinAudioAssetId, AudioBuffer>();
     this.loadingAuthoredBuffers = decoded;
 
     for (const asset of manifest.assets) {
-      this.guardPackGeneration(generation);
+      this.guardPackGeneration(packGeneration);
       let encoded: ArrayBuffer | null = await this.fetchBytes(
         resolveQinAudioPublicUrl(asset.url, this.baseUrl),
         asset.mimeType,
@@ -783,10 +796,10 @@ export class AudioEngine {
       );
       if (encoded.byteLength !== asset.bytes) throw new Error(asset.id + " byte count mismatch");
       if (await this.sha256(encoded) !== asset.sha256) throw new Error(asset.id + " SHA-256 mismatch");
-      this.guardPackGeneration(generation);
+      this.guardPackGeneration(packGeneration);
       const buffer = await this.decode(encoded);
       encoded = null;
-      this.guardPackGeneration(generation);
+      this.guardPackGeneration(packGeneration);
       this.validateDecodedAsset(asset, buffer);
       decoded.set(asset.id, buffer);
       if (buffersByteSize(decoded.values()) > AUDIO_PACK_BUDGETS.authoredDecodedBytes) {
@@ -797,7 +810,7 @@ export class AudioEngine {
       }
     }
 
-    this.guardPackGeneration(generation);
+    this.guardPackGeneration(packGeneration);
     this.authoredBuffers = new Map(decoded);
     this.loadingAuthoredBuffers = new Map();
     this.manifest = manifest;
@@ -900,7 +913,7 @@ export class AudioEngine {
       },
     });
     if (!authored) {
-      this.failPack(this.generation, false);
+      this.failPack(this.packGeneration, false);
       return;
     }
     this.authoredMusic = authored;
@@ -910,10 +923,10 @@ export class AudioEngine {
     this.stopEntry(synth, fadeEnd);
   }
 
-  private failPack(generation: number, abort = true) {
+  private failPack(packGeneration: number, abort = true) {
     if (
       this.disposed ||
-      generation !== this.generation ||
+      packGeneration !== this.packGeneration ||
       this.packState === "unavailable" ||
       this.packState === "unrequested"
     ) return;
@@ -964,12 +977,12 @@ export class AudioEngine {
     this.deadlineHandle = null;
   }
 
-  private isCurrentPackGeneration(generation: number) {
-    return !this.disposed && generation === this.generation;
+  private isCurrentPackGeneration(packGeneration: number) {
+    return !this.disposed && packGeneration === this.packGeneration;
   }
 
-  private guardPackGeneration(generation: number) {
-    if (!this.isCurrentPackGeneration(generation) || this.packState !== "loading") {
+  private guardPackGeneration(packGeneration: number) {
+    if (!this.isCurrentPackGeneration(packGeneration) || this.packState !== "loading") {
       throw new Error("Stale audio pack generation");
     }
   }

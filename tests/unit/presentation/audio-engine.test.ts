@@ -413,6 +413,60 @@ describe("AudioEngine", () => {
     expect(context.sources).toHaveLength(3);
   });
 
+  it("restores a queued foreground resume after pack loading changes generation", async () => {
+    const context = new FakeContext();
+    let releaseInitialResume: () => void = () => undefined;
+    let releaseSuspend: () => void = () => undefined;
+    context.resume = vi.fn()
+      .mockImplementationOnce(() => new Promise<void>((resolve) => {
+        releaseInitialResume = () => {
+          context.state = "running";
+          resolve();
+        };
+      }))
+      .mockImplementation(async () => { context.state = "running"; });
+    context.suspend = vi.fn(() => new Promise<void>((resolve) => {
+      releaseSuspend = () => {
+        context.state = "suspended";
+        resolve();
+      };
+    }));
+    let hidden = false;
+    let visibilityListener: (() => void) | null = null;
+    const documentLike = {
+      addEventListener: (_name: string, listener: () => void) => { visibilityListener = listener; },
+      get hidden() { return hidden; },
+      removeEventListener: vi.fn(),
+    };
+    const engine = new AudioEngine({
+      contextFactory: () => context,
+      fetcher: vi.fn(() => new Promise<Response>(() => undefined)),
+    });
+    engine.attachVisibility(documentLike);
+
+    const unlocking = engine.unlock();
+    await vi.waitFor(() => expect(context.resume).toHaveBeenCalledOnce());
+    hidden = true;
+    (visibilityListener as (() => void) | null)?.();
+    hidden = false;
+    (visibilityListener as (() => void) | null)?.();
+    releaseInitialResume();
+
+    await unlocking;
+    expect(engine.debugSnapshot()).toMatchObject({
+      contextGeneration: 0,
+      packGeneration: 1,
+      packState: "loading",
+    });
+    await vi.waitFor(() => expect(context.suspend).toHaveBeenCalledOnce());
+    releaseSuspend();
+
+    await vi.waitFor(() => expect(context.resume).toHaveBeenCalledTimes(2));
+    expect(context.state).toBe("running");
+    expect(engine.isTransientEligible()).toBe(true);
+    await engine.dispose();
+  });
+
   it("aborts a deadline and ignores a decode that resolves after disposal", async () => {
     const deadlineContext = new FakeContext();
     const deadlinePack = makeRuntimePack();
@@ -439,7 +493,7 @@ describe("AudioEngine", () => {
     });
     await engine.unlock();
     for (let turn = 0; turn < 20 && context.decodeAudioData.mock.calls.length === 0; turn += 1) await Promise.resolve();
-    const generation = engine.debugSnapshot().generation;
+    const generations = engine.debugSnapshot();
     const disposal = engine.dispose();
     resolveDecode(new FakeBuffer(2, 72 * context.sampleRate, context.sampleRate, false) as unknown as AudioBuffer);
     await disposal;
@@ -453,7 +507,8 @@ describe("AudioEngine", () => {
       pendingDecodes: 0,
       pendingFetches: 0,
     });
-    expect(engine.debugSnapshot().generation).toBeGreaterThan(generation);
+    expect(engine.debugSnapshot().contextGeneration).toBeGreaterThan(generations.contextGeneration);
+    expect(engine.debugSnapshot().packGeneration).toBeGreaterThan(generations.packGeneration);
     expect(context.sources).toHaveLength(2);
   });
 
