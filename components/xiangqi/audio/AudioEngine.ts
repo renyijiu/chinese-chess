@@ -247,6 +247,10 @@ const SOURCE_KINDS: readonly ActiveSourceKind[] = [
   "synth-transient",
 ];
 
+function emptySourceKindCounts() {
+  return Object.fromEntries(SOURCE_KINDS.map((kind) => [kind, 0])) as Record<ActiveSourceKind, number>;
+}
+
 function buffersByteSize(buffers: Iterable<AudioBuffer>) {
   const unique = new Set(buffers);
   let total = 0;
@@ -293,8 +297,12 @@ export class AudioEngine {
   private pendingDecodes = 0;
   private pendingFetches = 0;
   private sourceEnds = 0;
+  private readonly sourceEndsByKind = emptySourceKindCounts();
+  private readonly sourceStartAttemptsByKind = emptySourceKindCounts();
   private sourceStarts = 0;
+  private readonly sourceStartsByKind = emptySourceKindCounts();
   private sourceStops = 0;
+  private readonly sourceStopsByKind = emptySourceKindCounts();
   private synthMusic: ActiveSource | null = null;
   private synthStartTime = 0;
   private unlocked = false;
@@ -487,29 +495,35 @@ export class AudioEngine {
   }
 
   debugSnapshot() {
-    const activeSourcesByKind = Object.fromEntries(
-      SOURCE_KINDS.map((kind) => [kind, 0]),
-    ) as Record<ActiveSourceKind, number>;
+    const activeSourcesByKind = emptySourceKindCounts();
     for (const entry of this.active) activeSourcesByKind[entry.kind] += 1;
     return {
       abortCount: this.abortCount,
       activeSources: this.active.size,
       activeSourcesByKind,
+      authoredBufferCount: this.authoredBuffers.size,
       authoredDecodedBytes: this.authoredDecodedBytes(),
       cachedBuffers: this.buffers.size,
+      contextPresent: this.context !== null,
+      disposed: this.disposed,
       foregroundEligible: this.isTransientEligible(),
       generation: this.generation,
       listenerAttachments: this.visibilityDetachers.size,
+      loadingAuthoredBufferCount: this.loadingAuthoredBuffers.size,
       maxInFlightDecodes: this.maxInFlightDecodes,
       maxInFlightFetches: this.maxInFlightFetches,
-      mix: this.mix,
+      mix: { ...this.mix },
       musicMode: this.musicMode,
       packState: this.packState,
       pendingDecodes: this.pendingDecodes,
       pendingFetches: this.pendingFetches,
       sourceEnds: this.sourceEnds,
+      sourceEndsByKind: { ...this.sourceEndsByKind },
+      sourceStartAttemptsByKind: { ...this.sourceStartAttemptsByKind },
       sourceStarts: this.sourceStarts,
+      sourceStartsByKind: { ...this.sourceStartsByKind },
       sourceStops: this.sourceStops,
+      sourceStopsByKind: { ...this.sourceStopsByKind },
       state: this.state,
       totalDecodedBytes: this.totalDecodedBytes(),
       voiceCount: this.voiceCount,
@@ -695,13 +709,16 @@ export class AudioEngine {
     const entry: ActiveSource = { buffer, cue, gain, kind, nodes, source, stopRequested: false, stopWhen: null };
     source.onended = () => {
       this.sourceEnds += 1;
+      this.sourceEndsByKind[kind] += 1;
       this.cleanupEntry(entry);
     };
     this.active.add(entry);
     this.activeByCue.set(cue, activeCount + 1);
+    this.sourceStartAttemptsByKind[kind] += 1;
     try {
       if (scheduleStart) scheduleStart(source, gain); else source.start();
       this.sourceStarts += 1;
+      this.sourceStartsByKind[kind] += 1;
       return entry;
     } catch {
       source.onended = null;
@@ -725,6 +742,7 @@ export class AudioEngine {
     entry.stopRequested = true;
     entry.stopWhen = when ?? null;
     this.sourceStops += 1;
+    this.sourceStopsByKind[entry.kind] += 1;
     try { entry.source.stop(when); } catch { this.cleanupEntry(entry); }
   }
 

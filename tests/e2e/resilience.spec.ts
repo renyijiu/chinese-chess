@@ -1,4 +1,8 @@
-import { expect, test } from "@playwright/test";
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+import { expect, test, type Page, type TestInfo } from "@playwright/test";
 
 import {
   clickBoardSquare,
@@ -10,22 +14,95 @@ import {
   waitForRevision,
 } from "./helpers";
 import { getPanoramaUrl } from "../../components/xiangqi/scene/diorama-environment";
+import {
+  QIN_AUDIO_MANIFEST_URL,
+  type QinAudioPackManifestV1,
+} from "../../components/xiangqi/audio/qin-audio-pack-contract";
+
+declare global {
+  interface Window {
+    __XIANGQI_AUDIO_RELEASE_HELD_DECODE__?: () => void;
+  }
+}
+
+const audioManifest = JSON.parse(readFileSync(
+  join(process.cwd(), "public/audio/qin-diorama/v1/manifest.json"),
+  "utf8",
+)) as QinAudioPackManifestV1;
+const audioPackPaths = [
+  QIN_AUDIO_MANIFEST_URL,
+  ...audioManifest.assets.map((asset) => asset.url),
+];
+
+async function playTwoLegalTurns(page: Page) {
+  const keyboard = page.locator(".game-keyboard-control button");
+  await keyboard.focus();
+  await pressSequence(keyboard, ["ArrowLeft", "ArrowLeft", "ArrowLeft", "ArrowLeft", "ArrowUp", "ArrowUp", "ArrowUp", "Enter", "ArrowUp", "Enter"]);
+  await waitForRevision(page, 1);
+  await pressSequence(keyboard, ["ArrowUp", "ArrowUp", "Enter", "ArrowDown", "Enter"]);
+  await waitForRevision(page, 2);
+  await expect(page.locator(".game-history")).toContainText("红·兵 a3 → a4");
+  await expect(page.locator(".game-history")).toContainText("黑·卒 a6 → a5");
+}
+
+async function expectSynthFallback(page: Page) {
+  await expect.poll(() => page.evaluate(() => window.__XIANGQI_AUDIO_DEBUG__?.().packState)).toBe("unavailable");
+  await expect.poll(() => page.evaluate(() => window.__XIANGQI_AUDIO_DEBUG__?.())).toMatchObject({
+    activeSourcesByKind: {
+      "authored-music": 0,
+      "synth-music": 1,
+    },
+    musicMode: "synth",
+    pendingDecodes: 0,
+    pendingFetches: 0,
+  });
+}
+
+async function runFailedAudioSession(
+  page: Page,
+  testInfo: TestInfo,
+) {
+  const requestCounts = new Map<string, number>();
+  const failures: Array<{ failure: string | null; path: string }> = [];
+  page.on("request", (request) => {
+    const path = new URL(request.url()).pathname;
+    if (audioPackPaths.includes(path)) requestCounts.set(path, (requestCounts.get(path) ?? 0) + 1);
+  });
+  page.on("requestfailed", (request) => {
+    const path = new URL(request.url()).pathname;
+    if (audioPackPaths.includes(path)) failures.push({ failure: request.failure()?.errorText ?? null, path });
+  });
+
+  await openCleanGame(page, "low", true);
+  await startGame(page);
+  await expectSynthFallback(page);
+  await playTwoLegalTurns(page);
+
+  await page.getByRole("button", { name: "设置" }).click();
+  await page.getByRole("checkbox", { name: "静音" }).check();
+  await page.getByRole("checkbox", { name: "静音" }).uncheck();
+  await page.getByRole("button", { name: "设置" }).click();
+  expect(requestCounts.get(QIN_AUDIO_MANIFEST_URL)).toBe(1);
+  expect([...requestCounts.values()].every((count) => count === 1)).toBe(true);
+
+  const evidence = {
+    failures,
+    requestCounts: Object.fromEntries(requestCounts),
+    snapshot: await page.evaluate(() => window.__XIANGQI_AUDIO_DEBUG__?.()),
+  };
+  await testInfo.attach("audio-failure-traffic.json", {
+    body: Buffer.from(JSON.stringify(evidence, null, 2)),
+    contentType: "application/json",
+  });
+}
 
 test("a failed optional panorama degrades locally and leaves the board playable", async ({ page }) => {
   await page.route("**/background/qin-diorama-panorama-v1-*.webp", (route) => route.abort("failed"));
   await openCleanGame(page);
   await waitForEnvironmentSettled(page, "degraded");
 
-  const keyboard = await startGame(page);
-  await keyboard.focus();
-  await pressSequence(keyboard, ["ArrowLeft", "ArrowLeft", "ArrowLeft", "ArrowLeft", "ArrowUp", "ArrowUp", "ArrowUp", "Enter", "ArrowUp"]);
-  await keyboard.press("Enter");
-  await waitForRevision(page, 1);
-  await expect(page.locator(".game-history")).toContainText("红·兵 a3 → a4");
-
-  await pressSequence(keyboard, ["ArrowUp", "ArrowUp", "Enter", "ArrowDown", "Enter"]);
-  await waitForRevision(page, 2);
-  await expect(page.locator(".game-history")).toContainText("黑·卒 a6 → a5");
+  await startGame(page);
+  await playTwoLegalTurns(page);
   await waitForEnvironmentSettled(page, "degraded");
 });
 
@@ -55,6 +132,112 @@ test("a failed optional ambient task degrades its owner without blocking the gam
   await keyboard.focus();
   await pressSequence(keyboard, ["ArrowLeft", "ArrowLeft", "ArrowLeft", "ArrowLeft", "ArrowUp", "ArrowUp", "ArrowUp", "Enter", "ArrowUp", "Enter"]);
   await waitForRevision(page, 1);
+});
+
+test.describe("authored audio failure isolation", () => {
+  test("a network abort is attempted once and both sides continue on synth", async ({ page }, testInfo) => {
+    await page.route(`**${QIN_AUDIO_MANIFEST_URL}`, (route) => route.abort("failed"));
+    await runFailedAudioSession(page, testInfo);
+  });
+
+  test("an HTTP error is attempted once and both sides continue on synth", async ({ page }, testInfo) => {
+    await page.route("**/audio/qin-diorama/v1/qin-procession-v1.mp3", (route) => route.fulfill({
+      body: "upstream unavailable",
+      contentType: "text/plain",
+      status: 503,
+    }));
+    await runFailedAudioSession(page, testInfo);
+  });
+
+  test("corrupt media fails real decode without blocking authoritative turns", async ({ page }, testInfo) => {
+    const corruptBody = Buffer.from("not-an-mp3-stream");
+    const corruptManifest = structuredClone(audioManifest);
+    corruptManifest.assets[0] = {
+      ...corruptManifest.assets[0]!,
+      bytes: corruptBody.byteLength,
+      sha256: createHash("sha256").update(corruptBody).digest("hex"),
+    };
+    await page.route(`**${QIN_AUDIO_MANIFEST_URL}`, (route) => route.fulfill({
+      body: JSON.stringify(corruptManifest),
+      contentType: "application/json",
+      status: 200,
+    }));
+    await page.route("**/audio/qin-diorama/v1/qin-procession-v1.mp3", (route) => route.fulfill({
+      body: corruptBody,
+      contentType: "audio/mpeg",
+      status: 200,
+    }));
+    await runFailedAudioSession(page, testInfo);
+  });
+
+  test("an authored source-start failure invalidates the pack and preserves turns", async ({ page }, testInfo) => {
+    await page.addInitScript(() => {
+      const nativeStart = AudioBufferSourceNode.prototype.start;
+      let failed = false;
+      AudioBufferSourceNode.prototype.start = function start(when?: number, offset?: number, duration?: number) {
+        if (!failed && this.loop && this.loopStart > 0) {
+          failed = true;
+          throw new DOMException("Injected authored source-start failure", "NotSupportedError");
+        }
+        if (duration !== undefined) return nativeStart.call(this, when, offset, duration);
+        if (offset !== undefined) return nativeStart.call(this, when, offset);
+        if (when !== undefined) return nativeStart.call(this, when);
+        return nativeStart.call(this);
+      };
+    });
+    await runFailedAudioSession(page, testInfo);
+    await expect.poll(() => page.evaluate(() => window.__XIANGQI_AUDIO_DEBUG__?.())).toMatchObject({
+      sourceStartAttemptsByKind: { "authored-music": 1 },
+      sourceStartsByKind: { "authored-music": 0 },
+    });
+  });
+
+  test("a held decode never blocks play and cannot start late after disposal", async ({ page }, testInfo) => {
+    await page.addInitScript(() => {
+      const nativeDecode = AudioContext.prototype.decodeAudioData;
+      let held = true;
+      AudioContext.prototype.decodeAudioData = function decodeAudioData(data: ArrayBuffer) {
+        if (!held) return nativeDecode.call(this, data);
+        held = false;
+        return new Promise<void>((resolve) => {
+          window.__XIANGQI_AUDIO_RELEASE_HELD_DECODE__ = resolve;
+        }).then(() => nativeDecode.call(this, data));
+      };
+    });
+
+    await openCleanGame(page, "low", true);
+    await startGame(page);
+    await expect.poll(() => page.evaluate(() => window.__XIANGQI_AUDIO_DEBUG__?.().pendingDecodes)).toBe(1);
+    await expect.poll(() => page.evaluate(() => window.__XIANGQI_AUDIO_DEBUG__?.())).toMatchObject({
+      activeSourcesByKind: { "synth-music": 1 },
+      musicMode: "synth",
+      packState: "loading",
+    });
+    await playTwoLegalTurns(page);
+
+    const beforeDispose = await page.evaluate(() => window.__XIANGQI_AUDIO_DEBUG__?.());
+    await page.evaluate(() => window.__XIANGQI_AUDIO_TEST__?.dispose());
+    await page.evaluate(() => window.__XIANGQI_AUDIO_RELEASE_HELD_DECODE__?.());
+    await expect.poll(() => page.evaluate(() => window.__XIANGQI_AUDIO_DEBUG__?.().pendingDecodes)).toBe(0);
+    await expect.poll(() => page.evaluate(() => window.__XIANGQI_AUDIO_DEBUG__?.())).toMatchObject({
+      activeSources: 0,
+      authoredBufferCount: 0,
+      cachedBuffers: 0,
+      contextPresent: false,
+      disposed: true,
+      listenerAttachments: 0,
+      loadingAuthoredBufferCount: 0,
+    });
+    expect((await page.evaluate(() => window.__XIANGQI_AUDIO_DEBUG__?.().sourceStarts))).toBe(beforeDispose?.sourceStarts);
+
+    await testInfo.attach("audio-late-decode-disposal.json", {
+      body: Buffer.from(JSON.stringify({
+        after: await page.evaluate(() => window.__XIANGQI_AUDIO_DEBUG__?.()),
+        beforeDispose,
+      }, null, 2)),
+      contentType: "application/json",
+    });
+  });
 });
 
 test("high-quality ambient motion keeps resources stable across 100 browser frames", async ({ page }, testInfo) => {

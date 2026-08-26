@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
+const audioBrowserMatrix = process.env.AUDIO_BROWSER_MATRIX === "1";
 
 export default defineConfig({
   expect: { timeout: 12_000 },
@@ -35,5 +36,17 @@ export default defineConfig({
       testMatch: /mobile\.spec\.ts/,
       use: { ...devices["Pixel 5"], viewport: { height: 844, width: 390 } },
     },
+    ...(audioBrowserMatrix ? [
+      {
+        name: "audio-firefox",
+        testMatch: /audio\.spec\.ts/,
+        use: { ...devices["Desktop Firefox"], viewport: { height: 900, width: 1440 } },
+      },
+      {
+        name: "audio-webkit",
+        testMatch: /audio\.spec\.ts/,
+        use: { ...devices["Desktop Safari"], viewport: { height: 900, width: 1440 } },
+      },
+    ] : []),
   ],
 });

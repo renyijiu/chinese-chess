@@ -27,6 +27,7 @@ import {
 } from "./game/controller";
 import { GameBoardLayer } from "./game/GameBoardLayer";
 import { PresentationStore } from "./presentation/PresentationStore";
+import { attachAudioDiagnostics } from "./runtime/test-faults";
 import {
   DEFAULT_GAME_SETTINGS,
   GAME_SETTINGS_KEY,
@@ -170,6 +171,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
   const [unsafeSavePresent, setUnsafeSavePresent] = useState(false);
   const [viewSide, setViewSide] = useState<Side>("red");
   const actionInFlight = useRef(false);
+  const focusBoardWhenReady = useRef(false);
   const keyboardControlRef = useRef<HTMLButtonElement>(null);
   const mounted = useRef(true);
   const matchEpoch = useRef(0);
@@ -224,9 +226,11 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
       handlePresentationAudioCue(audio, cue);
     });
     const detachVisibility = audio.attachVisibility(document);
+    const detachDiagnostics = attachAudioDiagnostics(audio);
     return () => {
       unsubscribeCue();
       detachVisibility();
+      detachDiagnostics();
       void audio.dispose();
     };
   }, [audio, presentation, semanticAudio]);
@@ -257,6 +261,12 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [confirmation, selectedPieceId]);
+
+  useEffect(() => {
+    if (phase !== "playing" || !focusBoardWhenReady.current) return;
+    keyboardControlRef.current?.focus();
+    focusBoardWhenReady.current = false;
+  }, [game, phase]);
 
   const persist = useCallback((nextGame: GameState) => {
     const storage = storageRef.current;
@@ -337,6 +347,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     semanticAudio.cancelAll("match-reset");
     presentation.skip("match-reset");
     actionInFlight.current = false;
+    focusBoardWhenReady.current = true;
     setGame(fresh);
     setKeyboardSquare({ file: 4, rank: 0 });
     setSavedGame(fresh);
@@ -348,7 +359,6 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     setNotice("新局开始，红方先行。 ");
     persist(fresh);
     matchEpoch.current += 1;
-    window.requestAnimationFrame(() => keyboardControlRef.current?.focus());
   }, [persist, presentation, semanticAudio]);
 
   const unlockAudio = useCallback(async () => {
@@ -377,6 +387,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     if (!savedGame) return;
     semanticAudio.cancelAll("game-replaced");
     presentation.skip("game-replaced");
+    focusBoardWhenReady.current = true;
     setGame(savedGame);
     setKeyboardSquare(savedGame.lastAction?.kind === "move" ? savedGame.lastAction.move.to : { file: 4, rank: 0 });
     setPhase("playing");
@@ -385,7 +396,6 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     // An ended save can still be resumed through Undo, but adoption itself
     // never creates a presentation action or replays the historical result.
     matchEpoch.current += 1;
-    window.requestAnimationFrame(() => keyboardControlRef.current?.focus());
   };
 
   const handleSquarePress = (square: Square) => {

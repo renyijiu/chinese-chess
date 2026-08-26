@@ -665,6 +665,9 @@ describe("AudioEngine", () => {
       ui: 0.7,
     });
     expect(engine.debugSnapshot().mix).toMatchObject({ master: 0.4, music: 0.2, ui: 0.7 });
+    const exposedMix = engine.debugSnapshot().mix as { master: number };
+    exposedMix.master = 1;
+    expect(engine.debugSnapshot().mix.master).toBe(0.4);
 
     expect(engine.play("cannon.impact")).toBe(true);
     expect(engine.play("cannon.impact")).toBe(true);

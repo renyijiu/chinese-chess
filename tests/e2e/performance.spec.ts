@@ -1,3 +1,6 @@
+import { readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
+
 import { expect, test } from "@playwright/test";
 
 import {
@@ -5,7 +8,26 @@ import {
   type RuntimePerformanceSnapshot,
 } from "../../components/xiangqi/runtime/performance-metrics";
 import { getPanoramaUrl } from "../../components/xiangqi/scene/diorama-environment";
+import {
+  QIN_AUDIO_MANIFEST_URL,
+  type QinAudioPackManifestV1,
+} from "../../components/xiangqi/audio/qin-audio-pack-contract";
 import { openCleanGame, startGame } from "./helpers";
+
+const rootDir = process.cwd();
+const audioManifest = JSON.parse(readFileSync(
+  join(rootDir, "public/audio/qin-diorama/v1/manifest.json"),
+  "utf8",
+)) as QinAudioPackManifestV1;
+const expectedAudioPaths = [QIN_AUDIO_MANIFEST_URL, ...audioManifest.assets.map((asset) => asset.url)];
+const expectedAudioBytes = new Map(expectedAudioPaths.map((path) => [
+  path,
+  statSync(join(rootDir, "public", path.replace(/^\//, ""))).size,
+]));
+const expectedAudioMime = new Map<string, string>([
+  [QIN_AUDIO_MANIFEST_URL, "application/json"],
+  ...audioManifest.assets.map((asset) => [asset.url, asset.mimeType] as const),
+]);
 
 test.skip(
   process.env.RUN_RENDER_PERFORMANCE !== "1",
@@ -21,11 +43,36 @@ test("@performance captures first-playable transfer size and renderer telemetry"
   const inactivePanoramaPaths = [getPanoramaUrl("medium"), getPanoramaUrl("low")];
   const expectedFirstPlayablePaths = [...expectedAssetPaths, activePanoramaPath];
   const responseBodies: Promise<readonly [string, number]>[] = [];
+  const audioResponseBodies: Promise<readonly [string, number, string]>[] = [];
+  const audioRequests: string[] = [];
+  const audioRequestsBeforeGesture: string[] = [];
   const seenPaths = new Set<string>();
+  const seenAudioPaths = new Set<string>();
+  let audioGestureUnlocked = false;
   let recordingFirstPlayable = true;
+  page.on("request", (request) => {
+    const path = new URL(request.url()).pathname;
+    if (!expectedAudioPaths.includes(path)) return;
+    audioRequests.push(path);
+    if (!audioGestureUnlocked) audioRequestsBeforeGesture.push(path);
+  });
   page.on("response", (response) => {
     const url = new URL(response.url());
-    if (!recordingFirstPlayable || !response.ok() || url.origin !== baseUrl.origin) return;
+    if (url.origin !== baseUrl.origin) return;
+    if (response.ok() && expectedAudioPaths.includes(url.pathname)) {
+      seenAudioPaths.add(url.pathname);
+      audioResponseBodies.push(response.finished().then(() => response.request().sizes()).then(
+        (sizes) => [
+          url.pathname,
+          sizes.responseBodySize,
+          response.headers()["content-type"]?.split(";", 1)[0]?.toLowerCase() ?? "",
+        ] as const,
+        (error: unknown) => {
+          throw new Error(`Unable to measure authored audio response ${url.pathname}: ${String(error)}`);
+        },
+      ));
+    }
+    if (!recordingFirstPlayable || !response.ok()) return;
     seenPaths.add(url.pathname);
     responseBodies.push(response.body().then(
       (body) => [url.pathname, body.byteLength] as const,
@@ -36,7 +83,6 @@ test("@performance captures first-playable transfer size and renderer telemetry"
   });
 
   await openCleanGame(page, "high");
-  const keyboard = await startGame(page);
   await expect.poll(() => expectedFirstPlayablePaths.every((path) => seenPaths.has(path))).toBe(true);
   await expect.poll(() => page.evaluate(() => window.__XIANGQI_PERFORMANCE__?.currentDrawCalls ?? 0)).toBeGreaterThan(0);
   const bootstrapMetrics = await page.evaluate(() => window.__XIANGQI_PERFORMANCE__);
@@ -50,6 +96,32 @@ test("@performance captures first-playable transfer size and renderer telemetry"
   for (const path of inactivePanoramaPaths) {
     expect(seenPaths.has(path), `first playable must not request inactive panorama ${path}`).toBe(false);
   }
+  expect(audioRequestsBeforeGesture, "authored audio must not be part of pre-gesture first playable").toEqual([]);
+  expect(audioRequests).toEqual([]);
+
+  audioGestureUnlocked = true;
+  const keyboard = await startGame(page);
+  await expect.poll(() => page.evaluate(() => window.__XIANGQI_AUDIO_DEBUG__?.().packState)).toBe("ready");
+  await expect.poll(() => expectedAudioPaths.every((path) => seenAudioPaths.has(path))).toBe(true);
+  const measuredAudioResponses = await Promise.all(audioResponseBodies);
+  const audioResponseBytes = new Map(measuredAudioResponses.map(([path, bytes]) => [path, bytes]));
+  const audioResponseMime = new Map(measuredAudioResponses.map(([path, , mime]) => [path, mime]));
+  expect(audioRequests).toEqual(expectedAudioPaths);
+  expect(new Set(audioRequests).size).toBe(expectedAudioPaths.length);
+  for (const path of expectedAudioPaths) {
+    expect(audioResponseBytes.get(path), `cold-cache audio bytes must reconcile for ${path}`).toBe(expectedAudioBytes.get(path));
+    expect(audioResponseMime.get(path), `cold-cache audio MIME must match for ${path}`).toBe(expectedAudioMime.get(path));
+    expect(audioResponseMime.get(path)).not.toContain("text/html");
+  }
+  const audioSnapshot = await page.evaluate(() => window.__XIANGQI_AUDIO_DEBUG__?.());
+  expect(audioSnapshot).toMatchObject({
+    maxInFlightDecodes: 1,
+    maxInFlightFetches: 1,
+    pendingDecodes: 0,
+    pendingFetches: 0,
+  });
+  expect(audioSnapshot!.authoredDecodedBytes).toBeLessThanOrEqual(30 * 1024 * 1024);
+  expect(audioSnapshot!.totalDecodedBytes).toBeLessThanOrEqual(40 * 1024 * 1024);
 
   let metrics = bootstrapMetrics as RuntimePerformanceSnapshot;
   if (authoritativeFrameGate) {
@@ -100,6 +172,16 @@ test("@performance captures first-playable transfer size and renderer telemetry"
   });
   const evidence = {
     ...metrics,
+    authoredAudio: {
+      decodedBytes: audioSnapshot!.authoredDecodedBytes,
+      engineOwnedDecodedBytes: audioSnapshot!.totalDecodedBytes,
+      maxInFlightDecodes: audioSnapshot!.maxInFlightDecodes,
+      maxInFlightFetches: audioSnapshot!.maxInFlightFetches,
+      responseBytes: Object.fromEntries(audioResponseBytes),
+      responseMime: Object.fromEntries(audioResponseMime),
+      totalResponseBytes: [...audioResponseBytes.values()].reduce((total, bytes) => total + bytes, 0),
+      uniqueSuccessfulUrls: [...audioResponseBytes.keys()],
+    },
     authoritativeFrameGate,
     firstPlayableBytes,
     firstPlayableMiB: Number((firstPlayableBytes / 1024 / 1024).toFixed(2)),

@@ -207,6 +207,7 @@ function validateBudgets(manifest, manifestBytes, budgets) {
   let runtimeBytes = manifestBytes;
   let decodedBytes = 0;
   const decodedAssets = [];
+  const runtimeFiles = [];
   for (const asset of manifest.assets) {
     if (uniqueUrls.has(asset.url)) fail(`Duplicate runtime URL ${asset.url}`);
     uniqueUrls.add(asset.url);
@@ -216,6 +217,7 @@ function validateBudgets(manifest, manifestBytes, budgets) {
       * positiveInteger(asset.sampleFrames, `${asset.id} sampleFrames`) * 4;
     decodedBytes += decoded;
     decodedAssets.push({ bytes: decoded, id: asset.id });
+    runtimeFiles.push({ bytes: asset.bytes, mimeType: asset.mimeType, url: asset.url });
   }
   if (criticalBytes > budgets.criticalBytes) {
     fail(`Critical package budget exceeded: ${criticalBytes} > ${budgets.criticalBytes}`);
@@ -226,7 +228,7 @@ function validateBudgets(manifest, manifestBytes, budgets) {
   if (decodedBytes > budgets.authoredDecodedBytes) {
     fail(`Authored decoded budget exceeded: ${decodedBytes} > ${budgets.authoredDecodedBytes}`);
   }
-  return { criticalBytes, decodedAssets, decodedBytes, runtimeBytes };
+  return { criticalBytes, decodedAssets, decodedBytes, runtimeBytes, runtimeFiles };
 }
 
 export async function validateAudioPackage(options = {}) {
@@ -285,6 +287,10 @@ async function main() {
   console.log(`Assets: ${report.assetCount}`);
   console.log(`Critical transfer: ${report.criticalBytes} bytes (${formatMiB(report.criticalBytes)})`);
   console.log(`Runtime transfer: ${report.runtimeBytes} bytes (${formatMiB(report.runtimeBytes)})`);
+  console.log(`Runtime /audio/qin-diorama/v1/manifest.json: ${report.manifestBytes} bytes (application/json)`);
+  for (const file of report.runtimeFiles) {
+    console.log(`Runtime ${file.url}: ${file.bytes} bytes (${file.mimeType})`);
+  }
   for (const asset of report.decodedAssets) {
     console.log(`Decoded ${asset.id}: ${asset.bytes} bytes (${formatMiB(asset.bytes)})`);
   }

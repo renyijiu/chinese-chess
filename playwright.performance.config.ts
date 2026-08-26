@@ -18,7 +18,7 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   webServer: {
-    command: "npm run start -- --port 3100",
+    command: "npm run start:production -- --port 3100",
     reuseExistingServer: false,
     timeout: 120_000,
     url: baseURL,
