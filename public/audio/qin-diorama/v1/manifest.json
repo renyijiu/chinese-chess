@@ -1,0 +1,200 @@
+{
+  "schema": "xiangqi-audio-pack/v1",
+  "version": 1,
+  "packId": "qin-diorama",
+  "claimBoundary": "Qin-inspired visual fantasy; not a historical reconstruction or claim of acoustic authenticity.",
+  "loadOrder": [
+    "music.qin-procession",
+    "accent.capture-clay",
+    "system.check",
+    "system.victory",
+    "system.defeat",
+    "system.draw"
+  ],
+  "assets": [
+    {
+      "id": "music.qin-procession",
+      "order": 0,
+      "kind": "background",
+      "group": "critical",
+      "url": "/audio/qin-diorama/v1/qin-procession-v1.mp3",
+      "mimeType": "audio/mpeg",
+      "codec": "mp3",
+      "bytes": 1152960,
+      "sha256": "dd4f19a85542cb722bcab9c14d4eefe0d885bf7138b500be5c68d76899ae156d",
+      "durationSeconds": 72,
+      "channels": 2,
+      "sampleRate": 48000,
+      "sampleFrames": 3456000,
+      "loop": {
+        "startSeconds": 4,
+        "endSeconds": 68
+      },
+      "bus": "music",
+      "synthFallbackId": "music.fortress",
+      "sourceRecordId": "source.music.qin-procession"
+    },
+    {
+      "id": "accent.capture-clay",
+      "order": 1,
+      "kind": "transient",
+      "group": "deferred",
+      "url": "/audio/qin-diorama/v1/capture-clay-v1.wav",
+      "mimeType": "audio/wav",
+      "codec": "pcm_s16le",
+      "bytes": 40364,
+      "sha256": "8bd3c9435f2a8c49e6677fcb1812bf3cd2546959b08ba1c4964a856210164389",
+      "durationSeconds": 0.42,
+      "channels": 1,
+      "sampleRate": 48000,
+      "sampleFrames": 20160,
+      "bus": "sfx",
+      "synthFallbackId": "system.capture",
+      "sourceRecordId": "source.accent.capture-clay"
+    },
+    {
+      "id": "system.check",
+      "order": 2,
+      "kind": "transient",
+      "group": "deferred",
+      "url": "/audio/qin-diorama/v1/check-bronze-v1.wav",
+      "mimeType": "audio/wav",
+      "codec": "pcm_s16le",
+      "bytes": 74924,
+      "sha256": "febf04d1029a19198c7130b771d89071143367fb89a9c1f791d6e63454ee5069",
+      "durationSeconds": 0.78,
+      "channels": 1,
+      "sampleRate": 48000,
+      "sampleFrames": 37440,
+      "bus": "sfx",
+      "synthFallbackId": "system.check",
+      "sourceRecordId": "source.system.check"
+    },
+    {
+      "id": "system.victory",
+      "order": 3,
+      "kind": "transient",
+      "group": "deferred",
+      "url": "/audio/qin-diorama/v1/result-victory-v1.wav",
+      "mimeType": "audio/wav",
+      "codec": "pcm_s16le",
+      "bytes": 215084,
+      "sha256": "8d4747867951291f7599f764c66c97484d871220c8a8ed2850ebceb2e1c66169",
+      "durationSeconds": 2.24,
+      "channels": 1,
+      "sampleRate": 48000,
+      "sampleFrames": 107520,
+      "bus": "sfx",
+      "synthFallbackId": "system.victory",
+      "sourceRecordId": "source.system.victory"
+    },
+    {
+      "id": "system.defeat",
+      "order": 4,
+      "kind": "transient",
+      "group": "deferred",
+      "url": "/audio/qin-diorama/v1/result-defeat-v1.wav",
+      "mimeType": "audio/wav",
+      "codec": "pcm_s16le",
+      "bytes": 215084,
+      "sha256": "5bfccabb836ead61fdb3e3cf53724748cedbc3e74f868b1d911d1deba126cece",
+      "durationSeconds": 2.24,
+      "channels": 1,
+      "sampleRate": 48000,
+      "sampleFrames": 107520,
+      "bus": "sfx",
+      "synthFallbackId": "system.defeat",
+      "sourceRecordId": "source.system.defeat"
+    },
+    {
+      "id": "system.draw",
+      "order": 5,
+      "kind": "transient",
+      "group": "deferred",
+      "url": "/audio/qin-diorama/v1/result-draw-v1.wav",
+      "mimeType": "audio/wav",
+      "codec": "pcm_s16le",
+      "bytes": 215084,
+      "sha256": "58472cd82816c496bd2795e9859397f86ee7212e7d74d676275a06b1bd610831",
+      "durationSeconds": 2.24,
+      "channels": 1,
+      "sampleRate": 48000,
+      "sampleFrames": 107520,
+      "bus": "sfx",
+      "synthFallbackId": "system.draw",
+      "sourceRecordId": "source.system.draw"
+    }
+  ],
+  "sourceRecords": [
+    {
+      "id": "source.music.qin-procession",
+      "author": "Chinese Chess 3D project",
+      "authorization": "Original project-authored composition and deterministic synthesis; the author grants this repository permission to store, modify, build, and redistribute these sources and outputs.",
+      "sourcePaths": [
+        "assets/audio/qin-diorama/v1/source/exports/qin-procession-v1-master.flac",
+        "assets/audio/qin-diorama/v1/source/exports/qin-procession-v1-clay.flac",
+        "assets/audio/qin-diorama/v1/source/exports/qin-procession-v1-bronze.flac",
+        "assets/audio/qin-diorama/v1/source/exports/qin-procession-v1-breath.flac",
+        "assets/audio/qin-diorama/v1/source/exports/qin-procession-v1-ritual.flac",
+        "assets/audio/qin-diorama/v1/source/session.json",
+        "assets/audio/qin-diorama/v1/source/render-qin-audio.mjs"
+      ],
+      "claimBoundary": "Qin-inspired visual fantasy; not a historical reconstruction or claim of acoustic authenticity."
+    },
+    {
+      "id": "source.accent.capture-clay",
+      "author": "Chinese Chess 3D project",
+      "authorization": "Original project-authored deterministic synthesis; the author grants this repository permission to store, modify, build, and redistribute these sources and outputs.",
+      "sourcePaths": [
+        "assets/audio/qin-diorama/v1/source/exports/capture-clay-v1-master.flac",
+        "assets/audio/qin-diorama/v1/source/session.json",
+        "assets/audio/qin-diorama/v1/source/render-qin-audio.mjs"
+      ],
+      "claimBoundary": "Qin-inspired visual fantasy; not a historical reconstruction or claim of acoustic authenticity."
+    },
+    {
+      "id": "source.system.check",
+      "author": "Chinese Chess 3D project",
+      "authorization": "Original project-authored deterministic synthesis; the author grants this repository permission to store, modify, build, and redistribute these sources and outputs.",
+      "sourcePaths": [
+        "assets/audio/qin-diorama/v1/source/exports/check-bronze-v1-master.flac",
+        "assets/audio/qin-diorama/v1/source/session.json",
+        "assets/audio/qin-diorama/v1/source/render-qin-audio.mjs"
+      ],
+      "claimBoundary": "Qin-inspired visual fantasy; not a historical reconstruction or claim of acoustic authenticity."
+    },
+    {
+      "id": "source.system.victory",
+      "author": "Chinese Chess 3D project",
+      "authorization": "Original project-authored deterministic synthesis; the author grants this repository permission to store, modify, build, and redistribute these sources and outputs.",
+      "sourcePaths": [
+        "assets/audio/qin-diorama/v1/source/exports/result-victory-v1-master.flac",
+        "assets/audio/qin-diorama/v1/source/session.json",
+        "assets/audio/qin-diorama/v1/source/render-qin-audio.mjs"
+      ],
+      "claimBoundary": "Qin-inspired visual fantasy; not a historical reconstruction or claim of acoustic authenticity."
+    },
+    {
+      "id": "source.system.defeat",
+      "author": "Chinese Chess 3D project",
+      "authorization": "Original project-authored deterministic synthesis; the author grants this repository permission to store, modify, build, and redistribute these sources and outputs.",
+      "sourcePaths": [
+        "assets/audio/qin-diorama/v1/source/exports/result-defeat-v1-master.flac",
+        "assets/audio/qin-diorama/v1/source/session.json",
+        "assets/audio/qin-diorama/v1/source/render-qin-audio.mjs"
+      ],
+      "claimBoundary": "Qin-inspired visual fantasy; not a historical reconstruction or claim of acoustic authenticity."
+    },
+    {
+      "id": "source.system.draw",
+      "author": "Chinese Chess 3D project",
+      "authorization": "Original project-authored deterministic synthesis; the author grants this repository permission to store, modify, build, and redistribute these sources and outputs.",
+      "sourcePaths": [
+        "assets/audio/qin-diorama/v1/source/exports/result-draw-v1-master.flac",
+        "assets/audio/qin-diorama/v1/source/session.json",
+        "assets/audio/qin-diorama/v1/source/render-qin-audio.mjs"
+      ],
+      "claimBoundary": "Qin-inspired visual fantasy; not a historical reconstruction or claim of acoustic authenticity."
+    }
+  ]
+}

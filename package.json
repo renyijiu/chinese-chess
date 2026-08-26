@@ -16,6 +16,7 @@
     "assets:pieces:build": "node scripts/assets/build-pieces.mjs",
     "assets:pieces:validate": "node scripts/assets/validate-pieces.mjs",
     "assets:pieces:report": "node scripts/assets/report-pieces.mjs",
+    "assets:audio:validate": "node scripts/verify-audio-assets.mjs",
     "test": "npm run build && node --test tests/rendered-html.test.mjs",
     "test:rules": "vitest run --config tests/unit/xiangqi/vitest.config.ts",
     "test:game": "vitest run --config tests/unit/game/vitest.config.ts",

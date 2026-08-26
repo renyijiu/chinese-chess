@@ -4,3 +4,9 @@ assets/characters/**/source/**/*.exr filter=lfs diff=lfs merge=lfs -text
 assets/characters/**/source/**/*.tif filter=lfs diff=lfs merge=lfs -text
 assets/characters/**/source/**/*.tiff filter=lfs diff=lfs merge=lfs -text
 assets/characters/**/source/**/*.psd filter=lfs diff=lfs merge=lfs -text
+# Lossless authored-audio masters and stems use Git LFS; optimized runtime
+# MP3/WAV files remain normal repository assets for deterministic web delivery.
+assets/audio/**/source/**/*.flac filter=lfs diff=lfs merge=lfs -text
+assets/audio/**/source/**/*.wav filter=lfs diff=lfs merge=lfs -text
+assets/audio/**/source/**/*.aif filter=lfs diff=lfs merge=lfs -text
+assets/audio/**/source/**/*.aiff filter=lfs diff=lfs merge=lfs -text

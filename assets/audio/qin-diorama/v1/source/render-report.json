@@ -1,0 +1,17 @@
+{
+  "schema": "xiangqi-audio-render-report/v1",
+  "renderer": "render-qin-audio.mjs",
+  "sessionSha256": "577d284ff2066b1073b100bdd94c512943dc7e51c419fcbf7d8801e012d5a920",
+  "sampleRate": 48000,
+  "durationSeconds": 72,
+  "loop": {
+    "startSeconds": 4,
+    "endSeconds": 68
+  },
+  "measuredMaster": {
+    "integratedLufs": -18,
+    "truePeakDb": -3.5
+  },
+  "appliedStaticGainDb": 6.7,
+  "note": "Automated meter evidence only; human listening approval remains required."
+}

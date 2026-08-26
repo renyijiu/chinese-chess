@@ -1,0 +1,48 @@
+{
+  "schema": "xiangqi-audio-source-session/v1",
+  "title": "陶阵缓行 / Terracotta Procession",
+  "version": 1,
+  "author": "Chinese Chess 3D project",
+  "created": "2026-08-26",
+  "claimBoundary": "Qin-inspired visual fantasy; not a historical reconstruction or claim of acoustic authenticity.",
+  "samplePolicy": "No recordings, sample libraries, sound fonts, impulse responses, or generated voice models are used.",
+  "sampleRate": 48000,
+  "tempoBpm": 60,
+  "keyCenter": "D",
+  "pitchVocabulary": ["D", "F", "G", "A", "C"],
+  "durationSeconds": 72,
+  "loop": {
+    "startSeconds": 4,
+    "endSeconds": 68,
+    "lengthSeconds": 64
+  },
+  "phrases": [
+    {
+      "name": "陶俑列步",
+      "rangeSeconds": [4, 20],
+      "identity": "Warm fired-clay resonators establish a small, measured procession."
+    },
+    {
+      "name": "铜纹遥应",
+      "rangeSeconds": [20, 36],
+      "identity": "Muted bronze answers the clay pattern without widening into an orchestral battle cue."
+    },
+    {
+      "name": "风过俑坑",
+      "rangeSeconds": [36, 52],
+      "identity": "Breath tones and air take the foreground while percussion becomes sparse."
+    },
+    {
+      "name": "仪列归印",
+      "rangeSeconds": [52, 68],
+      "identity": "Low ceremonial pulses and a restrained clay cadence return seamlessly to the opening."
+    }
+  ],
+  "stems": ["clay", "bronze", "breath", "ritual"],
+  "masterTargets": {
+    "integratedLufs": -18,
+    "truePeakDbtpMaximum": -1
+  },
+  "renderer": "render-qin-audio.mjs",
+  "rendererModel": "Deterministic additive/resonant synthesis with seeded noise; all score events and synthesis parameters are editable in source."
+}
