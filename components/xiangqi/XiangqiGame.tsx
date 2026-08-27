@@ -600,12 +600,9 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     const gateReceipt = commandGate.execute(command, {
       guard: (latest) => {
         if (latest.config.mode !== "online" || latest.game.status.kind !== "playing") return false;
-        const actorSide = context.origin === "local"
-          ? latest.config.localSide
-          : latest.config.localSide === "red" ? "black" : "red";
         if (command.expectedRevision !== latest.revision) return false;
-        if (command.type === "resign") return command.side === actorSide;
-        return command.type === "move" && latest.game.sideToMove === actorSide;
+        if (command.type === "resign") return command.side === context.actorSide;
+        return command.type === "move" && latest.game.sideToMove === context.actorSide;
       },
       beforeCommit: (commit) => {
         beforeCommandCommit(commit);

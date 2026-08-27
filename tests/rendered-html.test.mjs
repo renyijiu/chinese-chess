@@ -36,8 +36,9 @@ test("server-renders the fullscreen Qin terracotta game", async () => {
   assert.match(html, /--qin-black-lacquer:#171612/);
   assert.match(html, /--qin-hud-text:#eadcc3/);
   assert.match(html, /<title>兵临九宫｜Q 版秦俑 3D 中国象棋<\/title>/);
+  assert.match(html, /手动信令 WebRTC 好友直连/);
   assert.match(html, /board-stage board-stage--fullscreen/);
-  assert.match(html, /兵临九宫 · 3D 中国象棋本机双人与人机对局/);
+  assert.match(html, /支持本机、人机与可选 WebRTC 好友直连的 3D 中国象棋/);
   assert.match(html, /开始本机双人对局/);
   assert.match(html, /aria-label="Q 版秦俑沙盘中国象棋棋盘三维预览"/);
   assert.match(html, /俯视棋盘/);
@@ -135,6 +136,7 @@ test("keeps the rule-correct board and modular R3F runtime wired", async () => {
     page,
     gameClient,
     readme,
+    onlineFriendMatchDocs,
     backdrop,
     basisTranscoder,
   ] = await Promise.all([
@@ -157,6 +159,7 @@ test("keeps the rule-correct board and modular R3F runtime wired", async () => {
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/XiangqiGameClient.tsx", import.meta.url), "utf8"),
     readFile(new URL("../README.md", import.meta.url), "utf8"),
+    readFile(new URL("../docs/online-friend-match.md", import.meta.url), "utf8"),
     stat(new URL("../public/background/qin-diorama-panorama-v1-high.webp", import.meta.url)),
     stat(new URL("../public/basis/basis_transcoder.wasm", import.meta.url)),
   ]);
@@ -216,6 +219,11 @@ test("keeps the rule-correct board and modular R3F runtime wired", async () => {
   assert.match(gameClient, /ssr: false/);
   assert.match(gameClient, /loading: LoadingGameShell/);
   assert.match(readme, /九道纵线、十道横线/);
+  assert.match(readme, /NEXT_PUBLIC_XIANGQI_ONLINE_ENABLED=1/);
+  assert.match(readme, /不提供 TURN/);
+  assert.match(onlineFriendMatchDocs, /等待 ICE gathering complete/);
+  assert.match(onlineFriendMatchDocs, /严格前缀/);
+  assert.match(onlineFriendMatchDocs, /不提供防作弊/);
   assert.ok(backdrop.size <= 250_000, "the highest-quality Qin panorama should stay below 250 KB");
   assert.ok(basisTranscoder.size > 500_000, "the local Basis transcoder should be self-hosted");
 });

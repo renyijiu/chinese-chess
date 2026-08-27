@@ -302,6 +302,8 @@ describe("OnlineMatchCoordinator", () => {
     expect(guest.commitCalls).toHaveLength(2);
     expect(host.commitCalls.map((call) => call.context.origin)).toEqual(["local", "remote"]);
     expect(guest.commitCalls.map((call) => call.context.origin)).toEqual(["remote", "local"]);
+    expect(host.commitCalls.map((call) => call.context.actorSide)).toEqual(["red", "black"]);
+    expect(guest.commitCalls.map((call) => call.context.actorSide)).toEqual(["red", "black"]);
   });
 
   it("rejects local moves outside the playable local turn without dispatching or sending", async () => {
@@ -658,6 +660,10 @@ describe("OnlineMatchCoordinator", () => {
       .toEqual([expect.objectContaining({ action: "request", resigningSide: "black" })]);
     expect(messages(host.sent).filter((message) => message.type === "resign"))
       .toEqual([expect.objectContaining({ action: "commit", resigningSide: "black" })]);
+    expect(host.commitCalls.at(-1)?.context).toMatchObject({ origin: "remote", actorSide: "black" });
+    // The requester's commit arrives in a remote frame, but the resigning
+    // actor remains its own local side.
+    expect(guest.commitCalls.at(-1)?.context).toMatchObject({ origin: "remote", actorSide: "black" });
   });
 
   it("serializes a legal move racing a resignation and gives simultaneous host resign priority", async () => {

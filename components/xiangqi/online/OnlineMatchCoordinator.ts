@@ -134,6 +134,8 @@ export type OnlineCommandCommitResult = Readonly<{
 
 export interface OnlineCommitContext {
   readonly origin: "local" | "remote";
+  /** Side whose rule command is being committed; transport direction is not sufficient for resign. */
+  readonly actorSide: Side;
   readonly commandId: string;
   readonly senderPeerId: string;
   readonly messageSeq: number | null;
@@ -519,6 +521,7 @@ export class OnlineMatchCoordinator {
         const commandId = this.#createId();
         const receipt = await this.#commitCommand(command, {
           origin: "local",
+          actorSide: this.#identity.localSide,
           commandId,
           senderPeerId: this.#identity.localPeerId,
           messageSeq: null,
@@ -1106,6 +1109,7 @@ export class OnlineMatchCoordinator {
 
     const receipt = await this.#commitCommand(command, {
       origin: "remote",
+      actorSide: message.actorSide,
       commandId: message.commandId,
       senderPeerId: message.senderPeerId,
       messageSeq: message.seq,
@@ -1251,6 +1255,7 @@ export class OnlineMatchCoordinator {
     const expected = await this.#fingerprint(preview.state);
     const receipt = await this.#commitCommand(command, {
       origin: "remote",
+      actorSide: message.resigningSide,
       commandId,
       senderPeerId: message.senderPeerId,
       messageSeq: message.seq,
@@ -1339,6 +1344,7 @@ export class OnlineMatchCoordinator {
     }
     const receipt = await this.#commitCommand(command, {
       origin: "remote",
+      actorSide: message.resigningSide,
       commandId: message.commandId,
       senderPeerId: message.senderPeerId,
       messageSeq: message.seq,

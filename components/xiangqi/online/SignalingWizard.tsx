@@ -1,9 +1,15 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 
 import type { OnlineMatchSessionSnapshot } from "./OnlineMatchSession";
 import { OnlineStatusCard } from "./OnlineStatusCard";
+import {
+  createSignalingQrDataUrl,
+  isShareCancellation,
+  signalingTextFitsQr,
+} from "./signaling-share";
 
 export function SignalingWizard({
   role,
@@ -23,7 +29,10 @@ export function SignalingWizard({
   onSubmitSignal: (signal: string) => boolean | Promise<boolean>;
 }) {
   const [input, setInput] = useState("");
-  const [shareNotice, setShareNotice] = useState<string>();
+  const [qrBusySignal, setQrBusySignal] = useState<string>();
+  const [qrResult, setQrResult] = useState<Readonly<{ signal: string; dataUrl: string }>>();
+  const [qrNotice, setQrNotice] = useState<Readonly<{ signal: string; message: string }>>();
+  const [shareNotice, setShareNotice] = useState<Readonly<{ signal: string; message: string }>>();
   const outbound = snapshot?.outboundSignal ?? "";
   const peerPhase = snapshot?.peer.phase ?? "idle";
   const coordinator = snapshot?.coordinator ?? null;
@@ -33,14 +42,19 @@ export function SignalingWizard({
   const inputKind = role === "guest" ? "Offer 邀请文本" : "Answer 响应文本";
   const gathering = peerPhase === "gathering";
   const canReady = coordinator?.phase === "awaiting-ready" && !coordinator.localReady;
+  const qrAvailable = signalingTextFitsQr(outbound);
+  const qrBusy = qrBusySignal === outbound;
+  const qrDataUrl = qrResult?.signal === outbound ? qrResult.dataUrl : undefined;
+  const visibleQrNotice = qrNotice?.signal === outbound ? qrNotice.message : undefined;
+  const visibleShareNotice = shareNotice?.signal === outbound ? shareNotice.message : undefined;
 
   const copyOutbound = async () => {
     if (!outbound) return;
     try {
       await navigator.clipboard.writeText(outbound);
-      setShareNotice("已复制完整文本。");
+      setShareNotice({ signal: outbound, message: "已复制完整文本。" });
     } catch {
-      setShareNotice("复制失败，请手动选中并复制。");
+      setShareNotice({ signal: outbound, message: "复制失败，请手动选中并复制。" });
     }
   };
 
@@ -51,9 +65,27 @@ export function SignalingWizard({
         title: role === "host" ? "中国象棋好友直连邀请" : "中国象棋好友直连响应",
         text: outbound,
       });
-      setShareNotice("已打开系统分享。");
+      setShareNotice({ signal: outbound, message: "已打开系统分享。" });
+    } catch (error) {
+      setShareNotice({
+        signal: outbound,
+        message: isShareCancellation(error)
+          ? "已取消系统分享。"
+          : "未完成分享，可改用复制。",
+      });
+    }
+  };
+
+  const showQr = async () => {
+    if (!outbound || qrBusy) return;
+    setQrBusySignal(outbound);
+    setQrNotice(undefined);
+    try {
+      setQrResult({ signal: outbound, dataUrl: await createSignalingQrDataUrl(outbound) });
     } catch {
-      setShareNotice("未完成分享，可改用复制。");
+      setQrNotice({ signal: outbound, message: "二维码生成失败，请改用复制或系统分享。" });
+    } finally {
+      setQrBusySignal((current) => current === outbound ? undefined : current);
     }
   };
 
@@ -80,8 +112,21 @@ export function SignalingWizard({
             {typeof navigator !== "undefined" && typeof navigator.share === "function" ? (
               <button className="game-secondary-action" type="button" onClick={() => { void shareOutbound(); }}>系统分享</button>
             ) : null}
+            {qrAvailable ? (
+              <button className="game-secondary-action" disabled={qrBusy} type="button" onClick={() => { void showQr(); }}>
+                {qrBusy ? "正在生成…" : qrDataUrl ? "刷新二维码" : "显示二维码"}
+              </button>
+            ) : null}
           </div>
-          {shareNotice ? <small role="status">{shareNotice}</small> : null}
+          {visibleShareNotice ? <small role="status">{visibleShareNotice}</small> : null}
+          {!qrAvailable ? <small>邀请文本较长，二维码不可用；请使用复制或系统分享。</small> : null}
+          {visibleQrNotice ? <small className="game-warning" role="alert">{visibleQrNotice}</small> : null}
+          {qrDataUrl ? (
+            <figure className="online-signal-qr">
+              <Image alt={`完整${role === "host" ? "邀请" : "响应"}文本二维码`} height={280} src={qrDataUrl} unoptimized width={280} />
+              <figcaption>二维码同样包含临时网络信息，只向本局好友展示。</figcaption>
+            </figure>
+          ) : null}
         </div>
       ) : null}
 

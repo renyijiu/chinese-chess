@@ -437,6 +437,27 @@ a {
   margin-top: 14px;
 }
 
+.online-signal-qr {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  margin: 4px 0 0;
+}
+
+.online-signal-qr img {
+  background: #fff;
+  border: 6px solid #fff;
+  border-radius: 8px;
+  height: auto;
+  max-width: min(280px, 100%);
+}
+
+.online-signal-qr figcaption {
+  color: var(--qin-hud-text-muted);
+  font: 11px/1.5 ui-sans-serif, system-ui, sans-serif;
+}
+
 .online-signal-block label {
   color: var(--qin-hud-text-muted);
   font: 10px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
