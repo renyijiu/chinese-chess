@@ -32,6 +32,7 @@
     "test:audio:browsers": "AUDIO_BROWSER_MATRIX=1 playwright test tests/e2e/audio.spec.ts --config playwright.config.ts --project desktop-chromium --project audio-firefox --project audio-webkit",
     "test:visual": "playwright test tests/e2e/visual.spec.ts tests/e2e/mobile.spec.ts --config playwright.config.ts",
     "test:visual:update": "npm run test:visual -- --update-snapshots",
+    "test:ai:lifecycle": "RUN_AI_LIFECYCLE=1 playwright test tests/e2e/computer-match.spec.ts --config playwright.config.ts --project desktop-chromium --grep 'keeps one Worker and stable lifecycle resources'",
     "pretest:performance": "npm run build",
     "test:performance": "RUN_RENDER_PERFORMANCE=1 playwright test tests/e2e/performance.spec.ts --config playwright.performance.config.ts --project desktop-chromium",
     "pretest:performance:headed": "npm run build",

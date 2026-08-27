@@ -301,6 +301,7 @@ export class AudioEngine {
   private readonly sourceEndsByKind = emptySourceKindCounts();
   private readonly sourceStartAttemptsByKind = emptySourceKindCounts();
   private sourceStarts = 0;
+  private readonly sourceStartsByCue = new Map<AudioCueId, number>();
   private readonly sourceStartsByKind = emptySourceKindCounts();
   private sourceStops = 0;
   private readonly sourceStopsByKind = emptySourceKindCounts();
@@ -528,6 +529,7 @@ export class AudioEngine {
       sourceEndsByKind: { ...this.sourceEndsByKind },
       sourceStartAttemptsByKind: { ...this.sourceStartAttemptsByKind },
       sourceStarts: this.sourceStarts,
+      sourceStartsByCue: Object.fromEntries(this.sourceStartsByCue),
       sourceStartsByKind: { ...this.sourceStartsByKind },
       sourceStops: this.sourceStops,
       sourceStopsByKind: { ...this.sourceStopsByKind },
@@ -731,6 +733,7 @@ export class AudioEngine {
     try {
       if (scheduleStart) scheduleStart(source, gain); else source.start();
       this.sourceStarts += 1;
+      this.sourceStartsByCue.set(cue, (this.sourceStartsByCue.get(cue) ?? 0) + 1);
       this.sourceStartsByKind[kind] += 1;
       return entry;
     } catch {

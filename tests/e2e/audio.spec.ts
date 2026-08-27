@@ -300,7 +300,7 @@ test("the same opening capture remains audible in two consecutive match epochs",
   await expect.poll(() => page.evaluate(() => window.__XIANGQI_AUDIO_DEBUG__?.().sourceStartsByKind["authored-transient"])).toBe(initialStarts + 1);
 
   await page.getByRole("button", { name: "重新开局" }).click();
-  await page.getByRole("button", { name: "开始新局" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "重新开局", exact: true }).click();
   await expect(page.locator(".xiangqi-game-shell")).toHaveAttribute("data-game-revision", "0");
   await playOpeningCapture(page);
   await expect.poll(() => page.evaluate(() => window.__XIANGQI_AUDIO_DEBUG__?.().sourceStartsByKind["authored-transient"])).toBe(initialStarts + 2);

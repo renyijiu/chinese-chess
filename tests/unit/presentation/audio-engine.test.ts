@@ -640,6 +640,7 @@ describe("AudioEngine", () => {
       pendingDecodes: 0,
       pendingFetches: 0,
       sourceEnds: 100,
+      sourceStartsByCue: { "ambient.fortress": 1, "music.fortress": 1, "ui.select": 100 },
       sourceStops: 0,
     });
     const startsBeforeDispose = engine.debugSnapshot().sourceStarts;

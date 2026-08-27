@@ -1,5 +1,6 @@
 import type { AudioEngine } from "../audio/AudioEngine";
 import type { AudioTransientCueId } from "../audio/audio-types";
+import type { PresentationStore } from "../presentation/PresentationStore";
 
 export type XiangqiTestFault = "ambientTask" | "riverRender";
 
@@ -14,6 +15,7 @@ declare global {
   interface Window {
     __XIANGQI_AUDIO_DEBUG__?: () => AudioDebugSnapshot;
     __XIANGQI_AUDIO_TEST__?: AudioTestControls;
+    __XIANGQI_PRESENTATION_DEBUG__?: () => ReturnType<PresentationStore["debugSnapshot"]>;
     __XIANGQI_TEST_FAULTS__?: Partial<Record<XiangqiTestFault, boolean>>;
   }
 }
@@ -46,5 +48,16 @@ export function attachAudioDiagnostics(audio: AudioEngine) {
   return () => {
     if (window.__XIANGQI_AUDIO_DEBUG__ === snapshot) delete window.__XIANGQI_AUDIO_DEBUG__;
     if (controls && window.__XIANGQI_AUDIO_TEST__ === controls) delete window.__XIANGQI_AUDIO_TEST__;
+  };
+}
+
+export function attachPresentationDiagnostics(presentation: PresentationStore) {
+  if (typeof window === "undefined") return () => undefined;
+  const snapshot = () => presentation.debugSnapshot();
+  window.__XIANGQI_PRESENTATION_DEBUG__ = snapshot;
+  return () => {
+    if (window.__XIANGQI_PRESENTATION_DEBUG__ === snapshot) {
+      delete window.__XIANGQI_PRESENTATION_DEBUG__;
+    }
   };
 }

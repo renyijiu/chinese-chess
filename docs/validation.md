@@ -1,6 +1,100 @@
 # 验证与交付证据
 
-本文记录 2026-08-25 在 Apple M1 Max 开发机上的可重复验证范围。除明确标注的限制外，结果来自自动化命令；无头软件渲染数据不替代可见 GPU 浏览器或目标手机证据。
+本文记录 2026-08-25 的 3D 棋局基线及 2026-08-27 的纯前端人机对战 U8 发布验证。验证机为 Apple M1 Max；除明确标注的限制外，结果来自自动化命令。无头软件渲染数据不替代可见 GPU 浏览器或目标手机证据。
+
+## 2026-08-27 人机对战 U8 发布验证
+
+### 可重复环境与产物身份
+
+- 验证基线：`ba300a9 feat(ai): add verified Master opponent runtime`；U8 改动在该基线上通过 detached clean worktree 验证，最终提交身份以仓库历史为准。
+- 生产等价端点：本机 `wrangler dev --config dist/server/wrangler.json` 的 `http://localhost:3100`，不是公开部署地址。
+- 验证时间：2026-08-27 20:51–21:22（Asia/Singapore）。最终 clean-worktree 生产 build ID：`4d0de84a-f492-45fd-8ace-a1ec6c7cd5f6`。
+- 引擎清单：`public/engines/fairy-stockfish-nnue/1.1.12/manifest.json`，SHA-256 `e12efd8c9f9e28ac2dc8257bc47e16800b5ec4c0d95e28bde45132d01034edd6`。
+- 浏览器矩阵：桌面 Chromium / ANGLE Metal（Apple M1 Max）、无头 Chromium / ANGLE SwiftShader，以及 Playwright 390×844 移动视口。没有 Android 或 iOS 真机证据。
+
+Master 运行时六个文件合计 `13,006,590` bytes（约 12.4 MiB），只在第一次请求 Master 时加载；manifest 和版本化内容缓存分开处理。对应 npm 包、源码归档、构建说明与 provenance 位于 `third_party/fairy-stockfish-nnue/1.1.12/`，项目及引擎均按 `GPL-3.0-only` 分发，详见 `LICENSE` 与 `THIRD_PARTY_NOTICES.md`。
+
+### Cloudflare 根路由、隔离头与浏览器启动
+
+原生产 Worker 的 `/` 在 workerd 中返回 HTTP 500，而 RSC `/\?_rsc` 和直接导入 `dist/server/index.js` 都返回 200；状态码不是由 ASSETS fallback 或 MIME wrapper 伪造。把浏览器专属的 `XiangqiGame` 放到 `next/dynamic({ ssr: false })` 客户端边界后，最新生产构建每次冷启动后的连续五次 `/` 均为 `200, 200, 200, 200, 200`，首请求不再失败。SSR smoke 额外断言该边界，避免把整套 R3F、Worker 和 WebAudio 图重新带回 workerd 的 HTML 渲染路径。
+
+生产响应确认：
+
+- `/` 为 `text/html; charset=utf-8`；`COOP: same-origin`、`COEP: require-corp`、`CORP: same-origin` 与 `X-Content-Type-Options: nosniff` 均存在。
+- `stockfish.wasm` 为 `application/wasm`，Master host/lightweight Worker 为 `text/javascript; charset=utf-8`；版本文件采用 `max-age=31536000, immutable`，manifest 使用 `no-cache, must-revalidate`。
+- HTML fallthrough 到引擎 URL 返回 502，缺失资源保留 404，不会缓存为有效引擎。
+- 生产 Chromium 成功 hydration，并完成“选择人机 → 掷骰 → 开始 → 存档”；服务器清单中的页面 chunk、七类 LOD2、low 全景、音频、轻量 Worker 全部为 200。
+
+### 确定性对局和故障矩阵
+
+Vitest 使用真实规则 `dispatch` 验证：
+
+- Easy、Normal、Hard 在规则一致的近终局 fixture 中都找到 `e7 × e8` 杀着。fixture 初态明确断言双方均未被将军，提交后事件严格为一次 `MoveCommitted`、一次 `PieceCaptured`、一次 `CheckDeclared`、一次 `GameEnded(checkmate)`。这是“终局路径”证据，不冒充从标准初始局面完成的三盘完整对局。
+- 另有一盘从标准初始局面开始的确定性 Easy 对 Easy 真正完整对局：76 个半回合后将死，共 17 次吃子。每个合法搜索结果只增加一次 revision、只产生一个 `MoveCommitted`，有且仅有捕获时产生一个 `PieceCaptured`。
+
+Chromium 浏览器 fixture 覆盖：
+
+- 骰子奇数执红、刷新不重掷；人类执黑时电脑先行；Normal 与 Hard 均实际提交合法着法。
+- 预置合法六手存档恢复后，Easy 第七手完成吃子并将军：历史为 7、capture 为 1、revision 为 7，保存 envelope 同步到 revision 7。
+- 第七手的 Presentation action ID 只完成一次；`system.capture` 和 `system.check` 的 AudioBufferSource 启动计数各只增加一次。时间线结束后活动 action、timer 均为 0；刷新继续不会重播该 revision。
+- 标签页隐藏时不启动电脑首着，恢复可见后只提交一次；畸形 Worker output 超时后仍为 revision 0、可重新开始；Master 能力或启动失败会显式显示 Hard fallback 并持久化有效档位。
+- 人机模式没有悔棋入口；本机双人仍保留单步悔棋。390×844 中开始菜单、掷骰、设置和棋盘控制均可用且没有水平溢出。
+
+### 生命周期与内存边界
+
+`npm run test:ai:lifecycle` 在一个真实 Chromium 页面内执行 100 次 Easy 电脑开局和 99 次重新开局，结果为：
+
+| 指标 | 第 1 次 | 第 100 次 | 结论 |
+| --- | ---: | ---: | --- |
+| 活动 Worker | 1 | 1 | 稳定 |
+| Worker 创建 / 终止 | 1 / 0 | 100 / 99 | 每次换局释放旧实例 |
+| 活动超时句柄 | 0 | 0 | 稳定 |
+| `visibilitychange` listeners | 4 | 4 | 稳定 |
+| CacheStorage key 集合 | `[]` | `[]` | Easy 循环未污染缓存命名空间 |
+| page JS heap | 24,262,156 B | 27,849,972 B | +3,587,816 B，低于 32 MiB 容差 |
+
+中点第 50 次 page heap 为 `27,371,248` B。heap 数字来自 Chromium CDP `Performance.getMetrics` 并在采样前调用 GC，**只代表页面 JS heap**；它不包含 Dedicated Worker heap、WASM linear memory 或 SharedArrayBuffer。因此这里不宣称 Master 总内存稳定。Worker 生命周期只由活动实例数约束；Master 内容缓存正确性由 engine-cache 单元测试、资产 hash 校验和生产冷启动共同覆盖，Easy 的空 CacheStorage key 集合不代表 Master cache entries 已被 100 次压力验证。
+
+### AI 性能证据
+
+轻量 Hard 搜索窗口由真实 Worker 执行，PerformanceObserver 在演出稳定后清空环境噪声并持续到 Worker 返回；可见 Chromium 的权威轮次得到：
+
+| 指标 | 实测 | 门槛 | 结论 |
+| --- | ---: | ---: | --- |
+| 搜索窗口 >50 ms main-thread long task | 0 | 0 | 通过 |
+| renderer p95 frame interval | 18.34 ms | ≤20.24 ms（引入 AI 前 18.4 ms × 1.1） | 通过 |
+| 独立 rAF cadence p95 | 18.515 ms | 诊断项 | 记录 |
+| current / peak draw calls | 76 / 113 | ≤100 / ≤160 | 通过 |
+| renderer samples | 147 | ≥30 | 通过 |
+
+无头 SwiftShader AI 轮次同样得到 `searchLongTasks=[]`、current/peak draw calls `56/59`；renderer p95 `141.11 ms` 与独立 rAF p95 `133.61 ms` 只作软件渲染诊断，不参与 GPU 发布门槛。生产预算轮次为首次可玩 `3,904,254` B（3.72 MiB）、首屏音频 `1,921,564` B、draw calls `77/77`、494,204 triangles、DPR 1，均通过对应预算。
+
+AI 自身没有造成超过基线 10% 的可见浏览器 p95 回退；但项目原有全场高画质严格性能场景仍为 p95 `18.185 ms`，高于绝对门槛 `16.7 ms`。因此 `npm run test:performance:headed` 整体仍返回非零；这是发布 blocker，不能用 AI 的相对门槛掩盖。
+
+### U8 发布结论与回滚
+
+最终 clean-worktree 回归结果：
+
+| 命令/范围 | 结果 |
+| --- | --- |
+| `npm run typecheck` / `npm run lint` | 通过 / 通过 |
+| rules / game / AI / presentation Vitest | 26 / 40 / 63 / 60 tests 通过 |
+| runtime Vitest | 45 tests 通过 |
+| `assets:pieces:validate` | 21 GLB、7 角色、14 阵营外观全部通过，Khronos warnings 0 |
+| `assets:ai:validate` / `test:budget` | 通过 / 通过 |
+| `npm test` | 生产 build 与 4 个 Worker HTML/MIME/接线 smoke 通过 |
+| `npm run test:e2e` | 31 passed / 3 expected skipped / 0 failed；跳过项仅为显式 performance ×2 与 lifecycle ×1，它们已独立运行 |
+| `npm run test:visual` | detached clean worktree 中 3/3 通过；desktop 与 390×844 共 9 张基线 |
+| `npm run test:ai:lifecycle` | 1/1 通过，100 次电脑开局 |
+| `npm run test:performance` | headless 2/2 通过 |
+| headed AI performance | 1/1 通过；完整 headed 命令因下述原有 16.7 ms 绝对门槛失败 |
+
+视觉基线先在共享工作区人工检查，再在 `ba300a9` detached clean worktree 中仅叠加 U8 文件重新生成；九张 clean 基线与主目录 SHA-256 逐一相同。随后不带 `--update-snapshots` 的 clean-worktree 比较为 3/3 通过，因此证据不依赖未提交的 scene、piece、coordinate 或 VFX 文件。
+
+- 规则、存档和人机调度不依赖应用后端；动画、音效、Master 或轻量 Worker 失败不会提交猜测棋步。
+- 根路由 HTTP 500 已由客户端运行时边界修复，并有 Worker HTML smoke 与真实生产 Chromium 双重证据。
+- 功能与资源回归可进入候选发布；正式性能发布仍被桌面高画质 p95 `18.185 > 16.7 ms` 和缺少手机真机 30 FPS/GPU 内存证据阻塞。
+- 若部署后出现新的根路由或 Master 兼容性问题，回滚到上一个稳定 build，并保留显式 Hard fallback；不要通过改写 500 状态码、放宽 MIME 或关闭 COOP/COEP 来掩盖错误。
 
 ## 交付命令
 
@@ -9,12 +103,15 @@ npm run typecheck
 npm run lint
 npm run test:unit
 npm run test:runtime
+npm run assets:ai:validate
 npm test
 npm run assets:pieces:validate
 npm run test:budget
 npm run test:e2e
+npm run test:ai:lifecycle
 npm run test:visual:update
 npm run test:visual
+npm run test:performance
 npm run test:performance:headed
 ```
 
@@ -23,7 +120,7 @@ npm run test:performance:headed
 - `test:visual:update` 只在人工确认有意视觉变更后更新基线；随后必须执行一次不带更新参数的 `test:visual`。
 - `test:performance:headed` 在 1920×1080 可见 Chromium 中运行。当前绘制、DPR、主动全景和下载断言通过，但 16.7 ms 精确帧间隔断言仍返回非零，作为未关闭发布门槛保留。
 
-本次命令结果：typecheck 与 lint 通过；规则 26、对局 15、演出 20、运行时 36 个测试全部通过；21 个 GLB 资产全部通过合同和 Khronos 校验；生产 build 与 2 个 SSR smoke 通过；完整 E2E 为 15 passed / 1 skipped（性能场景只由显式命令启用）；干净视觉比较为 3 passed。唯一非零门槛是下文记录的 `test:performance:headed` p95 断言。
+以下为 2026-08-25 3D 棋局基线结果：typecheck 与 lint 通过；规则 26、对局 15、演出 20、运行时 36 个测试全部通过；21 个 GLB 资产全部通过合同和 Khronos 校验；生产 build 与 2 个 SSR smoke 通过；完整 E2E 为 15 passed / 1 skipped（性能场景只由显式命令启用）；干净视觉比较为 3 passed。唯一非零门槛是下文记录的 `test:performance:headed` p95 断言。
 
 ## 浏览器流程证据
 

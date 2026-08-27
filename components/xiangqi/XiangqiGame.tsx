@@ -60,7 +60,7 @@ import {
   type SavedMatch,
 } from "./game/match";
 import { PresentationStore } from "./presentation/PresentationStore";
-import { attachAudioDiagnostics } from "./runtime/test-faults";
+import { attachAudioDiagnostics, attachPresentationDiagnostics } from "./runtime/test-faults";
 import {
   DEFAULT_GAME_SETTINGS,
   GAME_SETTINGS_KEY,
@@ -369,10 +369,12 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     });
     const detachVisibility = audio.attachVisibility(document);
     const detachDiagnostics = attachAudioDiagnostics(audio);
+    const detachPresentationDiagnostics = attachPresentationDiagnostics(presentation);
     return () => {
       unsubscribeCue();
       detachVisibility();
       detachDiagnostics();
+      detachPresentationDiagnostics();
       void audio.dispose();
     };
   }, [audio, presentation, semanticAudio]);

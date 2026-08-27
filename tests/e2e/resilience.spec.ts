@@ -112,6 +112,10 @@ test("a failed optional river degrades locally and leaves authoritative moves pl
   });
   await openCleanGame(page);
   await waitForEnvironmentSettled(page, "degraded");
+  const devOverlay = page.getByRole("dialog", { name: "Unhandled Script Error" });
+  if (await devOverlay.isVisible()) {
+    await devOverlay.getByRole("button", { name: "Dismiss" }).click();
+  }
 
   const keyboard = await startGame(page);
   await keyboard.focus();

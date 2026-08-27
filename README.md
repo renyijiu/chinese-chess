@@ -1,6 +1,6 @@
 # 网页 3D 中国象棋
 
-这是一个可完整本机双人对弈的浏览器 3D 中国象棋。32 枚棋子使用帅/将、仕/士、相/象、车、马、炮、兵/卒七类 Q 版秦兵马俑带骨骼 GLB 资产；棋盘、环境、交互反馈和 HUD 共同采用暖烧陶、黑漆、旧铜、白垩及少量矿物残彩的微缩沙盘语言。
+这是一个可进行本机双人或纯前端人机对弈的浏览器 3D 中国象棋。32 枚棋子使用帅/将、仕/士、相/象、车、马、炮、兵/卒七类 Q 版秦兵马俑带骨骼 GLB 资产；棋盘、环境、交互反馈和 HUD 共同采用暖烧陶、黑漆、旧铜、白垩及少量矿物残彩的微缩沙盘语言。
 
 ## 3D 棋盘场景
 
@@ -34,6 +34,27 @@
 - 正式渲染基线为 WebGL2；WebGPU 暂不作为发布依赖，等生态稳定且目标设备验证通过后再评估。
 - 正式运行时资产采用 glTF 2.0/GLB、Meshopt 几何压缩；当前角色没有位图贴图，因此 KTX2 策略明确标记为 N/A，后续加入 BaseColor/Normal/ORM 位图时再启用 ETC1S/UASTC。
 - 中国象棋规则实现为与 React/Three.js 解耦的纯 TypeScript 模块，规则状态是棋局唯一真相。
+
+## 本机双人与纯前端人机对战
+
+开始菜单提供本机双人和人机对战，两种模式都不需要应用后端：
+
+- 本机双人保留单步悔棋；人机对局不提供悔棋，避免只撤回人类一手后破坏对局轮次。
+- 人机开局用浏览器 Web Crypto 公平掷六面骰，奇数执红、偶数执黑；骰子结果、阵营、难度和棋局一并自动保存，刷新后不会重掷。
+- Easy、Normal 和 Hard 都在独立 Web Worker 中搜索，主线程只提交带 revision 的动作；隐藏标签页会暂停启动搜索，超时、异常或畸形 Worker 输出不会提交棋步。
+- Master 使用浏览器内 Fairy-Stockfish NNUE WebAssembly。第一次选择时按需下载版本化运行时，约 `12.4 MiB`；验证失败或浏览器能力不足时明确降级到 Hard，并把有效档位写入存档，不会在下次加载时静默升级。
+- 动画、音效或 Worker 失败不改变规则状态。规则提交是唯一真相，同一 revision 的表现动作和音频 cue 会去重。
+
+轻量级对手需要现代浏览器的 Web Worker、Web Crypto 和 `localStorage`。Master 另外需要安全上下文、`crossOriginIsolated`、`SharedArrayBuffer`、WebAssembly SIMD、CacheStorage，以及服务端返回 `COOP: same-origin` 与 `COEP: require-corp`。Cloudflare Worker 生产入口已为引擎、NNUE、WASM 和 Worker 脚本固定 MIME、隔离头与版本化缓存策略；缺失资源和 HTML fallback 会保留为错误，不会被当成有效引擎缓存。
+
+Master 发布包和可重现来源位于：
+
+- `public/engines/fairy-stockfish-nnue/1.1.12/manifest.json`：字节数、SHA-256、MIME、URL 和能力合同。
+- `third_party/fairy-stockfish-nnue/1.1.12/`：原始 npm 包、对应源码归档、构建说明和 provenance。
+- [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)：Fairy-Stockfish 与 NNUE 来源、版本和许可证。
+- [`LICENSE`](LICENSE)：本项目采用 `GPL-3.0-only`。
+
+发布前使用 `npm run assets:ai:validate` 校验本地清单，或在具备 Chromium 的维护环境运行 `npm run assets:ai:canary`，验证隔离加载、WASM/NNUE、UCI 协议和合法着法；运行时不会依赖上游网络。
 
 ## 资产管线
 
@@ -97,16 +118,19 @@ npm run typecheck
 npm run lint
 npm run test:unit
 npm run test:runtime
+npm run assets:ai:validate
 npm test
 npm run assets:pieces:validate
 npm run test:budget
 npm run test:e2e
 npm run test:visual
+npm run test:ai:lifecycle
+npm run test:performance
 npm run test:performance:headed
 ```
 
-`npm test` 会先执行 Vinext 生产构建，再验证服务端输出、R3F 棋盘接线、九纵十横结构和 WebGL2 回退逻辑。Playwright 另覆盖音频用户手势、键盘完整走子、真实 Canvas 指针/触摸、红黑双方连续八手、吃子、将军、终局、精确存档恢复、可选全景失败、画质往返、确认框焦点隔离和 WebGL context loss/恢复。视觉比较在环境状态显式进入 `ready` 或 `degraded` 后才截图。
+`npm test` 会先执行 Vinext 生产构建，再验证服务端输出、浏览器专属棋局边界、R3F 棋盘接线、九纵十横结构和 WebGL2 回退逻辑。Playwright 另覆盖音频用户手势、键盘完整走子、真实 Canvas 指针/触摸、红黑双方连续八手、吃子、将军、终局、精确存档恢复、骰子与阵营恢复、四档人机、Master 启动/降级、Worker 超时/畸形输出、后台暂停、可选全景失败、画质往返、确认框焦点隔离和 WebGL context loss/恢复。视觉比较在环境状态显式进入 `ready` 或 `degraded` 后才截图。
 
 可重复的测试范围、浏览器证据、资源预算、性能数字及尚未关闭的发布门槛记录在 [`docs/validation.md`](docs/validation.md)。2026-08-25 的 M1 Max 可见 Chromium 高画质 1920×1080 在预热后的 208 帧窗口实测为 77 次当前绘制、82 次峰值绘制、16.54 ms 平均 / 18.4 ms p95 渲染帧间隔和 3.66 MiB 首次可玩生产响应体。绘制、DPR、主动全景和下载预算通过，但尚未达到 16.7 ms 精确 p95 门槛；严格性能命令会如实返回失败。
 
-部署层继续使用 Vinext/Vite 与 Cloudflare Worker；D1、Durable Objects 和账号体系留给联机阶段接入。
+部署层继续使用 Vinext/Vite 与 Cloudflare Worker；当前人机对局完全在浏览器执行。D1、Durable Objects 和账号体系留给联机阶段接入。

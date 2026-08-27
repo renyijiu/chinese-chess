@@ -6,7 +6,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "兵临九宫｜Q 版秦俑 3D 中国象棋",
-  description: "以秦兵马俑、烧土陶台与黑漆铜饰构成的网页 3D 中国象棋本机双人棋局。",
+  description: "以秦兵马俑、烧土陶台与黑漆铜饰构成的网页 3D 中国象棋，支持本机双人与纯前端人机对战。",
 };
 
 export default function RootLayout({

@@ -37,7 +37,7 @@ test("server-renders the fullscreen Qin terracotta game", async () => {
   assert.match(html, /--qin-hud-text:#eadcc3/);
   assert.match(html, /<title>兵临九宫｜Q 版秦俑 3D 中国象棋<\/title>/);
   assert.match(html, /board-stage board-stage--fullscreen/);
-  assert.match(html, /兵临九宫 · 3D 中国象棋本机双人对局/);
+  assert.match(html, /兵临九宫 · 3D 中国象棋本机双人与人机对局/);
   assert.match(html, /开始本机双人对局/);
   assert.match(html, /aria-label="Q 版秦俑沙盘中国象棋棋盘三维预览"/);
   assert.match(html, /俯视棋盘/);
@@ -133,6 +133,7 @@ test("keeps the rule-correct board and modular R3F runtime wired", async () => {
     animationDirector,
     presentationStore,
     page,
+    gameClient,
     readme,
     backdrop,
     basisTranscoder,
@@ -154,6 +155,7 @@ test("keeps the rule-correct board and modular R3F runtime wired", async () => {
     readFile(new URL("../components/xiangqi/animation/AnimationDirector.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/xiangqi/presentation/PresentationStore.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/XiangqiGameClient.tsx", import.meta.url), "utf8"),
     readFile(new URL("../README.md", import.meta.url), "utf8"),
     stat(new URL("../public/background/qin-diorama-panorama-v1-high.webp", import.meta.url)),
     stat(new URL("../public/basis/basis_transcoder.wasm", import.meta.url)),
@@ -209,7 +211,10 @@ test("keeps the rule-correct board and modular R3F runtime wired", async () => {
   assert.match(pieceCatalog, /models\/pieces\/v1/);
   assert.match(animationDirector, /useFrame/);
   assert.match(presentationStore, /TimelineDirector/);
-  assert.match(page, /XiangqiGame/);
+  assert.match(page, /XiangqiGameClient/);
+  assert.match(gameClient, /dynamic\(\s*\(\) => import\("\.\.\/components\/xiangqi\/XiangqiGame"\)/);
+  assert.match(gameClient, /ssr: false/);
+  assert.match(gameClient, /loading: LoadingGameShell/);
   assert.match(readme, /九道纵线、十道横线/);
   assert.ok(backdrop.size <= 250_000, "the highest-quality Qin panorama should stay below 250 KB");
   assert.ok(basisTranscoder.size > 500_000, "the local Basis transcoder should be self-hosted");

@@ -28,6 +28,8 @@ const expectedAudioMime = new Map<string, string>([
   [QIN_AUDIO_MANIFEST_URL, "application/json"],
   ...audioManifest.assets.map((asset) => [asset.url, asset.mimeType] as const),
 ]);
+const DOCUMENTED_PRE_AI_P95_MS = 18.4;
+const AI_P95_REGRESSION_LIMIT_MS = Number((DOCUMENTED_PRE_AI_P95_MS * 1.1).toFixed(2));
 
 test.skip(
   process.env.RUN_RENDER_PERFORMANCE !== "1",
@@ -61,10 +63,10 @@ test("@performance captures first-playable transfer size and renderer telemetry"
     if (url.origin !== baseUrl.origin) return;
     if (response.ok() && expectedAudioPaths.includes(url.pathname)) {
       seenAudioPaths.add(url.pathname);
-      audioResponseBodies.push(response.finished().then(() => response.request().sizes()).then(
-        (sizes) => [
+      audioResponseBodies.push(response.body().then(
+        (body) => [
           url.pathname,
-          sizes.responseBodySize,
+          body.byteLength,
           response.headers()["content-type"]?.split(";", 1)[0]?.toLowerCase() ?? "",
         ] as const,
         (error: unknown) => {
@@ -203,4 +205,147 @@ test("@performance captures first-playable transfer size and renderer telemetry"
   if (authoritativeFrameGate) expect(metrics.p95FrameIntervalMs).toBeLessThanOrEqual(16.7);
   expect(canvasDpr).toBeLessThanOrEqual(1.5);
   expect(firstPlayableBytes).toBeLessThanOrEqual(12 * 1024 * 1024);
+});
+
+test("@performance keeps lightweight AI search off the main thread during presentation", async ({ page }, testInfo) => {
+  const authoritativeFrameGate = Boolean(process.env.PLAYWRIGHT_MEASUREMENT_MODE);
+  await page.addInitScript(() => {
+    const target = window as typeof window & {
+      __XIANGQI_AI_CAPTURE_FRAMES__?: boolean;
+      __XIANGQI_AI_FRAME_INTERVALS__?: number[];
+      __XIANGQI_AI_LONG_TASKS__?: number[];
+      __XIANGQI_AI_SEARCH_MEASURE_STARTED__?: boolean;
+      __XIANGQI_AI_SEARCH_LONG_TASKS__?: number[];
+    };
+    target.__XIANGQI_AI_LONG_TASKS__ = [];
+    new PerformanceObserver((entries) => {
+      for (const entry of entries.getEntries()) target.__XIANGQI_AI_LONG_TASKS__?.push(entry.duration);
+    }).observe({ type: "longtask", buffered: true });
+    const NativeWorker = window.Worker;
+    class MeasuredWorker extends NativeWorker {
+      constructor(url: string | URL, options?: WorkerOptions) {
+        super(url, options);
+        this.addEventListener("message", (event) => {
+          const output = event.data as { type?: string } | null;
+          if (output?.type !== "result" && output?.type !== "error") return;
+          target.__XIANGQI_AI_SEARCH_LONG_TASKS__ = [...(target.__XIANGQI_AI_LONG_TASKS__ ?? [])];
+          window.__XIANGQI_RESET_PERFORMANCE__?.();
+          target.__XIANGQI_AI_FRAME_INTERVALS__ = [];
+          target.__XIANGQI_AI_CAPTURE_FRAMES__ = true;
+          let previous = 0;
+          const sample = (timestamp: number) => {
+            if (!target.__XIANGQI_AI_CAPTURE_FRAMES__) return;
+            if (previous > 0) target.__XIANGQI_AI_FRAME_INTERVALS__?.push(timestamp - previous);
+            previous = timestamp;
+            window.requestAnimationFrame(sample);
+          };
+          window.requestAnimationFrame(sample);
+        });
+      }
+      override postMessage(message: unknown, options?: StructuredSerializeOptions | Transferable[]) {
+        const send = () => {
+          const nativePostMessage = NativeWorker.prototype.postMessage as unknown as (
+            this: Worker,
+            value: unknown,
+            transfer?: StructuredSerializeOptions | Transferable[],
+          ) => void;
+          nativePostMessage.call(this, message, options);
+        };
+        const input = message as { type?: string } | null;
+        if (input?.type !== "search") {
+          send();
+          return;
+        }
+        target.__XIANGQI_AI_LONG_TASKS__ = [];
+        target.__XIANGQI_AI_SEARCH_MEASURE_STARTED__ = false;
+        send();
+        window.setTimeout(() => {
+          target.__XIANGQI_AI_LONG_TASKS__ = [];
+          target.__XIANGQI_AI_SEARCH_MEASURE_STARTED__ = true;
+        }, 1_000);
+      }
+    }
+    Object.defineProperty(window, "Worker", { configurable: true, value: MeasuredWorker });
+    let first = true;
+    const original = Crypto.prototype.getRandomValues;
+    Crypto.prototype.getRandomValues = function getRandomValues<T extends ArrayBufferView | null>(array: T): T {
+      if (first && array instanceof Uint8Array) {
+        first = false;
+        array.fill(4);
+        return array as T;
+      }
+      return Reflect.apply(original, this, [array]) as T;
+    };
+  });
+  await openCleanGame(page, authoritativeFrameGate ? "high" : "low", !authoritativeFrameGate);
+  await page.getByRole("button", { name: "人机对战" }).click();
+  await page.getByRole("radio", { name: "困难", exact: true }).check();
+  await page.getByRole("button", { name: "掷骰决定阵营" }).click();
+  await page.getByRole("button", { name: "以红方开始对局" }).click();
+  await expect.poll(() => page.evaluate(() => window.__XIANGQI_AUDIO_DEBUG__?.().packState))
+    .toBe("ready");
+  await page.evaluate(() => {
+    window.__XIANGQI_RESET_PERFORMANCE__?.();
+  });
+
+  const keyboard = page.locator(".game-keyboard-control button");
+  await keyboard.focus();
+  for (const key of [
+    "ArrowLeft", "ArrowLeft", "ArrowLeft", "ArrowLeft",
+    "ArrowUp", "ArrowUp", "ArrowUp", "Enter", "ArrowUp", "Enter",
+  ]) await keyboard.press(key);
+  await expect(page.locator(".xiangqi-game-shell"))
+    .toHaveAttribute("data-game-revision", "2", { timeout: 45_000 });
+  await expect(keyboard).toHaveAttribute("aria-disabled", "false", { timeout: 20_000 });
+  if (authoritativeFrameGate) {
+    const settledSamples = await page.evaluate(() => window.__XIANGQI_PERFORMANCE__?.sampleCount ?? 0);
+    await page.getByRole("button", { name: "自动巡游" }).click();
+    await expect.poll(() => page.evaluate(() => window.__XIANGQI_PERFORMANCE__?.sampleCount ?? 0))
+      .toBeGreaterThan(settledSamples);
+    await page.getByRole("button", { name: "停止巡游" }).click();
+  } else {
+    // Reduced-motion deliberately disables auto-tour. The AI result and its
+    // short presentation still produce enough demand frames for resource
+    // telemetry; frame cadence remains diagnostic under SwiftShader.
+    await expect.poll(() => page.evaluate(() => window.__XIANGQI_PERFORMANCE__?.sampleCount ?? 0))
+      .toBeGreaterThan(0);
+  }
+  const evidence = await page.evaluate(() => {
+    const target = window as typeof window & {
+      __XIANGQI_AI_CAPTURE_FRAMES__?: boolean;
+      __XIANGQI_AI_FRAME_INTERVALS__?: number[];
+      __XIANGQI_AI_SEARCH_MEASURE_STARTED__?: boolean;
+      __XIANGQI_AI_SEARCH_LONG_TASKS__?: number[];
+    };
+    target.__XIANGQI_AI_CAPTURE_FRAMES__ = false;
+    return {
+      frameIntervals: target.__XIANGQI_AI_FRAME_INTERVALS__ ?? [],
+      searchMeasureStarted: target.__XIANGQI_AI_SEARCH_MEASURE_STARTED__ ?? false,
+      searchLongTasks: target.__XIANGQI_AI_SEARCH_LONG_TASKS__ ?? [],
+      renderer: window.__XIANGQI_PERFORMANCE__,
+    };
+  });
+  const frameCadence = summarizeFrameIntervals(evidence.frameIntervals);
+  const comparedEvidence = {
+    ...evidence,
+    authoritativeFrameGate,
+    documentedPreAiP95Ms: DOCUMENTED_PRE_AI_P95_MS,
+    frameCadence,
+    regressionLimitP95Ms: AI_P95_REGRESSION_LIMIT_MS,
+  };
+  await testInfo.attach("ai-performance-evidence.json", {
+    body: Buffer.from(JSON.stringify(comparedEvidence, null, 2)),
+    contentType: "application/json",
+  });
+  console.info(`AI_PERFORMANCE_EVIDENCE ${JSON.stringify(comparedEvidence)}`);
+
+  expect(evidence.searchMeasureStarted).toBe(true);
+  expect(evidence.searchLongTasks.filter((duration) => duration > 50)).toEqual([]);
+  if (authoritativeFrameGate) {
+    expect(evidence.renderer?.sampleCount ?? 0).toBeGreaterThanOrEqual(30);
+    expect(evidence.renderer?.p95FrameIntervalMs ?? Infinity)
+      .toBeLessThanOrEqual(AI_P95_REGRESSION_LIMIT_MS);
+  }
+  expect(evidence.renderer?.peakDrawCalls ?? Infinity).toBeLessThanOrEqual(160);
+  expect(evidence.renderer?.currentDrawCalls ?? Infinity).toBeLessThanOrEqual(100);
 });

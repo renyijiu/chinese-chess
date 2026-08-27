@@ -4,6 +4,7 @@ import {
   dispatch,
   getLegalMoves,
   getPieceAt,
+  isInCheck,
   type GameState,
 } from "../../../lib/xiangqi/index";
 import {
@@ -12,6 +13,7 @@ import {
   evaluatePosition,
   getDeterministicFallbackCandidate,
   runLightweightSearchBatched,
+  type LightweightTier,
 } from "../../../lib/xiangqi/ai/index";
 import { makeState, piece } from "../xiangqi/fixtures";
 
@@ -225,6 +227,85 @@ describe("lightweight Xiangqi search", () => {
     expect(search.result()).toMatchObject({ candidate: null, source: "none" });
     expect(evaluatePosition(resigned.state)).toBeLessThan(-900_000);
   });
+
+  it.each([
+    "lightweight-easy",
+    "lightweight-normal",
+    "lightweight-hard",
+  ] satisfies LightweightTier[])("finishes a forced terminal path exactly once at %s", async (tier) => {
+    const state = makeState([
+      piece("red:general:0", "red", "general", 4, 0),
+      piece("black:general:0", "black", "general", 4, 9),
+      piece("red:chariot:mate", "red", "chariot", 4, 7),
+      piece("red:soldier:left", "red", "soldier", 3, 8),
+      piece("red:soldier:right", "red", "soldier", 5, 8),
+      piece("black:soldier:block", "black", "soldier", 4, 8),
+    ]);
+    expect(state.status).toEqual({ kind: "playing", check: null });
+    expect(isInCheck(state, "red")).toBe(false);
+    expect(isInCheck(state, "black")).toBe(false);
+    const limits = LIGHTWEIGHT_TIER_LIMITS[tier];
+    const search = await runLightweightSearchBatched(state, {
+      tier,
+      seed: "s2",
+      ...limits,
+      safetyDeadlineMs: 60_000,
+      now: () => 0,
+      yieldTask: async () => undefined,
+      isCancelled: () => false,
+    });
+    expect(search.candidate).toEqual({
+      from: { file: 4, rank: 7 },
+      to: { file: 4, rank: 8 },
+    });
+    const result = dispatch(state, {
+      type: "move",
+      expectedRevision: state.revision,
+      ...search.candidate!,
+    });
+    expect(result.error).toBeUndefined();
+    expect(result.state.revision).toBe(1);
+    expect(result.state.status).toMatchObject({ kind: "ended", reason: "checkmate" });
+    expect(result.events.map((event) => event.type)).toEqual([
+      "MoveCommitted",
+      "PieceCaptured",
+      "CheckDeclared",
+      "GameEnded",
+    ]);
+  });
+
+  it("completes a representative engine game with one revision and capture event per move", () => {
+    let state = createInitialGame();
+    let capturedMoves = 0;
+    for (let ply = 0; ply < 150 && state.status.kind === "playing"; ply += 1) {
+      const search = createLightweightSearch(state, {
+        tier: "lightweight-easy",
+        seed: "terminal-path",
+        safetyDeadlineMs: 60_000,
+        now: () => 0,
+      });
+      while (!search.step(2_048).done) { /* drain deterministic cooperative batches */ }
+      const candidate = search.result().candidate;
+      expect(candidate).not.toBeNull();
+      const beforeRevision = state.revision;
+      const result = dispatch(state, {
+        type: "move",
+        expectedRevision: beforeRevision,
+        ...candidate!,
+      });
+      expect(result.error).toBeUndefined();
+      expect(result.state.revision).toBe(beforeRevision + 1);
+      expect(result.events.filter((event) => event.type === "MoveCommitted")).toHaveLength(1);
+      const captureEvents = result.events.filter((event) => event.type === "PieceCaptured");
+      expect(captureEvents).toHaveLength(result.state.lastAction?.kind === "move"
+        && result.state.lastAction.move.captured ? 1 : 0);
+      capturedMoves += captureEvents.length;
+      state = result.state;
+    }
+    expect(state.status).toMatchObject({ kind: "ended", reason: "checkmate" });
+    expect(state.revision).toBe(76);
+    expect(capturedMoves).toBe(17);
+  }, 30_000);
 
   it("keeps candidates legal through representative randomized play", () => {
     let state = createInitialGame();

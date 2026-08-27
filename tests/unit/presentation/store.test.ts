@@ -90,6 +90,7 @@ describe("PresentationStore", () => {
 
     await expect(finished).resolves.toMatchObject({ reason: "dispose" });
     expect(store.resourceCounts).toEqual({ activeTimelines: 0, cueListeners: 0, listeners: 0, timers: 0 });
+    expect(store.debugSnapshot().completedActionIds).toEqual([]);
     await vi.runAllTimersAsync();
     expect(cueListener).not.toHaveBeenCalled();
   });

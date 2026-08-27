@@ -64,6 +64,7 @@ export class PresentationStore {
   private readonly cueListeners = new Set<(cue: PresentationCue) => void>();
   private readonly listeners = new Set<() => void>();
   private readonly timeline = new TimelineDirector();
+  private disposed = false;
   private fallbackActionId: string | null = null;
   private fallbackTimer: ReturnType<typeof setTimeout> | null = null;
   private snapshot: PresentationSnapshot = IDLE_SNAPSHOT;
@@ -94,6 +95,14 @@ export class PresentationStore {
       cueListeners: this.cueListeners.size,
       listeners: this.listeners.size,
       timers: this.fallbackTimer === null ? 0 : 1,
+    } as const;
+  }
+
+  debugSnapshot() {
+    return {
+      activeActionId: this.snapshot.active?.transition.actionId ?? null,
+      completedActionIds: [...this.completedIds],
+      ...this.resourceCounts,
     } as const;
   }
 
@@ -143,10 +152,12 @@ export class PresentationStore {
       timeoutMs,
     }).then((result) => {
       this.clearFallbackTimer(transition.actionId);
-      this.completedIds.add(transition.actionId);
-      if (this.completedIds.size > 256) {
-        const oldest = this.completedIds.values().next().value as string | undefined;
-        if (oldest) this.completedIds.delete(oldest);
+      if (!this.disposed) {
+        this.completedIds.add(transition.actionId);
+        if (this.completedIds.size > 256) {
+          const oldest = this.completedIds.values().next().value as string | undefined;
+          if (oldest) this.completedIds.delete(oldest);
+        }
       }
       if (this.snapshot.active?.transition.actionId === transition.actionId) {
         this.snapshot = IDLE_SNAPSHOT;
@@ -175,7 +186,9 @@ export class PresentationStore {
   }
 
   dispose() {
+    this.disposed = true;
     this.skip("dispose");
+    this.completedIds.clear();
     this.cueListeners.clear();
     this.listeners.clear();
     this.snapshot = IDLE_SNAPSHOT;
