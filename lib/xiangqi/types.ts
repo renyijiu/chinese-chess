@@ -73,7 +73,7 @@ export type ReplayCommand =
       readonly to: Square;
     }
   | { readonly type: "undo" }
-  | { readonly type: "resign" };
+  | { readonly type: "resign"; readonly side?: Side };
 
 export type LastAction =
   | {
@@ -121,6 +121,7 @@ export interface UndoCommand extends RevisionedCommand {
 
 export interface ResignCommand extends RevisionedCommand {
   readonly type: "resign";
+  readonly side?: Side;
 }
 
 export type GameCommand = MoveCommand | UndoCommand | ResignCommand;

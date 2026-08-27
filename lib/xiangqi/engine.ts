@@ -494,6 +494,9 @@ function replayCommand(command: GameCommand): ReplayCommand {
   if (command.type === "move") {
     return { type: "move", from: cloneSquare(command.from), to: cloneSquare(command.to) };
   }
+  if (command.type === "resign" && command.side) {
+    return { type: "resign", side: command.side };
+  }
   return { type: command.type };
 }
 
@@ -657,7 +660,7 @@ function dispatchResign(state: GameState, command: Extract<GameCommand, { type: 
   if (state.status.kind === "ended") {
     return rejected(state, "game-over", "The game has already ended.");
   }
-  const resigningSide = state.sideToMove;
+  const resigningSide = command.side ?? state.sideToMove;
   const revision = state.revision + 1;
   const status = endedStatus(otherSide(resigningSide), "resignation");
   const nextState: GameState = {

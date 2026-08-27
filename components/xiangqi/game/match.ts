@@ -1,6 +1,8 @@
 import { createInitialGame, type GameState, type Side } from "../../../lib/xiangqi/index";
 
-export type MatchMode = "local" | "computer";
+export const ONLINE_MATCH_PROTOCOL_VERSION = 1 as const;
+
+export type MatchMode = "local" | "computer" | "online";
 export type ComputerDifficulty = "easy" | "normal" | "hard" | "master";
 export type DieResult = 1 | 2 | 3 | 4 | 5 | 6;
 export type OpponentTier =
@@ -23,7 +25,19 @@ export type ComputerMatchConfig = Readonly<{
   effectiveTier: OpponentTier;
 }>;
 
-export type MatchConfig = LocalMatchConfig | ComputerMatchConfig;
+export type OnlineMatchConfig = Readonly<{
+  mode: "online";
+  protocolVersion: typeof ONLINE_MATCH_PROTOCOL_VERSION;
+  pairingId: string;
+  matchId: string;
+  rematchIndex: number;
+  localPeerId: string;
+  remotePeerId: string;
+  localSide: Side;
+  signalingRole: "host" | "guest";
+}>;
+
+export type MatchConfig = LocalMatchConfig | ComputerMatchConfig | OnlineMatchConfig;
 
 export type SavedMatch = Readonly<{
   config: MatchConfig;
@@ -56,6 +70,17 @@ const COMPUTER_KEYS = [
   "requestedDifficulty",
   "seed",
 ] as const;
+const ONLINE_KEYS = [
+  "localPeerId",
+  "localSide",
+  "matchId",
+  "mode",
+  "pairingId",
+  "protocolVersion",
+  "rematchIndex",
+  "remotePeerId",
+  "signalingRole",
+] as const;
 
 function systemEntropy(target: Uint8Array): void {
   const cryptoApi = globalThis.crypto;
@@ -82,6 +107,21 @@ function isDifficulty(value: unknown): value is ComputerDifficulty {
 
 function isOpponentTier(value: unknown): value is OpponentTier {
   return typeof value === "string" && TIERS.has(value as OpponentTier);
+}
+
+function isBoundedId(value: unknown): value is string {
+  return typeof value === "string"
+    && value.trim().length > 0
+    && value.length <= 128;
+}
+
+function onlineSide(
+  rematchIndex: number,
+  signalingRole: OnlineMatchConfig["signalingRole"],
+): Side {
+  const hostSide = rematchIndex % 2 === 0 ? "red" : "black";
+  if (signalingRole === "host") return hostSide;
+  return hostSide === "red" ? "black" : "red";
 }
 
 function defaultTier(difficulty: ComputerDifficulty): OpponentTier {
@@ -132,6 +172,40 @@ export function parseMatchConfig(value: unknown): MatchConfig {
       throw new MatchConfigError("Local matches cannot contain computer-only fields.");
     }
     return { mode: "local" };
+  }
+  if (value.mode === "online") {
+    if (!hasExactKeys(value, ONLINE_KEYS)) {
+      throw new MatchConfigError("Online match config is incomplete or contains unknown fields.");
+    }
+    if (
+      value.protocolVersion !== ONLINE_MATCH_PROTOCOL_VERSION
+      || !isBoundedId(value.pairingId)
+      || !isBoundedId(value.matchId)
+      || typeof value.rematchIndex !== "number"
+      || !Number.isSafeInteger(value.rematchIndex)
+      || value.rematchIndex < 0
+      || !isBoundedId(value.localPeerId)
+      || !isBoundedId(value.remotePeerId)
+      || value.localPeerId === value.remotePeerId
+      || (value.localSide !== "red" && value.localSide !== "black")
+      || (value.signalingRole !== "host" && value.signalingRole !== "guest")
+    ) {
+      throw new MatchConfigError("Online match config contains an invalid field.");
+    }
+    if (value.localSide !== onlineSide(value.rematchIndex, value.signalingRole)) {
+      throw new MatchConfigError("Online side does not match the signaling role and rematch index.");
+    }
+    return {
+      mode: "online",
+      protocolVersion: ONLINE_MATCH_PROTOCOL_VERSION,
+      pairingId: value.pairingId,
+      matchId: value.matchId,
+      rematchIndex: value.rematchIndex,
+      localPeerId: value.localPeerId,
+      remotePeerId: value.remotePeerId,
+      localSide: value.localSide,
+      signalingRole: value.signalingRole,
+    };
   }
   if (value.mode !== "computer" || !hasExactKeys(value, COMPUTER_KEYS)) {
     throw new MatchConfigError("Computer match config is incomplete or contains unknown fields.");
@@ -187,6 +261,17 @@ export function createComputerMatch(
     effectiveTier: defaultTier(requestedDifficulty),
   };
   return { config, game, revision: game.revision };
+}
+
+export function createOnlineMatch(
+  config: OnlineMatchConfig,
+  game: GameState = createInitialGame(),
+): SavedMatch {
+  const parsed = parseMatchConfig(config);
+  if (parsed.mode !== "online") {
+    throw new MatchConfigError("Expected an online match config.");
+  }
+  return { config: parsed, game, revision: game.revision };
 }
 
 export function setEffectiveOpponentTier(

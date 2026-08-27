@@ -12,14 +12,17 @@ import {
   type SavedMatch,
 } from "./match";
 
-export const GAME_SAVE_KEY = "xiangqi3d:game:v2";
-export const GAME_SAVE_BACKUP_KEY = "xiangqi3d:game:v2:backup";
+export const GAME_SAVE_KEY = "xiangqi3d:game:v3";
+export const GAME_SAVE_BACKUP_KEY = "xiangqi3d:game:v3:backup";
+export const GAME_SAVE_V2_KEY = "xiangqi3d:game:v2";
+export const GAME_SAVE_V2_BACKUP_KEY = "xiangqi3d:game:v2:backup";
 export const LEGACY_GAME_SAVE_KEY = "xiangqi3d:game:v1";
 export const LEGACY_GAME_SAVE_BACKUP_KEY = "xiangqi3d:game:v1:backup";
 export const GAME_SETTINGS_KEY = "xiangqi3d:settings:v1";
 
 const SAVE_KIND = "xiangqi-game-save";
-const SAVE_VERSION = 2;
+const SAVE_VERSION = 3;
+const PREVIOUS_SAVE_VERSION = 2;
 const LEGACY_SAVE_VERSION = 1;
 const SETTINGS_VERSION = 1;
 
@@ -66,7 +69,8 @@ export type LoadGameResult = Readonly<{
   /** Temporary compatibility alias for the pre-v2 local-game controller. */
   game: GameState | null;
   source: "primary" | "backup" | "none";
-  migratedFrom?: 1;
+  resumeKind: "direct" | "reconnect" | "none";
+  migratedFrom?: 1 | 2;
   warning?: string;
 }>;
 
@@ -93,13 +97,13 @@ function isStoredRevision(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value >= 0;
 }
 
-function parseEnvelope(raw: string): { envelope: SaveEnvelope; savedMatch: SavedMatch } {
+function parseVersionedEnvelope(raw: string, version: 2 | 3): SavedMatch {
   const value: unknown = JSON.parse(raw);
   if (
     !isRecord(value) ||
     !hasExactKeys(value, ["kind", "version", "savedAt", "revision", "serialized", "match"]) ||
     value.kind !== SAVE_KIND ||
-    value.version !== SAVE_VERSION ||
+    value.version !== version ||
     typeof value.savedAt !== "number" ||
     !Number.isFinite(value.savedAt) ||
     !isStoredRevision(value.revision) ||
@@ -112,18 +116,10 @@ function parseEnvelope(raw: string): { envelope: SaveEnvelope; savedMatch: Saved
     throw new Error("Stored and replayed revisions do not match");
   }
   const match = parseMatchConfig(value.match);
-  const envelope: SaveEnvelope = {
-    kind: SAVE_KIND,
-    version: SAVE_VERSION,
-    savedAt: value.savedAt,
-    revision: value.revision,
-    serialized: value.serialized,
-    match,
-  };
-  return {
-    envelope,
-    savedMatch: { config: match, game, revision: value.revision },
-  };
+  if (version === PREVIOUS_SAVE_VERSION && match.mode === "online") {
+    throw new Error("Online matches require a v3 save envelope");
+  }
+  return { config: match, game, revision: value.revision };
 }
 
 function parseLegacyEnvelope(raw: string): SavedMatch {
@@ -142,10 +138,10 @@ function parseLegacyEnvelope(raw: string): SavedMatch {
   return createLocalMatch(deserializeGame(value.serialized));
 }
 
-function tryLoad(raw: string | null): SavedMatch | null {
+function tryLoad(raw: string | null, version: 2 | 3 = SAVE_VERSION): SavedMatch | null {
   if (!raw) return null;
   try {
-    return parseEnvelope(raw).savedMatch;
+    return parseVersionedEnvelope(raw, version);
   } catch {
     return null;
   }
@@ -163,12 +159,13 @@ function tryLoadLegacy(raw: string | null): SavedMatch | null {
 function loadedResult(
   savedMatch: SavedMatch,
   source: "primary" | "backup",
-  options: Readonly<{ migratedFrom?: 1; warning?: string }> = {},
+  options: Readonly<{ migratedFrom?: 1 | 2; warning?: string }> = {},
 ): LoadGameResult {
   return {
     savedMatch,
     game: savedMatch.game,
     source,
+    resumeKind: savedMatch.config.mode === "online" ? "reconnect" : "direct",
     ...options,
   };
 }
@@ -176,11 +173,15 @@ function loadedResult(
 export function loadGameSnapshot(storage: StorageLike): LoadGameResult {
   let primary: string | null = null;
   let backup: string | null = null;
+  let v2Primary: string | null = null;
+  let v2Backup: string | null = null;
   let legacyPrimary: string | null = null;
   let legacyBackup: string | null = null;
   try {
     primary = storage.getItem(GAME_SAVE_KEY);
     backup = storage.getItem(GAME_SAVE_BACKUP_KEY);
+    v2Primary = storage.getItem(GAME_SAVE_V2_KEY);
+    v2Backup = storage.getItem(GAME_SAVE_V2_BACKUP_KEY);
     legacyPrimary = storage.getItem(LEGACY_GAME_SAVE_KEY);
     legacyBackup = storage.getItem(LEGACY_GAME_SAVE_BACKUP_KEY);
   } catch {
@@ -188,6 +189,7 @@ export function loadGameSnapshot(storage: StorageLike): LoadGameResult {
       savedMatch: null,
       game: null,
       source: "none",
+      resumeKind: "none",
       warning: "浏览器存储不可用，本局将只保存在内存中。",
     };
   }
@@ -199,6 +201,22 @@ export function loadGameSnapshot(storage: StorageLike): LoadGameResult {
   if (backupMatch) {
     return loadedResult(backupMatch, "backup", {
       warning: "主存档损坏，已恢复最后一次有效备份。",
+    });
+  }
+
+  const v2PrimaryMatch = tryLoad(v2Primary, PREVIOUS_SAVE_VERSION);
+  if (v2PrimaryMatch) {
+    return loadedResult(v2PrimaryMatch, "primary", {
+      migratedFrom: 2,
+      warning: "旧版对局存档已安全迁移。",
+    });
+  }
+
+  const v2BackupMatch = tryLoad(v2Backup, PREVIOUS_SAVE_VERSION);
+  if (v2BackupMatch) {
+    return loadedResult(v2BackupMatch, "backup", {
+      migratedFrom: 2,
+      warning: "旧版主存档损坏，已迁移最后一次有效备份。",
     });
   }
 
@@ -218,15 +236,16 @@ export function loadGameSnapshot(storage: StorageLike): LoadGameResult {
     });
   }
 
-  if (primary || backup || legacyPrimary || legacyBackup) {
+  if (primary || backup || v2Primary || v2Backup || legacyPrimary || legacyBackup) {
     return {
       savedMatch: null,
       game: null,
       source: "none",
+      resumeKind: "none",
       warning: "本地存档已损坏，开始新局前不会覆盖原数据。",
     };
   }
-  return { savedMatch: null, game: null, source: "none" };
+  return { savedMatch: null, game: null, source: "none", resumeKind: "none" };
 }
 
 function isSavedMatch(value: SavedMatch | GameState): value is SavedMatch {

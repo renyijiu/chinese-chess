@@ -53,6 +53,11 @@ export function deriveGameHudPermissions(
   match: SavedMatch,
   commandBusy: boolean,
 ): GameHudPermissions {
+  const resigningSide = match.config.mode === "computer"
+    ? match.config.humanSide
+    : match.config.mode === "online"
+      ? match.config.localSide
+      : match.game.sideToMove;
   return {
     showUndo: match.config.mode === "local",
     canUndo: match.config.mode === "local"
@@ -60,7 +65,7 @@ export function deriveGameHudPermissions(
       && !commandBusy,
     canResign: match.game.status.kind === "playing"
       && !commandBusy
-      && (match.config.mode === "local" || match.game.sideToMove === match.config.humanSide),
+      && match.game.sideToMove === resigningSide,
   };
 }
 

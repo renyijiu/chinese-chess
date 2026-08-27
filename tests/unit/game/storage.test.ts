@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { createInitialGame, dispatch } from "../../../lib/xiangqi/index";
+import { createInitialGame, dispatch, serializeGame } from "../../../lib/xiangqi/index";
 import {
   createComputerMatch,
   createLocalMatch,
+  createOnlineMatch,
   setEffectiveOpponentTier,
   type EntropySource,
 } from "../../../components/xiangqi/game/match";
@@ -12,6 +13,8 @@ import {
   GAME_SAVE_BACKUP_KEY,
   GAME_SAVE_KEY,
   GAME_SETTINGS_KEY,
+  GAME_SAVE_V2_BACKUP_KEY,
+  GAME_SAVE_V2_KEY,
   LEGACY_GAME_SAVE_BACKUP_KEY,
   LEGACY_GAME_SAVE_KEY,
   loadGameSnapshot,
@@ -51,11 +54,12 @@ describe("local game persistence", () => {
     const loaded = loadGameSnapshot(storage);
 
     expect(loaded.source).toBe("primary");
+    expect(loaded.resumeKind).toBe("direct");
     expect(loaded.savedMatch).toEqual(match);
     expect(loaded.game?.revision).toBe(0);
     expect(JSON.parse(storage.getItem(GAME_SAVE_KEY) ?? "{}")).toMatchObject({
       kind: "xiangqi-game-save",
-      version: 2,
+      version: 3,
       savedAt: 1_700_000_000_000,
       revision: 0,
       match: { mode: "local" },
@@ -91,6 +95,7 @@ describe("local game persistence", () => {
     const loaded = loadGameSnapshot(storage);
     expect(loaded.game).toBeNull();
     expect(loaded.source).toBe("none");
+    expect(loaded.resumeKind).toBe("none");
     expect(loaded.warning).toMatch(/损坏/);
   });
 
@@ -158,6 +163,7 @@ describe("local game persistence", () => {
     const loaded = loadGameSnapshot(storage);
 
     expect(loaded.savedMatch).toEqual(match);
+    expect(loaded.resumeKind).toBe("direct");
     expect(loaded.savedMatch?.config).toMatchObject({
       mode: "computer",
       dieResult: 2,
@@ -194,6 +200,7 @@ describe("local game persistence", () => {
     const loaded = loadGameSnapshot(storage);
     expect(loaded.source).toBe("primary");
     expect(loaded.migratedFrom).toBe(1);
+    expect(loaded.resumeKind).toBe("direct");
     expect(loaded.savedMatch).toMatchObject({
       config: { mode: "local" },
       revision: 0,
@@ -220,6 +227,61 @@ describe("local game persistence", () => {
       source: "backup",
       migratedFrom: 1,
       savedMatch: { config: { mode: "local" } },
+    });
+  });
+
+  it("migrates v2 primary and backup snapshots without deleting them", () => {
+    const match = createComputerMatch("normal", { entropy: fixedEntropy });
+    const v2Envelope = {
+      kind: "xiangqi-game-save",
+      version: 2,
+      savedAt: 20,
+      revision: match.revision,
+      serialized: serializeGame(match.game),
+      match: match.config,
+    };
+
+    const primaryStorage = new MemoryStorage();
+    primaryStorage.setItem(GAME_SAVE_V2_KEY, JSON.stringify(v2Envelope));
+    expect(loadGameSnapshot(primaryStorage)).toMatchObject({
+      source: "primary",
+      migratedFrom: 2,
+      resumeKind: "direct",
+      savedMatch: { config: { mode: "computer" } },
+    });
+    expect(saveGameSnapshot(primaryStorage, match, 21)).toMatchObject({ ok: true });
+    expect(primaryStorage.getItem(GAME_SAVE_V2_KEY)).toBe(JSON.stringify(v2Envelope));
+
+    const backupStorage = new MemoryStorage();
+    backupStorage.setItem(GAME_SAVE_V2_KEY, "broken");
+    backupStorage.setItem(GAME_SAVE_V2_BACKUP_KEY, JSON.stringify(v2Envelope));
+    expect(loadGameSnapshot(backupStorage)).toMatchObject({
+      source: "backup",
+      migratedFrom: 2,
+      resumeKind: "direct",
+      savedMatch: { config: { mode: "computer" } },
+    });
+  });
+
+  it("persists online matches for reconnect rather than direct continuation", () => {
+    const storage = new MemoryStorage();
+    const match = createOnlineMatch({
+      mode: "online",
+      protocolVersion: 1,
+      pairingId: "pairing-1",
+      matchId: "match-1",
+      rematchIndex: 0,
+      localPeerId: "peer-host",
+      remotePeerId: "peer-guest",
+      localSide: "red",
+      signalingRole: "host",
+    });
+
+    expect(saveGameSnapshot(storage, match, 30)).toMatchObject({ ok: true });
+    expect(loadGameSnapshot(storage)).toMatchObject({
+      source: "primary",
+      resumeKind: "reconnect",
+      savedMatch: match,
     });
   });
 
