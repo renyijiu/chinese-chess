@@ -61,6 +61,9 @@ test("restores a persisted die confirmation without rerolling", async ({ page })
 });
 
 test("orients for human black and lets the computer open while controls stay responsive", async ({ page }) => {
+  const lightweightWorkerResponse = page.waitForResponse((response) => (
+    /lightweight\.worker(?:-[A-Za-z0-9_-]+\.js|\.ts)/.test(response.url())
+  ));
   await forceNextDie(page, 4);
   await openCleanGame(page, "low", true);
   await chooseComputerMode(page, "困难");
@@ -76,10 +79,18 @@ test("orients for human black and lets the computer open while controls stay res
   await page.getByRole("button", { name: "取消" }).click();
   await expect(page.getByRole("status", { name: "对手状态" })).toContainText(/思考|落子|结算|轮到你/);
   await waitForRevision(page, 1);
+  const workerResponse = await lightweightWorkerResponse;
+  expect(workerResponse.status()).toBe(200);
+  expect((await workerResponse.allHeaders())["cross-origin-embedder-policy"]).toBe("require-corp");
   await expect(page.getByRole("button", { name: "认输" })).toBeEnabled();
 });
 
 test("discloses Master fallback, hides computer undo, and preserves local undo", async ({ page }) => {
+  await page.route("**/engines/fairy-stockfish-nnue/1.1.12/manifest.json", (route) => route.fulfill({
+    body: "Master unavailable in this scenario",
+    contentType: "text/plain",
+    status: 404,
+  }));
   await forceNextDie(page, 5);
   await openCleanGame(page, "low", true);
   await chooseComputerMode(page, "大师");
@@ -103,6 +114,40 @@ test("discloses Master fallback, hides computer undo, and preserves local undo",
   await page.reload({ waitUntil: "domcontentloaded" });
   await page.getByRole("button", { name: "开始本机双人对局" }).click();
   await expect(page.getByRole("button", { name: "悔棋" })).toBeVisible();
+});
+
+test("boots the isolated verified Master Worker and commits one legal opening move", async ({ page }) => {
+  test.setTimeout(60_000);
+  const failedEngineRequests: string[] = [];
+  page.on("requestfailed", (request) => {
+    if (/\/(?:engines\/fairy-stockfish-nnue|workers\/xiangqi-master)/.test(request.url())) {
+      failedEngineRequests.push(request.url());
+    }
+  });
+  await forceNextDie(page, 4);
+  await openCleanGame(page, "low", true);
+  await page.evaluate(async () => {
+    for (const name of await caches.keys()) {
+      if (name.startsWith("xiangqi-master:")) await caches.delete(name);
+    }
+  });
+  await expect.poll(() => page.evaluate(() => ({
+    isolated: crossOriginIsolated,
+    secure: isSecureContext,
+    shared: typeof SharedArrayBuffer === "function",
+  }))).toEqual({ isolated: true, secure: true, shared: true });
+
+  await chooseComputerMode(page, "大师");
+  await page.getByRole("button", { name: "掷骰决定阵营" }).click();
+  await page.getByRole("button", { name: "以黑方开始对局" }).click();
+  await expect(page.getByRole("status", { name: "对手状态" })).toContainText("大师");
+  await expect(page.locator(".xiangqi-game-shell")).toHaveAttribute("data-game-revision", "1", { timeout: 40_000 });
+  await expect(page.locator(".game-keyboard-control button")).toHaveAttribute("aria-disabled", "false", { timeout: 20_000 });
+  await expect.poll(() => page.evaluate(() => {
+    const raw = window.localStorage.getItem("xiangqi3d:game:v2");
+    return raw ? JSON.parse(raw).match.effectiveTier : null;
+  })).toBe("fairy-master");
+  expect(failedEngineRequests).toEqual([]);
 });
 
 test("keeps setup and presentation controls usable at 390 by 844", async ({ page }) => {

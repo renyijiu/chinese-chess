@@ -2,18 +2,18 @@ import assert from "node:assert/strict";
 import { readFile, stat } from "node:fs/promises";
 import test from "node:test";
 
-async function render() {
+async function render(path = "/", assetResponse = new Response("Not found", { status: 404 })) {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
   const { default: worker } = await import(workerUrl.href);
 
   return worker.fetch(
-    new Request("http://localhost/", {
+    new Request(new URL(path, "http://localhost/"), {
       headers: { accept: "text/html" },
     }),
     {
       ASSETS: {
-        fetch: async () => new Response("Not found", { status: 404 }),
+        fetch: async () => assetResponse.clone(),
       },
     },
     {
@@ -27,6 +27,9 @@ test("server-renders the fullscreen Qin terracotta game", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
+  assert.equal(response.headers.get("cross-origin-opener-policy"), "same-origin");
+  assert.equal(response.headers.get("cross-origin-embedder-policy"), "require-corp");
+  assert.equal(response.headers.get("cross-origin-resource-policy"), "same-origin");
 
   const html = await response.text();
   assert.match(html, /<html lang="zh-CN" style="/);
@@ -43,6 +46,72 @@ test("server-renders the fullscreen Qin terracotta game", async () => {
   assert.doesNotMatch(html, /俑已列阵/);
   assert.doesNotMatch(html, /棋盘规格/);
   assert.doesNotMatch(html, /沙盘设计/);
+});
+
+test("serves Master assets with exact MIME, isolation, and version-aware cache policy", async () => {
+  const generatedWrangler = JSON.parse(await readFile(
+    new URL("../dist/server/wrangler.json", import.meta.url),
+    "utf8",
+  ));
+  assert.equal(generatedWrangler.assets.binding, "ASSETS");
+  assert.deepEqual(generatedWrangler.assets.run_worker_first, [
+    "/engines/fairy-stockfish-nnue/1.1.12/*",
+    "/workers/xiangqi-master-v1.worker.js",
+    "/_next/static/lightweight.worker-*.js",
+  ]);
+
+  const wasm = await render(
+    "/engines/fairy-stockfish-nnue/1.1.12/stockfish.wasm",
+    new Response(new Uint8Array([0, 97, 115, 109]), {
+      headers: { "content-type": "application/octet-stream", "x-upstream": "kept" },
+    }),
+  );
+  assert.equal(wasm.status, 200);
+  assert.equal(wasm.headers.get("content-type"), "application/wasm");
+  assert.equal(wasm.headers.get("cache-control"), "public, max-age=31536000, immutable");
+  assert.equal(wasm.headers.get("x-upstream"), "kept");
+  assert.equal(wasm.headers.get("cross-origin-embedder-policy"), "require-corp");
+
+  const manifest = await render(
+    "/engines/fairy-stockfish-nnue/1.1.12/manifest.json",
+    new Response("{}", { headers: { "content-type": "application/json" } }),
+  );
+  assert.equal(manifest.headers.get("content-type"), "application/json; charset=utf-8");
+  assert.equal(manifest.headers.get("cache-control"), "no-cache, must-revalidate");
+
+  const hostWorker = await render(
+    "/workers/xiangqi-master-v1.worker.js",
+    new Response("self.onmessage = () => {};", { headers: { "content-type": "text/plain" } }),
+  );
+  assert.equal(hostWorker.headers.get("content-type"), "text/javascript; charset=utf-8");
+  assert.equal(hostWorker.headers.get("cache-control"), "public, max-age=31536000, immutable");
+
+  const lightweightWorker = await render(
+    "/_next/static/lightweight.worker-AbC_123.js",
+    new Response("self.onmessage = () => {};", { headers: { "content-type": "text/plain" } }),
+  );
+  assert.equal(lightweightWorker.status, 200);
+  assert.equal(lightweightWorker.headers.get("content-type"), "text/javascript; charset=utf-8");
+  assert.equal(lightweightWorker.headers.get("cache-control"), "public, max-age=31536000, immutable");
+  assert.equal(lightweightWorker.headers.get("cross-origin-embedder-policy"), "require-corp");
+});
+
+test("rejects engine HTML fallthrough and preserves missing-asset status", async () => {
+  const html = await render(
+    "/engines/fairy-stockfish-nnue/1.1.12/stockfish.wasm",
+    new Response("<!doctype html>", { headers: { "content-type": "text/html" } }),
+  );
+  assert.equal(html.status, 502);
+  assert.equal(html.headers.get("cache-control"), "no-store");
+  assert.equal(html.headers.get("cross-origin-opener-policy"), "same-origin");
+
+  const missing = await render(
+    "/engines/fairy-stockfish-nnue/1.1.12/stockfish.wasm",
+    new Response("missing", { status: 404, headers: { "x-upstream": "kept" } }),
+  );
+  assert.equal(missing.status, 404);
+  assert.equal(missing.headers.get("x-upstream"), "kept");
+  assert.equal(missing.headers.get("cross-origin-embedder-policy"), "require-corp");
 });
 
 test("keeps the rule-correct board and modular R3F runtime wired", async () => {

@@ -19,6 +19,10 @@ import {
 } from "../../lib/xiangqi/index";
 import { LightweightWorkerProvider } from "./ai/LightweightWorkerProvider";
 import {
+  createMasterEngineProvider,
+  MASTER_SEARCH_LIMITS,
+} from "./ai/MasterEngineAdapter";
+import {
   OpponentCoordinator,
   type OpponentCandidateRelease,
   type OpponentCoordinatorSnapshot,
@@ -269,9 +273,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
   const [runtime] = useState(() => new ControllerRuntime(match));
   const [opponent] = useState(() => new OpponentCoordinator({
     providerFactory: async (tier) => {
-      // U7 injects the verified Master adapter. Until then, the coordinator's
-      // persisted fallback contract selects the lightweight Hard provider.
-      if (tier === "fairy-master") throw new Error("Master provider is not installed yet.");
+      if (tier === "fairy-master") return createMasterEngineProvider();
       return new LightweightWorkerProvider();
     },
     onFallback: ({ matchId, toTier }) => {
@@ -636,11 +638,13 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     const config = match.config;
     if (config.mode !== "computer") return;
     const tier = opponentSnapshot.effectiveTier;
-    if (!tier || tier === "fairy-master") return;
+    if (!tier) return;
     const requestKey = opponentTurnRequestKey(match, opponentSnapshot.generation);
     if (!requestKey || requestedOpponentTurn.current === requestKey) return;
     requestedOpponentTurn.current = requestKey;
-    const limits = LIGHTWEIGHT_TIER_LIMITS[tier];
+    const limits = tier === "fairy-master"
+      ? MASTER_SEARCH_LIMITS
+      : LIGHTWEIGHT_TIER_LIMITS[tier];
     void opponent.requestTurn({
       matchId: config.matchId,
       serializedGame: serializeGame(match.game),
