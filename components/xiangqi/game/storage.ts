@@ -5,13 +5,22 @@ import {
 } from "../../../lib/xiangqi/index";
 import { DEFAULT_AUDIO_MIX } from "../audio/audio-types";
 import type { QualityTier } from "../runtime/quality";
+import {
+  createLocalMatch,
+  parseMatchConfig,
+  type MatchConfig,
+  type SavedMatch,
+} from "./match";
 
-export const GAME_SAVE_KEY = "xiangqi3d:game:v1";
-export const GAME_SAVE_BACKUP_KEY = "xiangqi3d:game:v1:backup";
+export const GAME_SAVE_KEY = "xiangqi3d:game:v2";
+export const GAME_SAVE_BACKUP_KEY = "xiangqi3d:game:v2:backup";
+export const LEGACY_GAME_SAVE_KEY = "xiangqi3d:game:v1";
+export const LEGACY_GAME_SAVE_BACKUP_KEY = "xiangqi3d:game:v1:backup";
 export const GAME_SETTINGS_KEY = "xiangqi3d:settings:v1";
 
 const SAVE_KIND = "xiangqi-game-save";
-const SAVE_VERSION = 1;
+const SAVE_VERSION = 2;
+const LEGACY_SAVE_VERSION = 1;
 const SETTINGS_VERSION = 1;
 
 export interface StorageLike {
@@ -47,12 +56,17 @@ type SaveEnvelope = Readonly<{
   kind: typeof SAVE_KIND;
   version: typeof SAVE_VERSION;
   savedAt: number;
+  revision: number;
   serialized: string;
+  match: MatchConfig;
 }>;
 
 export type LoadGameResult = Readonly<{
+  savedMatch: SavedMatch | null;
+  /** Temporary compatibility alias for the pre-v2 local-game controller. */
   game: GameState | null;
   source: "primary" | "backup" | "none";
+  migratedFrom?: 1;
   warning?: string;
 }>;
 
@@ -60,82 +74,187 @@ export type StorageWriteResult =
   | Readonly<{ ok: true }>
   | Readonly<{ ok: false; warning: string }>;
 
+export type GameStorageWriteResult =
+  | Readonly<{ ok: true; resumable: true }>
+  | Readonly<{ ok: false; resumable: false; warning: string }>;
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function parseEnvelope(raw: string): { envelope: SaveEnvelope; game: GameState } {
+function hasExactKeys(value: Record<string, unknown>, expected: ReadonlyArray<string>): boolean {
+  const actual = Object.keys(value).sort();
+  const sortedExpected = [...expected].sort();
+  return actual.length === sortedExpected.length
+    && actual.every((key, index) => key === sortedExpected[index]);
+}
+
+function isStoredRevision(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0;
+}
+
+function parseEnvelope(raw: string): { envelope: SaveEnvelope; savedMatch: SavedMatch } {
   const value: unknown = JSON.parse(raw);
   if (
     !isRecord(value) ||
+    !hasExactKeys(value, ["kind", "version", "savedAt", "revision", "serialized", "match"]) ||
     value.kind !== SAVE_KIND ||
     value.version !== SAVE_VERSION ||
     typeof value.savedAt !== "number" ||
     !Number.isFinite(value.savedAt) ||
+    !isStoredRevision(value.revision) ||
     typeof value.serialized !== "string"
   ) {
     throw new Error("Unsupported local save envelope");
   }
+  const game = deserializeGame(value.serialized);
+  if (game.revision !== value.revision) {
+    throw new Error("Stored and replayed revisions do not match");
+  }
+  const match = parseMatchConfig(value.match);
   const envelope: SaveEnvelope = {
     kind: SAVE_KIND,
     version: SAVE_VERSION,
     savedAt: value.savedAt,
+    revision: value.revision,
     serialized: value.serialized,
+    match,
   };
-  return { envelope, game: deserializeGame(envelope.serialized) };
+  return {
+    envelope,
+    savedMatch: { config: match, game, revision: value.revision },
+  };
 }
 
-function tryLoad(raw: string | null): GameState | null {
+function parseLegacyEnvelope(raw: string): SavedMatch {
+  const value: unknown = JSON.parse(raw);
+  if (
+    !isRecord(value)
+    || !hasExactKeys(value, ["kind", "version", "savedAt", "serialized"])
+    || value.kind !== SAVE_KIND
+    || value.version !== LEGACY_SAVE_VERSION
+    || typeof value.savedAt !== "number"
+    || !Number.isFinite(value.savedAt)
+    || typeof value.serialized !== "string"
+  ) {
+    throw new Error("Unsupported legacy local save envelope");
+  }
+  return createLocalMatch(deserializeGame(value.serialized));
+}
+
+function tryLoad(raw: string | null): SavedMatch | null {
   if (!raw) return null;
   try {
-    return parseEnvelope(raw).game;
+    return parseEnvelope(raw).savedMatch;
   } catch {
     return null;
   }
 }
 
+function tryLoadLegacy(raw: string | null): SavedMatch | null {
+  if (!raw) return null;
+  try {
+    return parseLegacyEnvelope(raw);
+  } catch {
+    return null;
+  }
+}
+
+function loadedResult(
+  savedMatch: SavedMatch,
+  source: "primary" | "backup",
+  options: Readonly<{ migratedFrom?: 1; warning?: string }> = {},
+): LoadGameResult {
+  return {
+    savedMatch,
+    game: savedMatch.game,
+    source,
+    ...options,
+  };
+}
+
 export function loadGameSnapshot(storage: StorageLike): LoadGameResult {
   let primary: string | null = null;
   let backup: string | null = null;
+  let legacyPrimary: string | null = null;
+  let legacyBackup: string | null = null;
   try {
     primary = storage.getItem(GAME_SAVE_KEY);
     backup = storage.getItem(GAME_SAVE_BACKUP_KEY);
+    legacyPrimary = storage.getItem(LEGACY_GAME_SAVE_KEY);
+    legacyBackup = storage.getItem(LEGACY_GAME_SAVE_BACKUP_KEY);
   } catch {
     return {
+      savedMatch: null,
       game: null,
       source: "none",
       warning: "浏览器存储不可用，本局将只保存在内存中。",
     };
   }
 
-  const primaryGame = tryLoad(primary);
-  if (primaryGame) return { game: primaryGame, source: "primary" };
+  const primaryMatch = tryLoad(primary);
+  if (primaryMatch) return loadedResult(primaryMatch, "primary");
 
-  const backupGame = tryLoad(backup);
-  if (backupGame) {
-    return {
-      game: backupGame,
-      source: "backup",
+  const backupMatch = tryLoad(backup);
+  if (backupMatch) {
+    return loadedResult(backupMatch, "backup", {
       warning: "主存档损坏，已恢复最后一次有效备份。",
-    };
+    });
   }
 
-  if (primary || backup) {
+  const legacyPrimaryMatch = tryLoadLegacy(legacyPrimary);
+  if (legacyPrimaryMatch) {
+    return loadedResult(legacyPrimaryMatch, "primary", {
+      migratedFrom: 1,
+      warning: "旧版本地双人存档已安全迁移。",
+    });
+  }
+
+  const legacyBackupMatch = tryLoadLegacy(legacyBackup);
+  if (legacyBackupMatch) {
+    return loadedResult(legacyBackupMatch, "backup", {
+      migratedFrom: 1,
+      warning: "旧版主存档损坏，已迁移最后一次有效备份。",
+    });
+  }
+
+  if (primary || backup || legacyPrimary || legacyBackup) {
     return {
+      savedMatch: null,
       game: null,
       source: "none",
       warning: "本地存档已损坏，开始新局前不会覆盖原数据。",
     };
   }
-  return { game: null, source: "none" };
+  return { savedMatch: null, game: null, source: "none" };
+}
+
+function isSavedMatch(value: SavedMatch | GameState): value is SavedMatch {
+  return "config" in value && "game" in value;
+}
+
+function normalizeSavedMatch(value: SavedMatch | GameState): SavedMatch {
+  const savedMatch = isSavedMatch(value) ? value : createLocalMatch(value);
+  const config = parseMatchConfig(savedMatch.config);
+  if (!isStoredRevision(savedMatch.revision) || savedMatch.revision !== savedMatch.game.revision) {
+    throw new Error("Saved match revision does not match its game state");
+  }
+  const serialized = serializeGame(savedMatch.game);
+  const replayed = deserializeGame(serialized);
+  if (replayed.revision !== savedMatch.revision) {
+    throw new Error("Saved match replay does not produce its stored revision");
+  }
+  return { config, game: savedMatch.game, revision: savedMatch.revision };
 }
 
 export function saveGameSnapshot(
   storage: StorageLike,
-  game: GameState,
+  value: SavedMatch | GameState,
   savedAt = Date.now(),
-): StorageWriteResult {
+): GameStorageWriteResult {
   try {
+    if (!Number.isFinite(savedAt)) throw new Error("Save timestamp must be finite");
+    const savedMatch = normalizeSavedMatch(value);
     const current = storage.getItem(GAME_SAVE_KEY);
     if (current && tryLoad(current)) {
       storage.setItem(GAME_SAVE_BACKUP_KEY, current);
@@ -144,13 +263,16 @@ export function saveGameSnapshot(
       kind: SAVE_KIND,
       version: SAVE_VERSION,
       savedAt,
-      serialized: serializeGame(game),
+      revision: savedMatch.revision,
+      serialized: serializeGame(savedMatch.game),
+      match: savedMatch.config,
     };
     storage.setItem(GAME_SAVE_KEY, JSON.stringify(envelope));
-    return { ok: true };
+    return { ok: true, resumable: true };
   } catch {
     return {
       ok: false,
+      resumable: false,
       warning: "无法写入浏览器存储，本局将只保存在内存中。",
     };
   }
