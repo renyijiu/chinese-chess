@@ -22,7 +22,8 @@ const MESSAGE_KEYS = {
   snapshot: [...IDENTITY_KEYS, "requestId", "revision", "positionHash", "serializedGame"],
   ping: [...IDENTITY_KEYS, "nonce", "revision", "positionHash"],
   pong: [...IDENTITY_KEYS, "nonce", "revision", "positionHash"],
-  resign: [...IDENTITY_KEYS, "commandId", "resigningSide", "expectedRevision", "beforeHash", "afterRevision", "afterHash"],
+  "resign-request": [...IDENTITY_KEYS, "action", "proposalId", "resigningSide", "knownRevision", "knownHash"],
+  "resign-commit": [...IDENTITY_KEYS, "action", "proposalId", "commandId", "resigningSide", "expectedRevision", "beforeHash", "afterRevision", "afterHash"],
   rematch: [...IDENTITY_KEYS, "action", "proposalId", "nextMatchId", "nextRematchIndex", "hostSide", "terminalRevision", "terminalHash"],
   error: [...IDENTITY_KEYS, "code", "fatal", "relatedSeq"],
 } as const;
@@ -211,12 +212,21 @@ export function decodeOnlineMessageValueV1(value: unknown): WireCodecResult<Onli
         && isPositionHash(value.positionHash);
       break;
     case "resign":
-      valid = hasExactKeys(value, MESSAGE_KEYS.resign)
-        && isBoundedId(value.commandId)
-        && isSide(value.resigningSide)
-        && hasNextRevision(value.expectedRevision, value.afterRevision)
-        && isPositionHash(value.beforeHash)
-        && isPositionHash(value.afterHash);
+      if (value.action === "request") {
+        valid = hasExactKeys(value, MESSAGE_KEYS["resign-request"])
+          && isBoundedId(value.proposalId)
+          && isSide(value.resigningSide)
+          && isSafeNonnegativeInteger(value.knownRevision)
+          && isPositionHash(value.knownHash);
+      } else if (value.action === "commit") {
+        valid = hasExactKeys(value, MESSAGE_KEYS["resign-commit"])
+          && isBoundedId(value.proposalId)
+          && isBoundedId(value.commandId)
+          && isSide(value.resigningSide)
+          && hasNextRevision(value.expectedRevision, value.afterRevision)
+          && isPositionHash(value.beforeHash)
+          && isPositionHash(value.afterHash);
+      }
       break;
     case "rematch":
       valid = hasExactKeys(value, MESSAGE_KEYS.rematch)

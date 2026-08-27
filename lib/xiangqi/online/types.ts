@@ -126,8 +126,19 @@ export interface PongMessageV1 extends OnlineIdentityV1 {
   readonly positionHash: string;
 }
 
-export interface ResignMessageV1 extends OnlineIdentityV1 {
+export interface ResignRequestMessageV1 extends OnlineIdentityV1 {
   readonly type: "resign";
+  readonly action: "request";
+  readonly proposalId: string;
+  readonly resigningSide: Side;
+  readonly knownRevision: number;
+  readonly knownHash: string;
+}
+
+export interface ResignCommitMessageV1 extends OnlineIdentityV1 {
+  readonly type: "resign";
+  readonly action: "commit";
+  readonly proposalId: string;
   readonly commandId: string;
   readonly resigningSide: Side;
   readonly expectedRevision: number;
@@ -135,6 +146,8 @@ export interface ResignMessageV1 extends OnlineIdentityV1 {
   readonly afterRevision: number;
   readonly afterHash: string;
 }
+
+export type ResignMessageV1 = ResignRequestMessageV1 | ResignCommitMessageV1;
 
 export interface RematchMessageV1 extends OnlineIdentityV1 {
   readonly type: "rematch";

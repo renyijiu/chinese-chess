@@ -78,12 +78,23 @@ const messages: ReadonlyArray<OnlineMessageV1> = [
   {
     ...identity,
     type: "resign",
+    action: "commit",
+    proposalId: "proposal-resign-1",
     commandId: "resign-1",
     resigningSide: "black",
     expectedRevision: 2,
     beforeHash: HASH,
     afterRevision: 3,
     afterHash: "b".repeat(64),
+  },
+  {
+    ...identity,
+    type: "resign",
+    action: "request",
+    proposalId: "proposal-resign-1",
+    resigningSide: "black",
+    knownRevision: 2,
+    knownHash: HASH,
   },
   {
     ...identity,
@@ -160,6 +171,21 @@ describe("online protocol v1", () => {
       ok: false,
       error: { code: "schema" },
     });
+  });
+
+  it("keeps both resignation phases exact-key and mutually exclusive", () => {
+    const commit = messages.find((message) => message.type === "resign" && message.action === "commit")!;
+    const request = messages.find((message) => message.type === "resign" && message.action === "request")!;
+
+    expect(decodeOnlineMessageV1(JSON.stringify({ ...request, commandId: "not-allowed" })))
+      .toEqual({ ok: false, error: { code: "schema" } });
+    expect(decodeOnlineMessageV1(JSON.stringify({ ...commit, knownRevision: 2 })))
+      .toEqual({ ok: false, error: { code: "schema" } });
+    const missingAction = Object.fromEntries(
+      Object.entries(commit).filter(([key]) => key !== "action"),
+    );
+    expect(decodeOnlineMessageV1(JSON.stringify(missingAction)))
+      .toEqual({ ok: false, error: { code: "schema" } });
   });
 
   it("enforces bounded IDs, safe integers, lowercase hashes, and legal move squares", () => {

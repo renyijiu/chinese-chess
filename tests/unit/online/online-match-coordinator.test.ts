@@ -4,6 +4,7 @@ import {
   OnlineMatchCoordinator,
   type OnlineCommitContext,
   type OnlineMatchCoordinatorOptions,
+  type OnlineMatchCoordinatorTimers,
 } from "../../../components/xiangqi/online/OnlineMatchCoordinator";
 import {
   createInitialGame,
@@ -64,6 +65,40 @@ interface EndpointOptions {
   readonly game?: GameState;
   readonly intent?: "new" | "resume";
   readonly digest?: (serialized: string) => string | Promise<string>;
+  readonly timers?: OnlineMatchCoordinatorOptions["timers"];
+  readonly ackTimeoutMs?: number;
+  readonly heartbeatIntervalMs?: number;
+  readonly pongTimeoutMs?: number;
+}
+
+class ManualTimers implements OnlineMatchCoordinatorTimers {
+  #now = 0;
+  #nextId = 1;
+  readonly #tasks = new Map<number, { at: number; callback: () => void }>();
+
+  setTimeout(callback: () => void, delayMs: number): unknown {
+    const id = this.#nextId++;
+    this.#tasks.set(id, { at: this.#now + delayMs, callback });
+    return id;
+  }
+
+  clearTimeout(handle: unknown): void {
+    this.#tasks.delete(handle as number);
+  }
+
+  advance(delayMs: number): void {
+    const target = this.#now + delayMs;
+    while (true) {
+      const due = [...this.#tasks.entries()]
+        .filter(([, task]) => task.at <= target)
+        .sort((left, right) => left[1].at - right[1].at || left[0] - right[0])[0];
+      if (!due) break;
+      this.#tasks.delete(due[0]);
+      this.#now = due[1].at;
+      due[1].callback();
+    }
+    this.#now = target;
+  }
 }
 
 class Endpoint {
@@ -128,10 +163,13 @@ class Endpoint {
         let value = 0;
         return () => `${options.peerId}-${++value}`;
       })(),
-      timers: {
+      timers: options.timers ?? {
         setTimeout: (callback, delayMs) => globalThis.setTimeout(callback, delayMs),
         clearTimeout: (handle) => globalThis.clearTimeout(handle as ReturnType<typeof setTimeout>),
       },
+      ackTimeoutMs: options.ackTimeoutMs,
+      heartbeatIntervalMs: options.heartbeatIntervalMs,
+      pongTimeoutMs: options.pongTimeoutMs,
     };
     this.coordinator = new OnlineMatchCoordinator(coordinatorOptions);
   }
@@ -145,6 +183,11 @@ function pair(input: Readonly<{
   hostGame?: GameState;
   guestGame?: GameState;
   intent?: "new" | "resume";
+  hostTimers?: OnlineMatchCoordinatorOptions["timers"];
+  guestTimers?: OnlineMatchCoordinatorOptions["timers"];
+  ackTimeoutMs?: number;
+  heartbeatIntervalMs?: number;
+  pongTimeoutMs?: number;
 }> = {}) {
   const host = new Endpoint({
     role: "host",
@@ -153,6 +196,10 @@ function pair(input: Readonly<{
     remotePeerId: "peer-guest",
     game: input.hostGame,
     intent: input.intent,
+    timers: input.hostTimers,
+    ackTimeoutMs: input.ackTimeoutMs,
+    heartbeatIntervalMs: input.heartbeatIntervalMs,
+    pongTimeoutMs: input.pongTimeoutMs,
   });
   const guest = new Endpoint({
     role: "guest",
@@ -161,6 +208,10 @@ function pair(input: Readonly<{
     remotePeerId: "peer-host",
     game: input.guestGame,
     intent: input.intent,
+    timers: input.guestTimers,
+    ackTimeoutMs: input.ackTimeoutMs,
+    heartbeatIntervalMs: input.heartbeatIntervalMs,
+    pongTimeoutMs: input.pongTimeoutMs,
   });
   host.connect(guest);
   guest.connect(host);
@@ -216,7 +267,7 @@ describe("OnlineMatchCoordinator", () => {
       type: "hello",
       seq: 1,
       side: "red",
-      features: ["snapshot-v1"],
+      features: ["rematch-v1", "snapshot-v1"],
     });
     expect(messages(guest.sent)[0]).toMatchObject({ type: "hello", seq: 1, side: "black" });
     expect(host.coordinator.getSnapshot()).toMatchObject({
@@ -555,12 +606,11 @@ describe("OnlineMatchCoordinator", () => {
     await host.coordinator.handleFrame(encode({
       ...remoteIdentity(guest, guestNextSeq + 1),
       type: "resign",
-      commandId: "resign-1",
+      action: "request",
+      proposalId: "proposal-resign-1",
       resigningSide: "black",
-      expectedRevision: 0,
-      beforeHash: hash,
-      afterRevision: 1,
-      afterHash: "f".repeat(64),
+      knownRevision: 0,
+      knownHash: hash,
     }));
     expect(serializeGame(host.game)).toBe(before);
     expect(messages(host.sent).at(-1)).toMatchObject({
@@ -586,6 +636,273 @@ describe("OnlineMatchCoordinator", () => {
       code: "protocol-violation",
       fatal: false,
     });
+  });
+
+  it("resigns through request/commit/ack even when it is not the local turn", async () => {
+    const { host, guest } = pair();
+    await startPair(host, guest);
+    await readyPair(host, guest);
+
+    await expect(guest.coordinator.submitLocalResign()).resolves.toEqual({ ok: true });
+    await settle(host, guest);
+
+    expect(host.game).toEqual(guest.game);
+    expect(host.game).toMatchObject({
+      revision: 1,
+      status: { kind: "ended", winner: "red", reason: "resignation" },
+      lastAction: { kind: "resign", side: "black" },
+    });
+    expect(host.coordinator.getSnapshot()).toMatchObject({ phase: "terminal", pending: null });
+    expect(guest.coordinator.getSnapshot()).toMatchObject({ phase: "terminal", pending: null });
+    expect(messages(guest.sent).filter((message) => message.type === "resign"))
+      .toEqual([expect.objectContaining({ action: "request", resigningSide: "black" })]);
+    expect(messages(host.sent).filter((message) => message.type === "resign"))
+      .toEqual([expect.objectContaining({ action: "commit", resigningSide: "black" })]);
+  });
+
+  it("serializes a legal move racing a resignation and gives simultaneous host resign priority", async () => {
+    const racing = pair();
+    await startPair(racing.host, racing.guest);
+    await readyPair(racing.host, racing.guest);
+    await Promise.all([
+      racing.host.coordinator.submitLocalMove(RED_MOVE),
+      racing.guest.coordinator.submitLocalResign(),
+    ]);
+    await settle(racing.host, racing.guest);
+    expect(racing.host.game).toEqual(racing.guest.game);
+    expect(racing.host.game).toMatchObject({
+      revision: 2,
+      status: { kind: "ended", winner: "red", reason: "resignation" },
+    });
+
+    const simultaneous = pair();
+    await startPair(simultaneous.host, simultaneous.guest);
+    await readyPair(simultaneous.host, simultaneous.guest);
+    await Promise.all([
+      simultaneous.host.coordinator.submitLocalResign(),
+      simultaneous.guest.coordinator.submitLocalResign(),
+    ]);
+    await settle(simultaneous.host, simultaneous.guest);
+    expect(simultaneous.host.game).toEqual(simultaneous.guest.game);
+    expect(simultaneous.host.game.status).toMatchObject({
+      kind: "ended",
+      winner: "black",
+      reason: "resignation",
+    });
+    expect(simultaneous.host.game.lastAction).toEqual({ kind: "resign", side: "red" });
+  });
+
+  it("stalls on ack timeout without retrying and accepts the exact late ack", async () => {
+    const timers = new ManualTimers();
+    const { host, guest } = pair({ hostTimers: timers, ackTimeoutMs: 12 });
+    await startPair(host, guest);
+    await readyPair(host, guest);
+    guest.blockedTypes.add("ack");
+
+    await host.coordinator.submitLocalMove(RED_MOVE);
+    await settle(host, guest);
+    const sentBeforeTimeout = host.sent.length;
+    timers.advance(12);
+    await host.coordinator.whenIdle();
+    expect(host.coordinator.getSnapshot()).toMatchObject({
+      phase: "stalled",
+      issue: { kind: "ack-timeout" },
+      pending: { kind: "move" },
+    });
+    expect(host.sent).toHaveLength(sentBeforeTimeout);
+
+    const lateAck = messages(guest.sent).find((message) => message.type === "ack");
+    if (!lateAck) throw new Error("missing late ack");
+    await host.coordinator.handleFrame(encode(lateAck));
+    expect(host.coordinator.getSnapshot()).toMatchObject({
+      phase: "playable",
+      issue: null,
+      pending: null,
+    });
+  });
+
+  it("pauses heartbeat while hidden and revalidates with an exact ping before unlocking", async () => {
+    const timers = new ManualTimers();
+    const { host, guest } = pair({
+      hostTimers: timers,
+      ackTimeoutMs: 10,
+      heartbeatIntervalMs: 15,
+      pongTimeoutMs: 20,
+    });
+    await startPair(host, guest);
+    await readyPair(host, guest);
+    const sentBeforeHidden = host.sent.length;
+    await host.coordinator.setVisible(false);
+    timers.advance(100);
+    await host.coordinator.whenIdle();
+    expect(host.sent).toHaveLength(sentBeforeHidden);
+    expect(host.coordinator.getSnapshot()).toMatchObject({
+      phase: "stalled",
+      issue: { kind: "hidden" },
+      control: { visible: false },
+    });
+
+    await host.coordinator.setVisible(true);
+    await settle(host, guest);
+    expect(host.coordinator.getSnapshot()).toMatchObject({
+      phase: "playable",
+      issue: null,
+      control: { visible: true, outstandingPingNonce: null },
+    });
+
+    const sentBeforeDisconnect = host.sent.length;
+    await host.coordinator.setTransportAvailable(false);
+    timers.advance(100);
+    await host.coordinator.whenIdle();
+    expect(host.sent).toHaveLength(sentBeforeDisconnect);
+    expect(host.coordinator.getSnapshot()).toMatchObject({
+      phase: "stalled",
+      issue: { kind: "transport-unavailable" },
+      control: { transportAvailable: false },
+    });
+    await host.coordinator.setTransportAvailable(true);
+    await settle(host, guest);
+    expect(host.coordinator.getSnapshot()).toMatchObject({
+      phase: "playable",
+      issue: null,
+      control: { transportAvailable: true },
+    });
+  });
+
+  it("continues applying and acknowledging ordered remote commands while hidden", async () => {
+    const { host, guest } = pair();
+    await startPair(host, guest);
+    await readyPair(host, guest);
+    await guest.coordinator.setVisible(false);
+
+    await host.coordinator.submitLocalMove(RED_MOVE);
+    await settle(host, guest);
+
+    expect(guest.game).toEqual(host.game);
+    expect(guest.coordinator.getSnapshot()).toMatchObject({
+      phase: "stalled",
+      revision: 1,
+      issue: { kind: "hidden" },
+      control: { visible: false },
+    });
+    expect(host.coordinator.getSnapshot()).toMatchObject({ pending: null });
+
+    await guest.coordinator.setVisible(true);
+    await settle(host, guest);
+    expect(guest.coordinator.getSnapshot()).toMatchObject({
+      phase: "playable",
+      issue: null,
+      control: { visible: true },
+    });
+  });
+
+  it("stalls on heartbeat timeout and an exact late pong restores play", async () => {
+    const timers = new ManualTimers();
+    const { host, guest } = pair({
+      hostTimers: timers,
+      heartbeatIntervalMs: 15,
+      pongTimeoutMs: 20,
+    });
+    await startPair(host, guest);
+    await readyPair(host, guest);
+    host.blockedTypes.add("ping");
+
+    timers.advance(15);
+    await settle(host, guest);
+    const ping = messages(host.sent).find((message) => message.type === "ping");
+    if (!ping || ping.type !== "ping") throw new Error("missing ping");
+    expect(host.coordinator.getSnapshot().control.outstandingPingNonce).toBe(ping.nonce);
+    timers.advance(20);
+    await host.coordinator.whenIdle();
+    expect(host.coordinator.getSnapshot()).toMatchObject({
+      phase: "stalled",
+      issue: { kind: "pong-timeout", relatedId: ping.nonce },
+    });
+
+    const nextGuestSeq = Math.max(...messages(guest.sent).map((message) => message.seq)) + 1;
+    const currentHash = host.coordinator.getSnapshot().hash;
+    if (!currentHash) throw new Error("missing hash");
+    await host.coordinator.handleFrame(encode({
+      ...remoteIdentity(guest, nextGuestSeq),
+      type: "ping",
+      nonce: "unrelated-ping",
+      revision: 0,
+      positionHash: currentHash,
+    }));
+    expect(host.coordinator.getSnapshot()).toMatchObject({
+      phase: "stalled",
+      issue: { kind: "pong-timeout", relatedId: ping.nonce },
+      control: { outstandingPingNonce: ping.nonce },
+    });
+
+    await host.coordinator.handleFrame(encode({
+      ...remoteIdentity(guest, nextGuestSeq + 1),
+      type: "pong",
+      nonce: ping.nonce,
+      revision: ping.revision,
+      positionHash: ping.positionHash,
+    }));
+    expect(host.coordinator.getSnapshot()).toMatchObject({
+      phase: "playable",
+      issue: null,
+      control: { outstandingPingNonce: null },
+    });
+  });
+
+  it("supports terminal rematch request, accept, decline, cancel, and host-priority races", async () => {
+    const agreed = pair();
+    await startPair(agreed.host, agreed.guest);
+    await readyPair(agreed.host, agreed.guest);
+    await agreed.guest.coordinator.submitLocalResign();
+    await settle(agreed.host, agreed.guest);
+    await agreed.host.coordinator.requestRematch();
+    await settle(agreed.host, agreed.guest);
+    expect(agreed.guest.coordinator.getSnapshot().rematch).toMatchObject({ status: "received" });
+    await expect(agreed.host.coordinator.requestRematch())
+      .resolves.toEqual({ ok: false, reason: "invalid-phase" });
+    await agreed.guest.coordinator.acceptRematch();
+    await settle(agreed.host, agreed.guest);
+    const hostAgreement = agreed.host.coordinator.getSnapshot().rematch.agreedProposal;
+    expect(hostAgreement).toMatchObject({ nextRematchIndex: 1, hostSide: "black" });
+    expect(agreed.guest.coordinator.getSnapshot().rematch.agreedProposal)
+      .toMatchObject({
+        proposalId: hostAgreement?.proposalId,
+        nextMatchId: hostAgreement?.nextMatchId,
+        nextRematchIndex: 1,
+        hostSide: "black",
+      });
+
+    const declined = pair();
+    await startPair(declined.host, declined.guest);
+    await readyPair(declined.host, declined.guest);
+    await declined.guest.coordinator.submitLocalResign();
+    await settle(declined.host, declined.guest);
+    await declined.host.coordinator.requestRematch();
+    await settle(declined.host, declined.guest);
+    await declined.guest.coordinator.declineRematch();
+    await settle(declined.host, declined.guest);
+    expect(declined.host.coordinator.getSnapshot().rematch.status).toBe("declined");
+
+    await declined.host.coordinator.requestRematch();
+    await settle(declined.host, declined.guest);
+    await declined.host.coordinator.cancelRematch();
+    await settle(declined.host, declined.guest);
+    expect(declined.guest.coordinator.getSnapshot().rematch.status).toBe("cancelled");
+
+    const raced = pair();
+    await startPair(raced.host, raced.guest);
+    await readyPair(raced.host, raced.guest);
+    await raced.guest.coordinator.submitLocalResign();
+    await settle(raced.host, raced.guest);
+    await Promise.all([
+      raced.host.coordinator.requestRematch(),
+      raced.guest.coordinator.requestRematch(),
+    ]);
+    await settle(raced.host, raced.guest);
+    const hostProposal = raced.host.coordinator.getSnapshot().rematch.proposal;
+    expect(hostProposal?.owner).toBe("local");
+    expect(raced.guest.coordinator.getSnapshot().rematch.proposal)
+      .toMatchObject({ proposalId: hostProposal?.proposalId, owner: "remote" });
   });
 
   it("drops late commit work after dispose and never sends its command", async () => {

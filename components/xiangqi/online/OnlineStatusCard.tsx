@@ -20,6 +20,8 @@ const COORDINATOR_LABELS = {
   "awaiting-ready": "等待双方准备",
   playable: "双方已准备，可以落子",
   "awaiting-ack": "等待好友确认落子",
+  revalidating: "正在重新校验连接与棋局",
+  stalled: "联机响应超时，棋盘已暂时锁定",
   syncing: "正在恢复一致棋局",
   terminal: "棋局已经结束",
   "repair-required": "局面不一致，已锁定输入",
