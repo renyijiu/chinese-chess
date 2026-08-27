@@ -45,7 +45,7 @@ DataChannel 只承载版本化的棋局协议消息，不同步棋子 3D 坐标�
 - `hello`、`ready`：协商规则/能力，核对棋局身份、revision 与 position hash，并建立双方准备屏障。
 - `command`、`ack`：提交一手着法及其 `expectedRevision`、前后 position hash，并确认应用或幂等重复。
 - `snapshot-request`、`snapshot`：仅用于重新配对或检测到一致性缺口时的受限恢复。
-- `ping`、`pong`：探测传输与双方 revision/hash；超时会锁定输入，不会猜测连接仍然健康。
+- `ping`、`pong`：携带 `heartbeat` 或 `revalidation` 用途并探测双方 revision/hash；日常心跳可核对已知历史前缀，断线/后台恢复则要求当前状态严格相等，超时会锁定输入。
 - `resign`：请求并提交可发生在任意轮次的认输，避免与同时发生的走子产生两个终局。
 - `rematch`：终局后的请求、接受、拒绝或取消，携带终局 revision/hash 与下一局身份。
 - `error`：报告版本、身份、顺序、schema、大小、频率或状态恢复错误。

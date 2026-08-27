@@ -13,6 +13,7 @@ export type WireCodecResult<T> =
 
 export type OnlineFeatureV1 = "snapshot-v1" | "rematch-v1";
 export type OnlineIntentV1 = "new" | "resume";
+export type OnlineLivenessPurposeV1 = "heartbeat" | "revalidation";
 export type SignalingRole = "host" | "guest";
 export type OnlineMessageTypeV1 =
   | "hello"
@@ -115,6 +116,7 @@ export interface SnapshotMessageV1 extends OnlineIdentityV1 {
 export interface PingMessageV1 extends OnlineIdentityV1 {
   readonly type: "ping";
   readonly nonce: string;
+  readonly purpose: OnlineLivenessPurposeV1;
   readonly revision: number;
   readonly positionHash: string;
 }
@@ -122,6 +124,7 @@ export interface PingMessageV1 extends OnlineIdentityV1 {
 export interface PongMessageV1 extends OnlineIdentityV1 {
   readonly type: "pong";
   readonly nonce: string;
+  readonly purpose: OnlineLivenessPurposeV1;
   readonly revision: number;
   readonly positionHash: string;
 }

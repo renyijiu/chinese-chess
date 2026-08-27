@@ -41,6 +41,7 @@ export type {
   OnlineFeatureV1,
   OnlineIdentityV1,
   OnlineIntentV1,
+  OnlineLivenessPurposeV1,
   OnlineMessageV1,
   OnlineMessageTypeV1,
   PingMessageV1,

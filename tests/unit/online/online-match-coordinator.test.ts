@@ -384,6 +384,7 @@ describe("OnlineMatchCoordinator", () => {
       ...remoteIdentity(first.guest, lastGuestSeq + 2),
       type: "ping",
       nonce: "gap",
+      purpose: "heartbeat",
       revision: 0,
       positionHash: gameHash,
     }));
@@ -594,12 +595,14 @@ describe("OnlineMatchCoordinator", () => {
       ...remoteIdentity(guest, guestNextSeq),
       type: "ping",
       nonce: "ping-1",
+      purpose: "heartbeat",
       revision: 0,
       positionHash: hash,
     }));
     expect(messages(host.sent).at(-1)).toMatchObject({
       type: "pong",
       nonce: "ping-1",
+      purpose: "heartbeat",
       revision: 0,
       positionHash: hash,
     });
@@ -802,6 +805,184 @@ describe("OnlineMatchCoordinator", () => {
     });
   });
 
+  it("accepts an exact routine pong after the local game advances", async () => {
+    const timers = new ManualTimers();
+    const { host, guest } = pair({
+      hostTimers: timers,
+      heartbeatIntervalMs: 15,
+      pongTimeoutMs: 20,
+    });
+    await startPair(host, guest);
+    await readyPair(host, guest);
+    guest.blockedTypes.add("pong");
+    guest.blockedTypes.add("ack");
+
+    timers.advance(15);
+    await settle(host, guest);
+    const pong = messages(guest.sent).find((message) => message.type === "pong");
+    if (!pong || pong.type !== "pong") throw new Error("missing pong");
+    expect(pong.purpose).toBe("heartbeat");
+
+    await expect(host.coordinator.submitLocalMove(RED_MOVE)).resolves.toEqual({ ok: true });
+    await settle(host, guest);
+    expect(host.game.revision).toBe(1);
+    expect(host.coordinator.getSnapshot().control.outstandingPingNonce).toBe(pong.nonce);
+
+    const ack = messages(guest.sent).find((message) => message.type === "ack");
+    if (!ack || ack.type !== "ack") throw new Error("missing ack");
+    await host.coordinator.handleFrame(encode(pong));
+    await host.coordinator.handleFrame(encode(ack));
+
+    expect(host.coordinator.getSnapshot()).toMatchObject({
+      phase: "playable",
+      revision: 1,
+      pending: null,
+      error: null,
+      control: { outstandingPingNonce: null },
+    });
+
+    const nextGuestSeq = Math.max(...messages(guest.sent).map((message) => message.seq)) + 1;
+    const initialHash = await sha256Hex(serializeGame(createInitialGame()));
+    await host.coordinator.handleFrame(encode({
+      ...remoteIdentity(guest, nextGuestSeq),
+      type: "ping",
+      nonce: "historical-heartbeat",
+      purpose: "heartbeat",
+      revision: 0,
+      positionHash: initialHash,
+    }));
+    expect(messages(host.sent).at(-1)).toMatchObject({
+      type: "pong",
+      nonce: "historical-heartbeat",
+      purpose: "heartbeat",
+      revision: 0,
+      positionHash: initialHash,
+    });
+    expect(host.coordinator.getSnapshot()).toMatchObject({ phase: "playable", revision: 1 });
+  });
+
+  it("keeps lifecycle revalidation strict when the peer position advanced", async () => {
+    const { host, guest } = pair();
+    await startPair(host, guest);
+    await readyPair(host, guest);
+    await host.coordinator.setTransportAvailable(false);
+    guest.game = apply(guest.game, RED_MOVE);
+
+    await host.coordinator.setTransportAvailable(true);
+    await settle(host, guest);
+
+    const revalidation = messages(host.sent).findLast((message) => message.type === "ping");
+    expect(revalidation).toMatchObject({ purpose: "revalidation", revision: 0 });
+    expect(guest.coordinator.getSnapshot()).toMatchObject({
+      phase: "repair-required",
+      error: { code: "position-mismatch" },
+    });
+    expect(host.coordinator.getSnapshot().phase).not.toBe("playable");
+  });
+
+  it("keeps fatal phases sticky across visibility and transport changes", async () => {
+    const repair = pair();
+    await startPair(repair.host, repair.guest);
+    const lastGuestSeq = Math.max(...messages(repair.guest.sent).map((message) => message.seq));
+    const hash = repair.host.coordinator.getSnapshot().hash;
+    if (!hash) throw new Error("missing hash");
+    await repair.host.coordinator.handleFrame(encode({
+      ...remoteIdentity(repair.guest, lastGuestSeq + 2),
+      type: "ping",
+      nonce: "gap",
+      purpose: "heartbeat",
+      revision: 0,
+      positionHash: hash,
+    }));
+    await repair.host.coordinator.setVisible(false);
+    await repair.host.coordinator.setVisible(true);
+    await repair.host.coordinator.setTransportAvailable(false);
+    await repair.host.coordinator.setTransportAvailable(true);
+    expect(repair.host.coordinator.getSnapshot()).toMatchObject({
+      phase: "repair-required",
+      error: { code: "sequence-gap" },
+      control: { visible: true, transportAvailable: true },
+    });
+
+    const failed = new Endpoint({
+      role: "host",
+      side: "red",
+      peerId: "peer-host",
+      remotePeerId: "peer-guest",
+      digest: async () => { throw new Error("digest unavailable"); },
+    });
+    await failed.coordinator.start();
+    await failed.coordinator.setVisible(false);
+    await failed.coordinator.setVisible(true);
+    await failed.coordinator.setTransportAvailable(false);
+    await failed.coordinator.setTransportAvailable(true);
+    expect(failed.coordinator.getSnapshot()).toMatchObject({
+      phase: "failed",
+      error: { code: "internal-error" },
+      control: { visible: true, transportAvailable: true },
+    });
+  });
+
+  it("flushes a locally committed move before reconnect revalidation", async () => {
+    const { host, guest } = pair();
+    await startPair(host, guest);
+    await readyPair(host, guest);
+    const gate = deferred<void>();
+    host.commitWait = gate.promise;
+
+    const move = host.coordinator.submitLocalMove(RED_MOVE);
+    await expect.poll(() => host.commitCalls.length).toBe(1);
+    const paused = host.coordinator.setTransportAvailable(false);
+    gate.resolve();
+
+    await expect(move).resolves.toEqual({ ok: true });
+    await paused;
+    expect(host.game.revision).toBe(1);
+    expect(guest.game.revision).toBe(0);
+    expect(messages(host.sent).filter((message) => message.type === "command")).toHaveLength(0);
+
+    await host.coordinator.setTransportAvailable(true);
+    await settle(host, guest);
+
+    const reconnectFrames = messages(host.sent).filter((message) => (
+      message.type === "command" || message.type === "ping"
+    ));
+    expect(reconnectFrames.slice(-2).map((message) => message.type)).toEqual(["command", "ping"]);
+    expect(reconnectFrames.at(-1)).toMatchObject({ purpose: "revalidation", revision: 1 });
+    expect(guest.game).toEqual(host.game);
+    expect(host.coordinator.getSnapshot()).toMatchObject({ phase: "playable", pending: null });
+  });
+
+  it("flushes an ACK committed during disconnect before reconnect revalidation", async () => {
+    const { host, guest } = pair();
+    await startPair(host, guest);
+    await readyPair(host, guest);
+    const gate = deferred<void>();
+    guest.commitWait = gate.promise;
+
+    await host.coordinator.submitLocalMove(RED_MOVE);
+    await expect.poll(() => guest.commitCalls.length).toBe(1);
+    const paused = guest.coordinator.setTransportAvailable(false);
+    gate.resolve();
+    await paused;
+
+    expect(host.game.revision).toBe(1);
+    expect(guest.game.revision).toBe(1);
+    expect(messages(guest.sent).filter((message) => message.type === "ack")).toHaveLength(0);
+    expect(host.coordinator.getSnapshot().pending).toMatchObject({ kind: "move" });
+
+    await guest.coordinator.setTransportAvailable(true);
+    await settle(host, guest);
+
+    const reconnectFrames = messages(guest.sent).filter((message) => (
+      message.type === "ack" || message.type === "ping"
+    ));
+    expect(reconnectFrames.slice(-2).map((message) => message.type)).toEqual(["ack", "ping"]);
+    expect(host.game).toEqual(guest.game);
+    expect(host.coordinator.getSnapshot()).toMatchObject({ phase: "playable", pending: null });
+    expect(guest.coordinator.getSnapshot().phase).toBe("playable");
+  });
+
   it("stalls on heartbeat timeout and an exact late pong restores play", async () => {
     const timers = new ManualTimers();
     const { host, guest } = pair({
@@ -832,6 +1013,7 @@ describe("OnlineMatchCoordinator", () => {
       ...remoteIdentity(guest, nextGuestSeq),
       type: "ping",
       nonce: "unrelated-ping",
+      purpose: "heartbeat",
       revision: 0,
       positionHash: currentHash,
     }));
@@ -845,6 +1027,7 @@ describe("OnlineMatchCoordinator", () => {
       ...remoteIdentity(guest, nextGuestSeq + 1),
       type: "pong",
       nonce: ping.nonce,
+      purpose: ping.purpose,
       revision: ping.revision,
       positionHash: ping.positionHash,
     }));

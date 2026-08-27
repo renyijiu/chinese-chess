@@ -3,7 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { createInitialGame, dispatch, serializeGame, type GameState } from "../../lib/xiangqi/index";
 import { openCleanGame, waitForRevision } from "./helpers";
 
-const GAME_SAVE_KEY = "xiangqi3d:game:v2";
+const GAME_SAVE_KEY = "xiangqi3d:game:v3";
 
 function applyFixtureMoves(
   moves: ReadonlyArray<readonly [readonly [number, number], readonly [number, number]]>,
@@ -25,7 +25,7 @@ function applyFixtureMoves(
 function computerSaveFixture(state: GameState, seed: string) {
   return JSON.stringify({
     kind: "xiangqi-game-save",
-    version: 2,
+    version: 3,
     savedAt: 1,
     revision: state.revision,
     serialized: serializeGame(state),
@@ -102,7 +102,7 @@ test("rolls and persists an odd die before confirming a red-side computer match"
   await expect(page.getByRole("status", { name: "阵营分配结果" })).toContainText("红方");
   await expect(page.getByRole("button", { name: "以红方开始对局" })).toBeEnabled();
 
-  const persisted = await page.evaluate(() => window.localStorage.getItem("xiangqi3d:game:v2"));
+  const persisted = await page.evaluate(() => window.localStorage.getItem("xiangqi3d:game:v3"));
   expect(persisted).toContain('"dieResult":5');
   expect(persisted).toContain('"humanSide":"red"');
 
@@ -121,13 +121,13 @@ test("restores a persisted die confirmation without rerolling", async ({ page })
   await chooseComputerMode(page, "标准");
   await page.getByRole("button", { name: "掷骰决定阵营" }).click();
   await expect(page.getByRole("button", { name: "以红方开始对局" })).toBeEnabled();
-  const saved = await page.evaluate(() => window.localStorage.getItem("xiangqi3d:game:v2"));
+  const saved = await page.evaluate(() => window.localStorage.getItem("xiangqi3d:game:v3"));
 
   await page.reload({ waitUntil: "domcontentloaded" });
   await expect(page.getByRole("status", { name: "阵营分配结果" })).toContainText("3");
   await expect(page.getByRole("button", { name: "以红方开始对局" })).toBeEnabled();
   await expect(page.locator(".computer-die")).not.toHaveAttribute("data-rolling", "true");
-  expect(await page.evaluate(() => window.localStorage.getItem("xiangqi3d:game:v2"))).toBe(saved);
+  expect(await page.evaluate(() => window.localStorage.getItem("xiangqi3d:game:v3"))).toBe(saved);
 
   await page.getByRole("button", { name: "以红方开始对局" }).click();
   const keyboard = page.locator(".game-keyboard-control button");
@@ -139,7 +139,7 @@ test("restores a persisted die confirmation without rerolling", async ({ page })
   await waitForRevision(page, 2);
   await expect(page.locator(".game-history li")).toHaveCount(2);
   await expect.poll(() => page.evaluate(() => {
-    const raw = window.localStorage.getItem("xiangqi3d:game:v2");
+    const raw = window.localStorage.getItem("xiangqi3d:game:v3");
     return raw ? JSON.parse(raw).match.effectiveTier : null;
   })).toBe("lightweight-normal");
 });
@@ -188,7 +188,7 @@ test("resumes a computer turn and presents one authoritative capture and check",
   await expect(page.locator(".game-turn-card")).toHaveAttribute("data-check", "true");
   await expect(page.locator(".game-turn-card small")).toHaveText("黑方被将军");
   await expect.poll(() => page.evaluate(() => {
-    const raw = window.localStorage.getItem("xiangqi3d:game:v2");
+    const raw = window.localStorage.getItem("xiangqi3d:game:v3");
     return raw ? JSON.parse(raw).revision : null;
   })).toBe(7);
   const captureEvidence = await page.evaluate(() => ({
@@ -305,13 +305,13 @@ test("discloses Master fallback, hides computer undo, and preserves local undo",
   await expect(page.getByRole("status", { name: "对手状态" })).toContainText("困难");
   await expect(page.getByRole("button", { name: "悔棋" })).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => {
-    const raw = window.localStorage.getItem("xiangqi3d:game:v2");
+    const raw = window.localStorage.getItem("xiangqi3d:game:v3");
     return raw ? JSON.parse(raw).match.effectiveTier : null;
   })).toBe("lightweight-hard");
 
   await page.evaluate(() => {
-    window.localStorage.removeItem("xiangqi3d:game:v2");
-    window.localStorage.removeItem("xiangqi3d:game:v2:backup");
+    window.localStorage.removeItem("xiangqi3d:game:v3");
+    window.localStorage.removeItem("xiangqi3d:game:v3:backup");
     window.localStorage.removeItem("xiangqi3d:game:v1");
     window.localStorage.removeItem("xiangqi3d:game:v1:backup");
   });
@@ -348,7 +348,7 @@ test("boots the isolated verified Master Worker and commits one legal opening mo
   await expect(page.locator(".xiangqi-game-shell")).toHaveAttribute("data-game-revision", "1", { timeout: 40_000 });
   await expect(page.locator(".game-keyboard-control button")).toHaveAttribute("aria-disabled", "false", { timeout: 20_000 });
   await expect.poll(() => page.evaluate(() => {
-    const raw = window.localStorage.getItem("xiangqi3d:game:v2");
+    const raw = window.localStorage.getItem("xiangqi3d:game:v3");
     return raw ? JSON.parse(raw).match.effectiveTier : null;
   })).toBe("fairy-master");
   expect(failedEngineRequests).toEqual([]);

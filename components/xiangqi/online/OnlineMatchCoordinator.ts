@@ -20,6 +20,7 @@ import {
   type HelloMessageV1,
   type OnlineErrorCodeV1,
   type OnlineIntentV1,
+  type OnlineLivenessPurposeV1,
   type OnlineMessageV1,
   type OnlineWireFrame,
   type RematchMessageV1,
@@ -239,6 +240,7 @@ interface LocalResignProposal {
 
 interface OutstandingPing {
   readonly nonce: string;
+  readonly purpose: OnlineLivenessPurposeV1;
   readonly revision: number;
   readonly hash: string;
   timer: unknown | null;
@@ -311,6 +313,7 @@ export class OnlineMatchCoordinator {
   readonly #receipts = new Map<string, CachedCommandReceipt>();
   readonly #pendingAcks = new Map<string, AckExpectation>();
   readonly #processedResignProposals = new Set<string>();
+  readonly #authoritativeOutbox: PreparedMessage[] = [];
 
   #chain: Promise<void> = Promise.resolve();
   #generation = 1;
@@ -551,7 +554,10 @@ export class OnlineMatchCoordinator {
           afterRevision: actual.revision,
           afterHash: actual.hash,
         });
-        if (!prepared || !this.#transmit(prepared, generation)) return actionFailure("send-failed");
+        if (!prepared) {
+          this.#lock("failed", "internal-error", true, 0, generation);
+          return actionFailure("send-failed");
+        }
         this.#addAckExpectation({
           kind: "move",
           messageId: commandId,
@@ -564,6 +570,9 @@ export class OnlineMatchCoordinator {
           timer: null,
           timedOut: false,
         }, generation);
+        if (!this.#transmitAuthoritative(prepared, generation)) {
+          return actionFailure("send-failed");
+        }
         return { ok: true };
       } catch {
         if (this.#isCurrent(generation)) this.#lock("failed", "internal-error", true, 0, generation);
@@ -657,6 +666,7 @@ export class OnlineMatchCoordinator {
     }
     this.#transportAvailable = available;
     this.#publishControl();
+    if (this.#hasStickyPhase()) return this.#chain;
     if (!available) this.#pauseForLifecycle("transport-unavailable");
     return available ? this.#resumeAfterLifecycle() : this.#chain;
   }
@@ -665,6 +675,7 @@ export class OnlineMatchCoordinator {
     if (this.#snapshot.phase === "disposed" || this.#visible === visible) return this.#chain;
     this.#visible = visible;
     this.#publishControl();
+    if (this.#hasStickyPhase()) return this.#chain;
     if (!visible) this.#pauseForLifecycle("hidden");
     return visible ? this.#resumeAfterLifecycle() : this.#chain;
   }
@@ -677,6 +688,7 @@ export class OnlineMatchCoordinator {
     this.#fingerprintCache = null;
     this.#receipts.clear();
     this.#pendingAcks.clear();
+    this.#authoritativeOutbox.length = 0;
     this.#localResign = null;
     this.#activeRematch = null;
     this.#publish({
@@ -727,6 +739,12 @@ export class OnlineMatchCoordinator {
 
   #isHiddenLifecyclePause(): boolean {
     return this.#snapshot.phase === "stalled" && this.#snapshot.issue?.kind === "hidden";
+  }
+
+  #hasStickyPhase(): boolean {
+    return this.#snapshot.phase === "failed"
+      || this.#snapshot.phase === "repair-required"
+      || this.#snapshot.phase === "disposed";
   }
 
   #hasPendingWork(): boolean {
@@ -876,6 +894,35 @@ export class OnlineMatchCoordinator {
     return true;
   }
 
+  #transmitAuthoritative(prepared: PreparedMessage, generation: number): boolean {
+    if (!this.#isCurrent(generation)) return false;
+    if (!this.#canSend()) {
+      this.#authoritativeOutbox.push(prepared);
+      this.#nextLocalSeq += 1;
+      return true;
+    }
+    return this.#transmit(prepared, generation);
+  }
+
+  #flushAuthoritativeOutbox(generation: number): boolean {
+    if (!this.#isCurrent(generation) || !this.#canSend()) return false;
+    while (this.#authoritativeOutbox.length > 0) {
+      const prepared = this.#authoritativeOutbox[0];
+      try {
+        const result = this.#send(prepared.frame);
+        if (!result.ok) {
+          this.#lock("failed", "internal-error", true, prepared.message.seq, generation, false);
+          return false;
+        }
+      } catch {
+        this.#lock("failed", "internal-error", true, prepared.message.seq, generation, false);
+        return false;
+      }
+      this.#authoritativeOutbox.shift();
+    }
+    return true;
+  }
+
   #sendPayload(payload: OutgoingPayload, generation: number): PreparedMessage | null {
     const prepared = this.#prepareMessage(payload);
     if (!prepared) {
@@ -941,6 +988,7 @@ export class OnlineMatchCoordinator {
     this.#activeSnapshotRequest = null;
     this.#clearAllTimers();
     this.#pendingAcks.clear();
+    this.#authoritativeOutbox.length = 0;
     this.#localResign = null;
     this.#publish({
       phase,
@@ -1141,7 +1189,7 @@ export class OnlineMatchCoordinator {
       return;
     }
     this.#cacheReceipt(message, ack.frame);
-    if (this.#transmit(ack, generation)) this.#publishPending();
+    if (this.#transmitAuthoritative(ack, generation)) this.#publishPending();
   }
 
   #cacheReceipt(message: CommandMessageV1, ackFrame: string): void {
@@ -1282,7 +1330,10 @@ export class OnlineMatchCoordinator {
       afterRevision: actual.revision,
       afterHash: actual.hash,
     });
-    if (!prepared || !this.#transmit(prepared, generation)) return;
+    if (!prepared) {
+      this.#lock("failed", "internal-error", true, message.seq, generation);
+      return;
+    }
     this.#processedResignProposals.add(message.proposalId);
     this.#addAckExpectation({
       kind: "resign-commit",
@@ -1296,6 +1347,7 @@ export class OnlineMatchCoordinator {
       timer: null,
       timedOut: false,
     }, generation);
+    this.#transmitAuthoritative(prepared, generation);
   }
 
   async #handleResignCommit(
@@ -1382,7 +1434,7 @@ export class OnlineMatchCoordinator {
       signature: resignSignature(message),
       ackFrame: ack.frame,
     });
-    if (this.#transmit(ack, generation)) this.#publishPending();
+    if (this.#transmitAuthoritative(ack, generation)) this.#publishPending();
   }
 
   #replayCachedResignReceipt(message: ResignCommitMessageV1, generation: number): void {
@@ -1482,7 +1534,13 @@ export class OnlineMatchCoordinator {
     const current = await this.#fingerprint();
     if (!this.#isCurrent(generation)) return;
     this.#publishFingerprint(current);
-    if (message.revision !== current.revision || message.positionHash !== current.hash) {
+    const advertised = message.purpose === "revalidation"
+      ? current
+      : await this.#fingerprintAtRevision(current.game, message.revision);
+    if (!this.#isCurrent(generation)) return;
+    if (!advertised
+      || message.revision !== advertised.revision
+      || message.positionHash !== advertised.hash) {
       this.#lock("repair-required", "position-mismatch", true, message.seq, generation);
       return;
     }
@@ -1490,8 +1548,9 @@ export class OnlineMatchCoordinator {
     this.#sendPayload({
       type: "pong",
       nonce: message.nonce,
-      revision: current.revision,
-      positionHash: current.hash,
+      purpose: message.purpose,
+      revision: advertised.revision,
+      positionHash: advertised.hash,
     }, generation);
   }
 
@@ -1502,6 +1561,7 @@ export class OnlineMatchCoordinator {
     const outstanding = this.#outstandingPing;
     if (!outstanding
       || message.nonce !== outstanding.nonce
+      || message.purpose !== outstanding.purpose
       || message.revision !== outstanding.revision
       || message.positionHash !== outstanding.hash) {
       this.#lock("repair-required", "protocol-violation", true, message.seq, generation);
@@ -1510,7 +1570,8 @@ export class OnlineMatchCoordinator {
     const current = await this.#fingerprint();
     if (!this.#isCurrent(generation)) return;
     this.#publishFingerprint(current);
-    if (current.revision !== outstanding.revision || current.hash !== outstanding.hash) {
+    if (outstanding.purpose === "revalidation"
+      && (current.revision !== outstanding.revision || current.hash !== outstanding.hash)) {
       this.#lock("repair-required", "position-mismatch", true, message.seq, generation);
       return;
     }
@@ -1607,15 +1668,20 @@ export class OnlineMatchCoordinator {
     const current = await this.#fingerprint();
     if (!this.#isCurrent(generation)) return;
     const nonce = this.#createId();
+    const purpose: OnlineLivenessPurposeV1 = this.#snapshot.phase === "revalidating"
+      ? "revalidation"
+      : "heartbeat";
     const sent = this.#sendPayload({
       type: "ping",
       nonce,
+      purpose,
       revision: current.revision,
       positionHash: current.hash,
     }, generation);
     if (!sent) return;
     const outstanding: OutstandingPing = {
       nonce,
+      purpose,
       revision: current.revision,
       hash: current.hash,
       timer: null,
@@ -1637,6 +1703,7 @@ export class OnlineMatchCoordinator {
   }
 
   #pauseForLifecycle(kind: "transport-unavailable" | "hidden"): void {
+    if (this.#hasStickyPhase()) return;
     if (this.#snapshot.phase !== "stalled" && this.#snapshot.phase !== "revalidating") {
       this.#resumePhase = this.#snapshot.phase;
     }
@@ -1655,13 +1722,15 @@ export class OnlineMatchCoordinator {
   }
 
   #resumeAfterLifecycle(): Promise<void> {
-    if (!this.#canInteract()) return this.#chain;
+    if (!this.#canInteract() || this.#hasStickyPhase()) return this.#chain;
     return this.#enqueueVoid(async (generation) => {
+      if (this.#hasStickyPhase()) return;
       if (!this.#snapshot.localReady || !this.#snapshot.remoteReady) {
         this.#publish({ phase: this.#resumePhase ?? "handshaking", issue: null });
         this.#resumePhase = null;
         return;
       }
+      if (!this.#flushAuthoritativeOutbox(generation)) return;
       this.#publish({ phase: "revalidating", issue: null });
       const outstanding = this.#outstandingPing;
       if (outstanding?.timer != null) {

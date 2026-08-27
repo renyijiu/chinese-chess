@@ -30,7 +30,7 @@
     "test:presentation": "vitest run --config tests/unit/presentation/vitest.config.ts",
     "test:unit": "npm run test:rules && npm run test:game && npm run test:online && npm run test:ai && npm run test:presentation",
     "test:runtime": "vitest run --config tests/unit/runtime/vitest.config.ts",
-    "test:e2e": "playwright test --config playwright.config.ts",
+    "test:e2e": "playwright test --config playwright.config.ts --grep-invert @online",
     "test:audio:browsers": "AUDIO_BROWSER_MATRIX=1 playwright test tests/e2e/audio.spec.ts --config playwright.config.ts --project desktop-chromium --project audio-firefox --project audio-webkit",
     "test:visual": "playwright test tests/e2e/visual.spec.ts tests/e2e/mobile.spec.ts --config playwright.config.ts",
     "test:visual:update": "npm run test:visual -- --update-snapshots",

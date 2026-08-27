@@ -20,8 +20,8 @@ const MESSAGE_KEYS = {
   ack: [...IDENTITY_KEYS, "ackedMessageId", "ackedSeq", "status", "revision", "positionHash"],
   "snapshot-request": [...IDENTITY_KEYS, "requestId", "reason", "knownRevision", "knownHash"],
   snapshot: [...IDENTITY_KEYS, "requestId", "revision", "positionHash", "serializedGame"],
-  ping: [...IDENTITY_KEYS, "nonce", "revision", "positionHash"],
-  pong: [...IDENTITY_KEYS, "nonce", "revision", "positionHash"],
+  ping: [...IDENTITY_KEYS, "nonce", "purpose", "revision", "positionHash"],
+  pong: [...IDENTITY_KEYS, "nonce", "purpose", "revision", "positionHash"],
   "resign-request": [...IDENTITY_KEYS, "action", "proposalId", "resigningSide", "knownRevision", "knownHash"],
   "resign-commit": [...IDENTITY_KEYS, "action", "proposalId", "commandId", "resigningSide", "expectedRevision", "beforeHash", "afterRevision", "afterHash"],
   rematch: [...IDENTITY_KEYS, "action", "proposalId", "nextMatchId", "nextRematchIndex", "hostSide", "terminalRevision", "terminalHash"],
@@ -208,6 +208,7 @@ export function decodeOnlineMessageValueV1(value: unknown): WireCodecResult<Onli
     case "pong":
       valid = hasExactKeys(value, MESSAGE_KEYS[value.type])
         && isBoundedId(value.nonce)
+        && (value.purpose === "heartbeat" || value.purpose === "revalidation")
         && isSafeNonnegativeInteger(value.revision)
         && isPositionHash(value.positionHash);
       break;

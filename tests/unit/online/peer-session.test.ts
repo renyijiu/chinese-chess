@@ -50,14 +50,19 @@ class FakeEventTarget {
 }
 
 class FakeDataChannel extends FakeEventTarget {
-  readonly label = "xiangqi-v1";
-  readonly ordered = true;
   readyState: RTCDataChannelState = "connecting";
   bufferedAmount = 0;
   bufferedAmountLowThreshold = 0;
   readonly sent: string[] = [];
   closeCalls = 0;
   onClose?: () => void;
+
+  constructor(
+    readonly label = "xiangqi-v1",
+    readonly ordered = true,
+  ) {
+    super();
+  }
 
   send(frame: string): void {
     this.sent.push(frame);
@@ -484,6 +489,106 @@ describe("PeerSession signaling and lifecycle", () => {
     expect(harness.session.getSnapshot().phase).toBe("failed");
   });
 
+  it("drains a backpressured frame when disconnected grace recovers after the low event", async () => {
+    const harness = makeHarness();
+    await createHostOffer(harness);
+    harness.pc.channel.open();
+    harness.pc.channel.bufferedAmount = 65;
+    expect(harness.session.send("queued-before-disconnect")).toEqual({ ok: true, queued: true });
+
+    harness.pc.setConnectionState("disconnected");
+    harness.pc.channel.bufferedAmount = 0;
+    harness.pc.channel.emit("bufferedamountlow");
+    expect(harness.pc.channel.sent).toEqual([]);
+    expect(harness.session.getSnapshot().queuedFrames).toBe(1);
+
+    harness.pc.setConnectionState("connected");
+    expect(harness.session.getSnapshot()).toMatchObject({ phase: "open", queuedFrames: 0 });
+    expect(harness.pc.channel.sent).toEqual(["queued-before-disconnect"]);
+  });
+
+  it("fails the host when the guest creates an unsolicited data channel", async () => {
+    const harness = makeHarness();
+    await createHostOffer(harness);
+    harness.pc.channel.open();
+    const unsolicited = new FakeDataChannel();
+
+    harness.pc.receiveDataChannel(unsolicited);
+
+    expect(unsolicited.closeCalls).toBe(1);
+    expect(harness.session.getSnapshot()).toMatchObject({
+      phase: "failed",
+      failure: "invalid-channel",
+    });
+    expect(harness.pc.channel.closeCalls).toBe(1);
+    expect(harness.pc.closeCalls).toBe(1);
+  });
+
+  it("accepts one valid guest channel, then closes a duplicate and fails locally", async () => {
+    const harness = makeHarness(guestIdentity);
+    const offer = encodeSignalingMessageV1({
+      signalVersion: SIGNALING_VERSION,
+      kind: "offer",
+      sessionId: guestIdentity.sessionId,
+      pairingId: guestIdentity.pairingId,
+      matchId: guestIdentity.matchId,
+      hostPeerId: guestIdentity.remotePeerId,
+      intent: guestIdentity.intent,
+      createdAt: 900,
+      expiresAt: 10_000,
+      description: { type: "offer", sdp: APPLICATION_SDP },
+    });
+    if (!offer.ok) throw new Error(offer.error.code);
+    const pendingAnswer = harness.session.acceptOffer(offer.value);
+    await flushMicrotasks();
+    harness.pc.completeIce();
+    await pendingAnswer;
+    harness.pc.receiveDataChannel();
+    harness.pc.channel.open();
+    const duplicate = new FakeDataChannel();
+
+    harness.pc.receiveDataChannel(duplicate);
+
+    expect(duplicate.closeCalls).toBe(1);
+    expect(harness.session.getSnapshot()).toMatchObject({
+      phase: "failed",
+      failure: "invalid-channel",
+    });
+    expect(harness.pc.channel.closeCalls).toBe(1);
+    expect(harness.pc.closeCalls).toBe(1);
+  });
+
+  it("closes an invalid first guest channel and fails the session", async () => {
+    const harness = makeHarness(guestIdentity);
+    const offer = encodeSignalingMessageV1({
+      signalVersion: SIGNALING_VERSION,
+      kind: "offer",
+      sessionId: guestIdentity.sessionId,
+      pairingId: guestIdentity.pairingId,
+      matchId: guestIdentity.matchId,
+      hostPeerId: guestIdentity.remotePeerId,
+      intent: guestIdentity.intent,
+      createdAt: 900,
+      expiresAt: 10_000,
+      description: { type: "offer", sdp: APPLICATION_SDP },
+    });
+    if (!offer.ok) throw new Error(offer.error.code);
+    const pendingAnswer = harness.session.acceptOffer(offer.value);
+    await flushMicrotasks();
+    harness.pc.completeIce();
+    await pendingAnswer;
+    const invalid = new FakeDataChannel("unexpected-channel");
+
+    harness.pc.receiveDataChannel(invalid);
+
+    expect(invalid.closeCalls).toBe(1);
+    expect(harness.session.getSnapshot()).toMatchObject({
+      phase: "failed",
+      failure: "invalid-channel",
+    });
+    expect(harness.pc.closeCalls).toBe(1);
+  });
+
   it("fails immediately on a failed peer connection", async () => {
     const harness = makeHarness();
     await createHostOffer(harness);
@@ -556,7 +661,7 @@ describe("PeerSession frame safety and backpressure", () => {
     expect(harness.session.send("four")).toEqual({ ok: false, reason: "message-too-large" });
   });
 
-  it("drops binary, oversized, and rate-limited inbound data before onFrame", async () => {
+  it("counts mixed rejected frames toward the rate limit and bounds rejection notifications", async () => {
     const harness = makeHarness();
     await createHostOffer(harness);
     harness.pc.channel.open();
@@ -567,11 +672,12 @@ describe("PeerSession frame safety and backpressure", () => {
     harness.pc.channel.message("two");
     harness.pc.channel.message("three");
 
-    expect(harness.frames).toEqual(["one", "two"]);
+    expect(harness.frames).toEqual([]);
     expect(harness.rejected).toEqual(["binary", "message-too-large", "rate-limit"]);
 
     harness.setNow(1_101);
     harness.pc.channel.message("after-window");
-    expect(harness.frames).toEqual(["one", "two", "after-window"]);
+    expect(harness.frames).toEqual(["after-window"]);
+    expect(harness.rejected).toHaveLength(3);
   });
 });

@@ -152,6 +152,7 @@ interface SessionHarness {
 function createSessionHarness(
   identity: OnlineMatchSessionOptions["identity"],
   bindResult = true,
+  installRematchGate?: Promise<void>,
 ): SessionHarness {
   const channel = new LinkedDataChannel();
   const peerConnection = new FakePeerConnection(channel);
@@ -159,6 +160,7 @@ function createSessionHarness(
   let id = 0;
   const bindMatch = vi.fn(async () => bindResult);
   const installRematch = vi.fn(async () => {
+    await installRematchGate;
     game = createInitialGame();
     return true;
   });
@@ -184,7 +186,10 @@ function createSessionHarness(
   return { session, peerConnection, channel, bindMatch, installRematch, getGame: () => game };
 }
 
-function createPair(): { host: SessionHarness; guest: SessionHarness } {
+function createPair(hostInstallRematchGate?: Promise<void>): {
+  host: SessionHarness;
+  guest: SessionHarness;
+} {
   const host = createSessionHarness({
     role: "host",
     sessionId: "session-1",
@@ -192,7 +197,7 @@ function createPair(): { host: SessionHarness; guest: SessionHarness } {
     matchId: "match-1",
     localPeerId: "peer-host",
     intent: "new",
-  });
+  }, true, hostInstallRematchGate);
   const guest = createSessionHarness({
     role: "guest",
     sessionId: "session-1",
@@ -391,6 +396,71 @@ describe("OnlineMatchSession", () => {
       expect(guest.session.getSnapshot().coordinator).toBe(snapshotBeforeLateFrame);
       expect(guest.session.getSnapshot().error).toBeNull();
     } finally {
+      host.session.dispose();
+      guest.session.dispose();
+    }
+  });
+
+  it("waits for a rematch transport to reconnect before starting the replacement coordinator", async () => {
+    let releaseInstall!: () => void;
+    const installGate = new Promise<void>((resolve) => {
+      releaseInstall = resolve;
+    });
+    const { host, guest } = createPair(installGate);
+
+    try {
+      await exchangeSignals(host, guest);
+      guest.peerConnection.receiveDataChannel();
+      host.channel.open();
+      guest.channel.open();
+      await expect.poll(() => [
+        host.session.getSnapshot().coordinator?.phase,
+        guest.session.getSnapshot().coordinator?.phase,
+      ]).toEqual(["awaiting-ready", "awaiting-ready"]);
+      await host.session.setLocalReady();
+      await guest.session.setLocalReady();
+      await expect.poll(() => host.session.getSnapshot().coordinator?.phase).toBe("playable");
+      await guest.session.submitLocalResign();
+      await expect.poll(() => host.session.getSnapshot().coordinator?.phase).toBe("terminal");
+      await host.session.requestRematch();
+      await expect.poll(() => guest.session.getSnapshot().coordinator?.rematch.status).toBe("received");
+      await guest.session.acceptRematch();
+      await expect.poll(() => host.session.getSnapshot().rotatingToMatchId).toMatch(/^id-/);
+      const nextMatchId = host.session.getSnapshot().rotatingToMatchId;
+      expect(nextMatchId).toMatch(/^id-/);
+      host.peerConnection.setConnectionState("disconnected");
+      releaseInstall();
+
+      await expect.poll(() => host.session.getSnapshot()).toMatchObject({
+        peer: { phase: "disconnected-grace" },
+        identity: { matchId: nextMatchId },
+        coordinator: {
+          phase: "stalled",
+          control: { transportAvailable: false },
+        },
+        rotatingToMatchId: null,
+      });
+      expect(messages(host.channel).filter((message) => (
+        message.matchId === nextMatchId && message.type === "hello"
+      ))).toHaveLength(0);
+
+      host.peerConnection.setConnectionState("connected");
+      await expect.poll(() => messages(host.channel).filter((message) => (
+        message.matchId === nextMatchId && message.type === "hello"
+      ))).toHaveLength(1);
+      await expect.poll(() => host.session.getSnapshot().coordinator).toMatchObject({
+        phase: "awaiting-ready",
+        control: { transportAvailable: true },
+      });
+
+      host.peerConnection.setConnectionState("connected");
+      await flushMicrotasks();
+      expect(messages(host.channel).filter((message) => (
+        message.matchId === nextMatchId && message.type === "hello"
+      ))).toHaveLength(1);
+      expect(host.session.getSnapshot().error).toBeNull();
+    } finally {
+      releaseInstall();
       host.session.dispose();
       guest.session.dispose();
     }

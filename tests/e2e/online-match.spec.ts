@@ -77,7 +77,7 @@ async function showOverheadBoard(page: Page) {
   await page.waitForTimeout(2_000);
 }
 
-test("two browsers can pair, play, resign off-turn, and rematch with swapped sides", async ({
+test("@online two browsers can pair, play, resign off-turn, and rematch with swapped sides", async ({
   baseURL,
   browser,
 }) => {
@@ -130,6 +130,16 @@ test("two browsers can pair, play, resign off-turn, and rematch with swapped sid
     await expect(guest.locator(".game-turn-card strong")).toHaveText("红方");
     await guest.getByRole("button", { name: "认输" }).click();
     await guest.getByRole("button", { name: "确认认输" }).click();
+    await expect(host.getByRole("heading", { name: "红方胜 · 认输" })).toBeVisible();
+    await expect(guest.getByRole("heading", { name: "红方胜 · 认输" })).toBeVisible();
+    await waitForBothRevisions(host, guest, 3);
+
+    // An ended save still needs fresh signaling and mutual readiness for the
+    // resume hash check. Once the coordinator reaches terminal, the UI must
+    // reopen the result/rematch shell without unlocking board input.
+    await resumeSavedMatch(host, guest);
+    await host.getByRole("button", { name: "我已准备" }).click();
+    await guest.getByRole("button", { name: "我已准备" }).click();
     await expect(host.getByRole("heading", { name: "红方胜 · 认输" })).toBeVisible();
     await expect(guest.getByRole("heading", { name: "红方胜 · 认输" })).toBeVisible();
     await waitForBothRevisions(host, guest, 3);

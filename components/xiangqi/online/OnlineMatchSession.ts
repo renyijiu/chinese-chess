@@ -281,7 +281,12 @@ export class OnlineMatchSession {
 
   async #startCoordinator(): Promise<void> {
     const coordinator = this.#coordinator;
-    if (!coordinator || this.#coordinatorStarted || this.#disposed) return;
+    if (
+      !coordinator
+      || this.#coordinatorStarted
+      || this.#disposed
+      || this.#peer.getSnapshot().phase !== "open"
+    ) return;
     this.#coordinatorStarted = true;
     const result = await coordinator.start();
     if (!result.ok) {
@@ -370,8 +375,12 @@ export class OnlineMatchSession {
     previousCoordinator.dispose();
     this.#retiredMatchIds.add(previousIdentity.matchId);
     this.#installCoordinator(identity);
+    const replacementCoordinator = this.#coordinator;
+    if (replacementCoordinator && this.#peer.getSnapshot().phase !== "open") {
+      await replacementCoordinator.setTransportAvailable(false);
+    }
     this.#publish({ rotatingToMatchId: null, error: null, reconnectRequired: false });
-    await this.#startCoordinator();
+    if (this.#peer.getSnapshot().phase === "open") await this.#startCoordinator();
     this.#rotatingProposalId = null;
   }
 

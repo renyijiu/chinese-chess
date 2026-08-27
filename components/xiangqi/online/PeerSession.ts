@@ -162,6 +162,7 @@ export class PeerSession {
   private failure: PeerSessionFailure | null = null;
   private queuedBytes = 0;
   private inboundFrameHead = 0;
+  private inboundRateLimitedUntil = 0;
   private generation = 1;
   private resourcesReleased = false;
   private connectTimer: unknown | null = null;
@@ -372,20 +373,18 @@ export class PeerSession {
       peerConnection.removeEventListener("connectionstatechange", onConnectionStateChange);
     });
 
-    if (this.identity.role === "guest") {
-      const onDataChannel: EventListener = (event) => {
-        if (!this.isCurrent(generation)) return;
-        const channel = (event as RTCDataChannelEvent).channel;
-        if (this.dataChannel !== null) {
-          channel.close();
-          this.fail("invalid-channel");
-          return;
-        }
-        this.attachDataChannel(channel, generation);
-      };
-      peerConnection.addEventListener("datachannel", onDataChannel);
-      this.disposers.push(() => peerConnection.removeEventListener("datachannel", onDataChannel));
-    }
+    const onDataChannel: EventListener = (event) => {
+      if (!this.isCurrent(generation)) return;
+      const channel = (event as RTCDataChannelEvent).channel;
+      if (this.identity.role !== "guest" || this.dataChannel !== null) {
+        channel.close();
+        this.fail("invalid-channel");
+        return;
+      }
+      this.attachDataChannel(channel, generation);
+    };
+    peerConnection.addEventListener("datachannel", onDataChannel);
+    this.disposers.push(() => peerConnection.removeEventListener("datachannel", onDataChannel));
     this.publish();
     return peerConnection;
   }
@@ -400,9 +399,7 @@ export class PeerSession {
 
     const onOpen: EventListener = () => {
       if (!this.isCurrent(generation)) return;
-      this.clearConnectTimer();
-      this.clearDisconnectTimer();
-      this.publish("open");
+      this.transitionToOpen();
     };
     const onMessage: EventListener = (event) => {
       if (!this.isCurrent(generation)) return;
@@ -469,8 +466,7 @@ export class PeerSession {
   private beginConnecting(generation: number): void {
     if (!this.isCurrent(generation)) return;
     if (this.dataChannel?.readyState === "open") {
-      this.clearConnectTimer();
-      this.publish("open");
+      this.transitionToOpen();
       return;
     }
     this.publish("connecting");
@@ -507,16 +503,17 @@ export class PeerSession {
       return;
     }
     if (this.phase === "disconnected-grace") {
-      this.clearDisconnectTimer();
       if (this.dataChannel?.readyState === "open") {
-        this.publish("open");
+        this.transitionToOpen();
       } else {
+        this.clearDisconnectTimer();
         this.beginConnecting(generation);
       }
     }
   }
 
   private handleMessage(data: unknown): void {
+    if (!this.consumeInboundRateSlot()) return;
     if (typeof data !== "string") {
       this.onFrameRejected?.("binary");
       return;
@@ -526,7 +523,17 @@ export class PeerSession {
       return;
     }
 
+    this.onFrame(data);
+  }
+
+  private consumeInboundRateSlot(): boolean {
     const now = this.now();
+    if (now < this.inboundRateLimitedUntil) {
+      this.inboundRateLimitedUntil = now + this.inboundRateLimit.windowMs;
+      return false;
+    }
+    this.inboundRateLimitedUntil = 0;
+
     const oldestAllowed = now - this.inboundRateLimit.windowMs;
     while (
       this.inboundFrameHead < this.inboundFrameTimes.length
@@ -545,11 +552,19 @@ export class PeerSession {
       this.inboundFrameTimes.length - this.inboundFrameHead
       >= this.inboundRateLimit.maximumFrames
     ) {
+      this.inboundRateLimitedUntil = now + this.inboundRateLimit.windowMs;
       this.onFrameRejected?.("rate-limit");
-      return;
+      return false;
     }
     this.inboundFrameTimes.push(now);
-    this.onFrame(data);
+    return true;
+  }
+
+  private transitionToOpen(): void {
+    this.clearConnectTimer();
+    this.clearDisconnectTimer();
+    this.publish("open");
+    this.drainQueue();
   }
 
   private drainQueue(): void {
@@ -713,6 +728,7 @@ export class PeerSession {
     this.queuedBytes = 0;
     this.inboundFrameTimes.length = 0;
     this.inboundFrameHead = 0;
+    this.inboundRateLimitedUntil = 0;
     this.activeOffer = null;
     this.subscribers.clear();
 
