@@ -5,6 +5,7 @@ import {
   createComputerMatch,
   createLocalMatch,
   createOnlineMatch,
+  onlineSideForRematch,
   parseMatchConfig,
   rollFairDie,
   setEffectiveOpponentTier,
@@ -194,6 +195,10 @@ describe("match config validation", () => {
     expect(firstGuest.config).toMatchObject({ signalingRole: "guest", localSide: "black" });
     expect(rematchHost.config).toMatchObject({ signalingRole: "host", localSide: "black" });
     expect(rematchGuest.config).toMatchObject({ signalingRole: "guest", localSide: "red" });
+    expect(onlineSideForRematch(0, "host")).toBe("red");
+    expect(onlineSideForRematch(0, "guest")).toBe("black");
+    expect(onlineSideForRematch(1, "host")).toBe("black");
+    expect(onlineSideForRematch(1, "guest")).toBe("red");
     expect(firstHost.game.revision).toBe(0);
   });
 });

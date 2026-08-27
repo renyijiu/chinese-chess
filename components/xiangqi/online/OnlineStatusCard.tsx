@@ -29,12 +29,28 @@ const COORDINATOR_LABELS = {
   disposed: "联机会话已关闭",
 } as const;
 
-export function OnlineStatusCard({ snapshot }: { snapshot: OnlineMatchSessionSnapshot }) {
+export function OnlineStatusCard({
+  snapshot,
+  onReconnect,
+}: {
+  snapshot: OnlineMatchSessionSnapshot;
+  onReconnect?: () => void;
+}) {
   const coordinator = snapshot.coordinator;
-  const status = coordinator ? COORDINATOR_LABELS[coordinator.phase] : PEER_LABELS[snapshot.peer.phase];
+  const peerOwnsStatus = snapshot.peer.phase === "disconnected-grace"
+    || snapshot.peer.phase === "failed"
+    || snapshot.peer.phase === "closed";
+  const status = coordinator && !peerOwnsStatus
+    ? COORDINATOR_LABELS[coordinator.phase]
+    : PEER_LABELS[snapshot.peer.phase];
   const failed = snapshot.peer.phase === "failed"
     || coordinator?.phase === "failed"
     || coordinator?.phase === "repair-required";
+  const canChooseReconnect = failed
+    || snapshot.reconnectRequired
+    || snapshot.peer.phase === "disconnected-grace"
+    || coordinator?.phase === "stalled"
+    || coordinator?.phase === "revalidating";
 
   return (
     <section
@@ -55,6 +71,12 @@ export function OnlineStatusCard({ snapshot }: { snapshot: OnlineMatchSessionSna
         </small>
       ) : null}
       {failed ? <em>棋盘输入已锁定；请返回菜单后重新配对。</em> : null}
+      {snapshot.rotatingToMatchId ? <em>正在保留当前直连并创建下一局…</em> : null}
+      {canChooseReconnect && onReconnect ? (
+        <button className="game-secondary-action online-reconnect-action" type="button" onClick={onReconnect}>
+          返回菜单重新配对
+        </button>
+      ) : null}
     </section>
   );
 }

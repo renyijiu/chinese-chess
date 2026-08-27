@@ -49,9 +49,16 @@ export type GameHudPermissions = Readonly<{
   canResign: boolean;
 }>;
 
+export type OnlineHudPermissionState = Readonly<{
+  peerOpen: boolean;
+  coordinatorPhase: "playable" | "awaiting-ack" | string | null;
+  conflict: boolean;
+}>;
+
 export function deriveGameHudPermissions(
   match: SavedMatch,
   commandBusy: boolean,
+  online?: OnlineHudPermissionState,
 ): GameHudPermissions {
   const resigningSide = match.config.mode === "computer"
     ? match.config.humanSide
@@ -65,7 +72,11 @@ export function deriveGameHudPermissions(
       && !commandBusy,
     canResign: match.game.status.kind === "playing"
       && !commandBusy
-      && match.game.sideToMove === resigningSide,
+      && (match.config.mode === "online"
+        ? online?.peerOpen === true
+          && (online.coordinatorPhase === "playable" || online.coordinatorPhase === "awaiting-ack")
+          && !online.conflict
+        : match.game.sideToMove === resigningSide),
   };
 }
 
@@ -228,11 +239,22 @@ export function GameOverPanel({
   game,
   onRestart,
   onUndo,
+  onlineRematch,
 }: {
   canUndo: boolean;
   game: GameState;
-  onRestart: () => void;
+  onRestart?: () => void;
   onUndo: () => void;
+  onlineRematch?: Readonly<{
+    supported: boolean;
+    available: boolean;
+    status: "idle" | "requested" | "received" | "agreed" | "declined" | "cancelled";
+    onRequest: () => void;
+    onAccept: () => void;
+    onDecline: () => void;
+    onCancel: () => void;
+    onReconnect: () => void;
+  }>;
 }) {
   return (
     <section className="game-over-panel game-overlay-panel" aria-labelledby="game-over-title">
@@ -241,7 +263,30 @@ export function GameOverPanel({
       <p>将帅仍保留在规则棋盘中，后续战斗时间线可在这里叠加败亡演出。</p>
       <div className="game-menu-actions">
         {canUndo ? <button className="game-secondary-action" type="button" onClick={onUndo}>悔棋复战</button> : null}
-        <button className="game-primary-action" type="button" onClick={onRestart}>开始新局</button>
+        {onlineRematch ? (
+          onlineRematch.status === "received" ? (
+            <>
+              <button className="game-primary-action" type="button" onClick={onlineRematch.onAccept}>接受再来一局</button>
+              <button className="game-secondary-action" type="button" onClick={onlineRematch.onDecline}>拒绝</button>
+            </>
+          ) : onlineRematch.status === "requested" ? (
+            <>
+              <span className="online-rematch-note">已邀请好友，等待回应…</span>
+              <button className="game-secondary-action" type="button" onClick={onlineRematch.onCancel}>取消邀请</button>
+            </>
+          ) : onlineRematch.status === "agreed" ? (
+            <span className="online-rematch-note">双方已同意，正在核对并创建新局…</span>
+          ) : onlineRematch.supported && onlineRematch.available ? (
+            <button className="game-primary-action" type="button" onClick={onlineRematch.onRequest}>邀请再来一局</button>
+          ) : onlineRematch.supported ? (
+            <span className="online-rematch-note">当前连接不可用，请重新配对后继续。</span>
+          ) : (
+            <span className="online-rematch-note">好友版本不支持同连接重开。</span>
+          )
+        ) : onRestart ? (
+          <button className="game-primary-action" type="button" onClick={onRestart}>开始新局</button>
+        ) : null}
+        {onlineRematch ? <button className="game-secondary-action" type="button" onClick={onlineRematch.onReconnect}>返回菜单重新配对</button> : null}
       </div>
     </section>
   );
@@ -258,6 +303,7 @@ export function GameHud({
   onUndo,
   permissions,
   presentationBusy,
+  restartLabel = "重新开局",
   selectedMoveCount,
   settings,
   warning,
@@ -272,6 +318,7 @@ export function GameHud({
   onUndo: () => void;
   permissions: GameHudPermissions;
   presentationBusy: boolean;
+  restartLabel?: string;
   selectedMoveCount: number;
   settings: GameSettings;
   warning?: string;
@@ -343,7 +390,7 @@ export function GameHud({
         {presentationBusy ? <button className="game-skip-action" type="button" onClick={onSkip}>跳过演出</button> : null}
         {permissions.showUndo ? <button disabled={!permissions.canUndo} type="button" onClick={onUndo}>悔棋</button> : null}
         <button disabled={!permissions.canResign || ended} type="button" onClick={onResign}>认输</button>
-        <button type="button" onClick={onRestart}>重新开局</button>
+        <button type="button" onClick={onRestart}>{restartLabel}</button>
         <button aria-expanded={settingsOpen} type="button" onClick={() => setSettingsOpen((open) => !open)}>设置</button>
       </nav>
 

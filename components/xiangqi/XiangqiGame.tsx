@@ -60,6 +60,7 @@ import {
   createComputerMatch,
   createLocalMatch,
   createOnlineMatch,
+  onlineSideForRematch,
   setEffectiveOpponentTier,
   type ComputerDifficulty,
   type SavedMatch,
@@ -466,6 +467,19 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     return result.ok;
   }, []);
 
+  useEffect(() => {
+    const handleOnlineVisibility = () => {
+      const visible = document.visibilityState !== "hidden";
+      void onlineSessionRef.current?.setVisible(visible);
+      if (!visible && matchRef.current.config.mode === "online") {
+        persistMatch(matchRef.current);
+      }
+    };
+    document.addEventListener("visibilitychange", handleOnlineVisibility);
+    handleOnlineVisibility();
+    return () => document.removeEventListener("visibilitychange", handleOnlineVisibility);
+  }, [onlineSession, persistMatch]);
+
   const handleCommandCommit = useCallback(async (commit: CommandCommit) => {
     const nextMatch = commit.after;
     // Storage is attempted before React exposes the new state. Failure is
@@ -589,8 +603,9 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
         const actorSide = context.origin === "local"
           ? latest.config.localSide
           : latest.config.localSide === "red" ? "black" : "red";
-        return latest.game.sideToMove === actorSide
-          && command.expectedRevision === latest.revision;
+        if (command.expectedRevision !== latest.revision) return false;
+        if (command.type === "resign") return command.side === actorSide;
+        return command.type === "move" && latest.game.sideToMove === actorSide;
       },
       beforeCommit: (commit) => {
         beforeCommandCommit(commit);
@@ -643,7 +658,11 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     return true;
   }, [commandGate, persistMatch, presentation, runtime, semanticAudio]);
 
-  const installFreshMatch = useCallback((fresh: SavedMatch, nextPhase: GamePhase) => {
+  const installFreshMatch = useCallback((
+    fresh: SavedMatch,
+    nextPhase: GamePhase,
+    alreadyPersisted = false,
+  ) => {
     opponent.invalidate();
     commandGate.invalidate();
     installLedger.invalidate();
@@ -651,7 +670,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     presentation.skip("match-reset");
     // Persist the complete match config (including the die result) before any
     // setup animation or playable state is exposed.
-    const resumable = persistMatch(fresh);
+    const resumable = alreadyPersisted || persistMatch(fresh);
     matchEpoch.current += 1;
     matchRef.current = fresh;
     gameRef.current = fresh.game;
@@ -721,9 +740,45 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     },
     commitCommand: commitOnlineCommand,
     installRecoveredGame: installRecoveredOnlineGame,
+    installRematch: async (identity, proposal) => {
+      await commandGate.whenIdle();
+      const current = matchRef.current;
+      if (
+        current.config.mode !== "online"
+        || current.game.status.kind !== "ended"
+        || current.revision !== proposal.terminalRevision
+        || await sha256Hex(serializeGame(current.game)) !== proposal.terminalHash
+        || current.config.pairingId !== identity.pairingId
+        || current.config.localPeerId !== identity.localPeerId
+        || current.config.remotePeerId !== identity.remotePeerId
+        || current.config.signalingRole !== identity.signalingRole
+        || proposal.nextMatchId !== identity.matchId
+        || proposal.nextRematchIndex !== current.config.rematchIndex + 1
+        || identity.localSide !== onlineSideForRematch(
+          proposal.nextRematchIndex,
+          identity.signalingRole,
+        )
+      ) return false;
+      const fresh = createOnlineMatch({
+        mode: "online",
+        protocolVersion: 1,
+        pairingId: identity.pairingId,
+        matchId: identity.matchId,
+        rematchIndex: proposal.nextRematchIndex,
+        localPeerId: identity.localPeerId,
+        remotePeerId: identity.remotePeerId,
+        localSide: identity.localSide,
+        signalingRole: identity.signalingRole,
+      });
+      if (!persistMatch(fresh)) return false;
+      installFreshMatch(fresh, "menu", true);
+      setViewSide(identity.localSide);
+      setNotice(`再来一局已创建，你执${identity.localSide === "red" ? "红方" : "黑方"}；请双方重新准备。`);
+      return true;
+    },
     digest: sha256Hex,
     createId: () => randomOnlineId("command"),
-  }), [commitOnlineCommand, installFreshMatch, installRecoveredOnlineGame]);
+  }), [commandGate, commitOnlineCommand, installFreshMatch, installRecoveredOnlineGame, persistMatch]);
 
   const beginOnlinePairing = useCallback(async (
     role: "host" | "guest",
@@ -752,6 +807,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
           remotePeerId: resumedConfig.remotePeerId,
           intent,
           localSide: resumedConfig.localSide,
+          rematchIndex: resumedConfig.rematchIndex,
         }
       : {
           role,
@@ -777,9 +833,9 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     }
   }, [createBrowserOnlineSession, replaceOnlineSession]);
 
-  const handleOnlineSignal = useCallback(async (signal: string) => {
+  const handleOnlineSignal = useCallback(async (signal: string): Promise<boolean> => {
     const setup = onlineSetup;
-    if (!setup || setup.busy) return;
+    if (!setup || setup.busy) return false;
     setOnlineSetup({ ...setup, busy: true, error: undefined });
     try {
       let session = onlineSessionRef.current;
@@ -807,6 +863,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
           remotePeerId: offer.hostPeerId,
           intent: offer.intent,
           localSide: resumedConfig?.localSide ?? "black",
+          rematchIndex: resumedConfig?.rematchIndex ?? 0,
         };
         session = createBrowserOnlineSession(identity, setup.resumeMatch);
         replaceOnlineSession(session);
@@ -820,12 +877,14 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
         setNotice("Answer 已接受，正在建立好友直连。");
       }
       setOnlineSetup((current) => current ? { ...current, busy: false, error: undefined } : current);
+      return true;
     } catch {
       setOnlineSetup((current) => current ? {
         ...current,
         busy: false,
         error: "信令文本无效、已过期或与当前棋局不匹配，请重新配对。",
       } : current);
+      return false;
     }
   }, [createBrowserOnlineSession, onlineSetup, replaceOnlineSession]);
 
@@ -1190,8 +1249,30 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     if (!confirmation) return;
     if (confirmation.kind === "resign") {
       const expectedRevision = confirmation.revision;
+      const resigningSide = confirmation.side;
       setConfirmation(null);
-      void applyCommand({ type: "resign", expectedRevision });
+      const current = matchRef.current;
+      if (current.config.mode === "online") {
+        if (
+          current.revision !== expectedRevision
+          || current.config.localSide !== resigningSide
+        ) {
+          setNotice("棋局状态已经变化，请重新确认认输。");
+          return;
+        }
+        const session = onlineSessionRef.current;
+        if (!session) {
+          setNotice("好友直连已关闭，请返回菜单重新配对。");
+          return;
+        }
+        void session.submitLocalResign().then((result) => {
+          if (!result.ok && mounted.current) {
+            setNotice("当前无法同步认输，请等待连接恢复或重新配对。");
+          }
+        });
+      } else {
+        void applyCommand({ type: "resign", expectedRevision });
+      }
       return;
     }
     if (confirmation.kind === "new-game") {
@@ -1227,7 +1308,16 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
         ? resumableMatch.config
         : null
     : null;
-  const hudPermissions = deriveGameHudPermissions(match, commandBusy);
+  const hudPermissions = deriveGameHudPermissions(match, commandBusy, match.config.mode === "online" ? {
+    peerOpen: onlineSnapshot?.peer.phase === "open",
+    coordinatorPhase: onlineSnapshot?.coordinator?.phase ?? null,
+    conflict: Boolean(
+      onlineSnapshot?.error
+      || onlineSnapshot?.reconnectRequired
+      || onlineSnapshot?.coordinator?.error
+      || onlineSnapshot?.coordinator?.issue,
+    ),
+  } : undefined);
 
   return (
     <div
@@ -1280,25 +1370,38 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
               <>
                 <GameHud
                   game={game}
-                  onlineStatus={onlineSnapshot ? <OnlineStatusCard snapshot={onlineSnapshot} /> : undefined}
+                  onlineStatus={onlineSnapshot ? (
+                    <OnlineStatusCard snapshot={onlineSnapshot} onReconnect={cancelOnlinePairing} />
+                  ) : undefined}
                   opponent={match.config.mode === "computer" ? {
                     config: match.config,
                     computerOwnsTurn,
                     snapshot: opponentSnapshot,
                   } : undefined}
                   onResign={() => {
+                    if (match.config.mode === "online") {
+                      setConfirmation({
+                        kind: "resign",
+                        revision: game.revision,
+                        side: match.config.localSide,
+                      });
+                      return;
+                    }
                     if (match.config.mode === "computer" && game.sideToMove !== match.config.humanSide) {
                       setNotice("只能在你的回合认输。");
                       return;
                     }
                     setConfirmation({ kind: "resign", revision: game.revision, side: game.sideToMove });
                   }}
-                  onRestart={() => setConfirmation({ kind: "restart" })}
+                  onRestart={() => match.config.mode === "online"
+                    ? cancelOnlinePairing()
+                    : setConfirmation({ kind: "restart" })}
                   onUndo={() => { void applyCommand({ type: "undo", expectedRevision: game.revision }); }}
                   onSettingsChange={handleSettingsChange}
                   onSkip={() => presentation.skip("user-skip")}
                   permissions={hudPermissions}
                   presentationBusy={commandBusy}
+                  restartLabel={match.config.mode === "online" ? "重新配对" : "重新开局"}
                   selectedMoveCount={selection.legalMoves.length}
                   settings={settings}
                   warning={storageWarning}
@@ -1319,8 +1422,37 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
                   <GameOverPanel
                     canUndo={match.config.mode === "local" && game.lastAction?.kind === "move" && !commandBusy}
                     game={game}
-                    onRestart={() => setConfirmation({ kind: "restart" })}
+                    onRestart={match.config.mode === "online"
+                      ? undefined
+                      : () => setConfirmation({ kind: "restart" })}
                     onUndo={() => { void applyCommand({ type: "undo", expectedRevision: game.revision }); }}
+                    onlineRematch={match.config.mode === "online" && onlineSnapshot?.coordinator ? {
+                      supported: onlineSnapshot.coordinator.rematch.supported,
+                      available: onlineSnapshot.peer.phase === "open"
+                        && onlineSnapshot.coordinator.phase === "terminal",
+                      status: onlineSnapshot.coordinator.rematch.status,
+                      onRequest: () => {
+                        void onlineSessionRef.current?.requestRematch().then((result) => {
+                          if (!result.ok && mounted.current) setNotice("暂时无法邀请再来一局，请检查连接状态。");
+                        });
+                      },
+                      onAccept: () => {
+                        void onlineSessionRef.current?.acceptRematch().then((result) => {
+                          if (!result.ok && mounted.current) setNotice("未能接受重开邀请，请重新配对。");
+                        });
+                      },
+                      onDecline: () => {
+                        void onlineSessionRef.current?.declineRematch().then((result) => {
+                          if (!result.ok && mounted.current) setNotice("未能发送拒绝响应，请检查连接状态。");
+                        });
+                      },
+                      onCancel: () => {
+                        void onlineSessionRef.current?.cancelRematch().then((result) => {
+                          if (!result.ok && mounted.current) setNotice("未能取消邀请，请检查连接状态。");
+                        });
+                      },
+                      onReconnect: cancelOnlinePairing,
+                    } : undefined}
                   />
                 ) : null}
               </>

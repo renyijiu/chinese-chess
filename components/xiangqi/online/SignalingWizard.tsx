@@ -20,7 +20,7 @@ export function SignalingWizard({
   error?: string;
   onCancel: () => void;
   onReady: () => void | Promise<void>;
-  onSubmitSignal: (signal: string) => void | Promise<void>;
+  onSubmitSignal: (signal: string) => boolean | Promise<boolean>;
 }) {
   const [input, setInput] = useState("");
   const [shareNotice, setShareNotice] = useState<string>();
@@ -90,7 +90,11 @@ export function SignalingWizard({
           className="online-signal-block"
           onSubmit={(event) => {
             event.preventDefault();
-            if (input.trim()) void onSubmitSignal(input.trim());
+            if (input.trim()) {
+              void Promise.resolve(onSubmitSignal(input.trim())).then((accepted) => {
+                if (accepted) setInput("");
+              });
+            }
           }}
         >
           <label htmlFor="online-inbound-signal">粘贴好友的{inputKind}</label>

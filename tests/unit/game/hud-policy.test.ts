@@ -95,7 +95,7 @@ describe("game HUD policy", () => {
     })).toContain("已保存并回退至困难");
   });
 
-  it("offers online resignation only on the local side's turn", () => {
+  it("offers online resignation on either turn only while the peer protocol is healthy", () => {
     const online = createOnlineMatch({
       mode: "online",
       protocolVersion: 1,
@@ -107,7 +107,12 @@ describe("game HUD policy", () => {
       localSide: "red",
       signalingRole: "host",
     });
-    expect(deriveGameHudPermissions(online, false)).toEqual({
+    const healthy = {
+      peerOpen: true,
+      coordinatorPhase: "playable" as const,
+      conflict: false,
+    };
+    expect(deriveGameHudPermissions(online, false, healthy)).toEqual({
       showUndo: false,
       canUndo: false,
       canResign: true,
@@ -120,10 +125,23 @@ describe("game HUD policy", () => {
       to: { file: 0, rank: 4 },
     });
     if (afterLocal.error) throw new Error("fixture move must be legal");
-    expect(deriveGameHudPermissions({
+    const opponentTurn = {
       ...online,
       game: afterLocal.state,
       revision: afterLocal.state.revision,
-    }, false).canResign).toBe(false);
+    };
+    expect(deriveGameHudPermissions(opponentTurn, false, healthy).canResign).toBe(true);
+    expect(deriveGameHudPermissions(opponentTurn, false, {
+      ...healthy,
+      peerOpen: false,
+    }).canResign).toBe(false);
+    expect(deriveGameHudPermissions(opponentTurn, false, {
+      ...healthy,
+      coordinatorPhase: "stalled",
+    }).canResign).toBe(false);
+    expect(deriveGameHudPermissions(opponentTurn, false, {
+      ...healthy,
+      coordinatorPhase: "awaiting-ack",
+    }).canResign).toBe(true);
   });
 });

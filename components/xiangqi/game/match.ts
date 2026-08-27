@@ -115,7 +115,7 @@ function isBoundedId(value: unknown): value is string {
     && value.length <= 128;
 }
 
-function onlineSide(
+export function onlineSideForRematch(
   rematchIndex: number,
   signalingRole: OnlineMatchConfig["signalingRole"],
 ): Side {
@@ -192,7 +192,7 @@ export function parseMatchConfig(value: unknown): MatchConfig {
     ) {
       throw new MatchConfigError("Online match config contains an invalid field.");
     }
-    if (value.localSide !== onlineSide(value.rematchIndex, value.signalingRole)) {
+    if (value.localSide !== onlineSideForRematch(value.rematchIndex, value.signalingRole)) {
       throw new MatchConfigError("Online side does not match the signaling role and rematch index.");
     }
     return {

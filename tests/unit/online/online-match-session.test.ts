@@ -13,6 +13,7 @@ import {
 } from "../../../lib/xiangqi/index";
 import {
   decodeOnlineMessageV1,
+  encodeOnlineMessageV1,
   type OnlineMessageV1,
 } from "../../../lib/xiangqi/online/index";
 
@@ -128,6 +129,11 @@ class FakePeerConnection extends FakeEventTarget implements PeerConnectionPort {
     } as unknown as RTCDataChannelEvent);
   }
 
+  setConnectionState(state: RTCPeerConnectionState): void {
+    this.connectionState = state;
+    this.emit("connectionstatechange");
+  }
+
   close(): void {
     this.closeCalls += 1;
     this.connectionState = "closed";
@@ -139,6 +145,7 @@ interface SessionHarness {
   readonly peerConnection: FakePeerConnection;
   readonly channel: LinkedDataChannel;
   readonly bindMatch: ReturnType<typeof vi.fn>;
+  readonly installRematch: ReturnType<typeof vi.fn>;
   getGame(): GameState;
 }
 
@@ -151,6 +158,10 @@ function createSessionHarness(
   let game = createInitialGame();
   let id = 0;
   const bindMatch = vi.fn(async () => bindResult);
+  const installRematch = vi.fn(async () => {
+    game = createInitialGame();
+    return true;
+  });
   const session = new OnlineMatchSession({
     identity,
     peerConnectionFactory: () => peerConnection,
@@ -166,10 +177,11 @@ function createSessionHarness(
       game = recovered;
       return true;
     },
+    installRematch,
     digest: sha256Hex,
     createId: () => `id-${++id}`,
   });
-  return { session, peerConnection, channel, bindMatch, getGame: () => game };
+  return { session, peerConnection, channel, bindMatch, installRematch, getGame: () => game };
 }
 
 function createPair(): { host: SessionHarness; guest: SessionHarness } {
@@ -274,6 +286,170 @@ describe("OnlineMatchSession", () => {
       ]).toEqual(["playable", "playable"]);
       expect(messages(host.channel).filter((message) => message.type === "ready")).toHaveLength(1);
       expect(messages(guest.channel).filter((message) => message.type === "ready")).toHaveLength(1);
+    } finally {
+      host.session.dispose();
+      guest.session.dispose();
+    }
+  });
+
+  it("bridges peer disconnect/recovery through coordinator revalidation without replacing the peer", async () => {
+    const { host, guest } = createPair();
+    try {
+      await exchangeSignals(host, guest);
+      guest.peerConnection.receiveDataChannel();
+      host.channel.open();
+      guest.channel.open();
+      await expect.poll(() => [
+        host.session.getSnapshot().coordinator?.phase,
+        guest.session.getSnapshot().coordinator?.phase,
+      ]).toEqual(["awaiting-ready", "awaiting-ready"]);
+      await host.session.setLocalReady();
+      await guest.session.setLocalReady();
+      await expect.poll(() => host.session.getSnapshot().coordinator?.phase).toBe("playable");
+
+      host.peerConnection.setConnectionState("disconnected");
+      await expect.poll(() => host.session.getSnapshot()).toMatchObject({
+        peer: { phase: "disconnected-grace" },
+        coordinator: {
+          phase: "stalled",
+          control: { transportAvailable: false },
+          issue: { kind: "transport-unavailable" },
+        },
+        reconnectRequired: false,
+      });
+
+      host.peerConnection.setConnectionState("connected");
+      await expect.poll(() => host.session.getSnapshot().coordinator?.control.transportAvailable)
+        .toBe(true);
+      await expect.poll(() => host.session.getSnapshot().coordinator?.phase).toBe("playable");
+      expect(host.peerConnection.closeCalls).toBe(0);
+
+      host.peerConnection.setConnectionState("failed");
+      await expect.poll(() => host.session.getSnapshot()).toMatchObject({
+        peer: { phase: "failed" },
+        coordinator: {
+          phase: "stalled",
+          control: { transportAvailable: false },
+        },
+        reconnectRequired: true,
+      });
+    } finally {
+      host.session.dispose();
+      guest.session.dispose();
+    }
+  });
+
+  it("rotates coordinators on an agreed rematch and drops frames from the retired match", async () => {
+    const { host, guest } = createPair();
+    try {
+      await exchangeSignals(host, guest);
+      guest.peerConnection.receiveDataChannel();
+      host.channel.open();
+      guest.channel.open();
+      await expect.poll(() => [
+        host.session.getSnapshot().coordinator?.phase,
+        guest.session.getSnapshot().coordinator?.phase,
+      ]).toEqual(["awaiting-ready", "awaiting-ready"]);
+      await host.session.setLocalReady();
+      await guest.session.setLocalReady();
+      await expect.poll(() => host.session.getSnapshot().coordinator?.phase).toBe("playable");
+      const retiredFrame = host.channel.sent.find((frame) => {
+        const decoded = decodeOnlineMessageV1(frame);
+        return decoded.ok && decoded.value.type === "hello" && decoded.value.matchId === "match-1";
+      });
+      expect(retiredFrame).toBeTruthy();
+
+      await expect(guest.session.submitLocalResign()).resolves.toEqual({ ok: true });
+      await expect.poll(() => [
+        host.session.getSnapshot().coordinator?.phase,
+        guest.session.getSnapshot().coordinator?.phase,
+      ]).toEqual(["terminal", "terminal"]);
+      await expect(host.session.requestRematch()).resolves.toEqual({ ok: true });
+      await expect.poll(() => guest.session.getSnapshot().coordinator?.rematch.status).toBe("received");
+      await expect(guest.session.acceptRematch()).resolves.toEqual({ ok: true });
+
+      await expect.poll(() => [
+        host.session.getSnapshot().identity?.matchId,
+        guest.session.getSnapshot().identity?.matchId,
+      ]).toEqual([expect.stringMatching(/^id-/), expect.stringMatching(/^id-/)]);
+      const nextMatchId = host.session.getSnapshot().identity?.matchId;
+      expect(guest.session.getSnapshot().identity?.matchId).toBe(nextMatchId);
+      expect(host.session.getSnapshot().identity).toMatchObject({ rematchIndex: 1, localSide: "black" });
+      expect(guest.session.getSnapshot().identity).toMatchObject({ rematchIndex: 1, localSide: "red" });
+      expect(host.installRematch).toHaveBeenCalledOnce();
+      expect(guest.installRematch).toHaveBeenCalledOnce();
+
+      await expect.poll(() => messages(host.channel).some((message) => (
+        message.matchId === nextMatchId && message.type === "hello" && message.seq === 1
+      ))).toBe(true);
+      await expect.poll(() => messages(guest.channel).some((message) => (
+        message.matchId === nextMatchId && message.type === "hello" && message.seq === 1
+      ))).toBe(true);
+      const snapshotBeforeLateFrame = guest.session.getSnapshot().coordinator;
+      guest.channel.message(retiredFrame);
+      await flushMicrotasks();
+      expect(guest.session.getSnapshot().coordinator).toBe(snapshotBeforeLateFrame);
+      expect(guest.session.getSnapshot().error).toBeNull();
+    } finally {
+      host.session.dispose();
+      guest.session.dispose();
+    }
+  });
+
+  it("routes an unrelated match identity to fatal protocol validation", async () => {
+    const { host, guest } = createPair();
+    try {
+      await exchangeSignals(host, guest);
+      guest.peerConnection.receiveDataChannel();
+      host.channel.open();
+      guest.channel.open();
+      await expect.poll(() => guest.session.getSnapshot().coordinator?.phase).toBe("awaiting-ready");
+
+      const hello = messages(host.channel).find((message) => message.type === "hello");
+      if (!hello) throw new Error("host hello fixture is missing");
+      const unrelated = encodeOnlineMessageV1({ ...hello, matchId: "unrelated-match" });
+      if (!unrelated.ok) throw new Error(unrelated.error.code);
+      guest.channel.message(unrelated.value);
+
+      await expect.poll(() => guest.session.getSnapshot().coordinator).toMatchObject({
+        phase: "failed",
+        error: { code: "identity-mismatch", fatal: true },
+      });
+    } finally {
+      host.session.dispose();
+      guest.session.dispose();
+    }
+  });
+
+  it("keeps the terminal match and requires re-pairing when rematch installation fails", async () => {
+    const { host, guest } = createPair();
+    host.installRematch.mockResolvedValueOnce(false);
+    try {
+      await exchangeSignals(host, guest);
+      guest.peerConnection.receiveDataChannel();
+      host.channel.open();
+      guest.channel.open();
+      await expect.poll(() => [
+        host.session.getSnapshot().coordinator?.phase,
+        guest.session.getSnapshot().coordinator?.phase,
+      ]).toEqual(["awaiting-ready", "awaiting-ready"]);
+      await host.session.setLocalReady();
+      await guest.session.setLocalReady();
+      await expect.poll(() => host.session.getSnapshot().coordinator?.phase).toBe("playable");
+      await guest.session.submitLocalResign();
+      await expect.poll(() => host.session.getSnapshot().coordinator?.phase).toBe("terminal");
+      await host.session.requestRematch();
+      await expect.poll(() => guest.session.getSnapshot().coordinator?.rematch.status).toBe("received");
+      await guest.session.acceptRematch();
+
+      await expect.poll(() => host.session.getSnapshot()).toMatchObject({
+        identity: { matchId: "match-1", rematchIndex: 0, localSide: "red" },
+        coordinator: { phase: "terminal" },
+        error: "rematch-install-failed",
+        reconnectRequired: true,
+        rotatingToMatchId: null,
+      });
+      expect(host.getGame().status.kind).toBe("ended");
     } finally {
       host.session.dispose();
       guest.session.dispose();

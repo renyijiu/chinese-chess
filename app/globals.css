@@ -420,6 +420,17 @@ a {
   font-style: normal;
 }
 
+.online-reconnect-action {
+  justify-self: stretch;
+  margin-top: 4px;
+}
+
+.online-rematch-note {
+  color: var(--qin-hud-text-muted);
+  font: 11px/1.5 ui-sans-serif, system-ui, sans-serif;
+  width: 100%;
+}
+
 .online-signal-block {
   display: grid;
   gap: 8px;

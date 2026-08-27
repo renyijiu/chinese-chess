@@ -250,14 +250,20 @@ describe("computer controller policy", () => {
     expect(canIssueHumanCommand(online, { type: "undo", expectedRevision: 0 })).toBe(false);
     const afterLocal = dispatch(online.game, redSoldierMove());
     if (afterLocal.error) throw new Error("fixture move must be legal");
-    expect(canIssueHumanCommand({
+    const afterOnlineLocal = {
       ...online,
       game: afterLocal.state,
       revision: afterLocal.state.revision,
-    }, {
+    };
+    expect(canIssueHumanCommand(afterOnlineLocal, {
       type: "resign",
       expectedRevision: afterLocal.state.revision,
       side: "red",
+    })).toBe(true);
+    expect(canIssueHumanCommand(afterOnlineLocal, {
+      type: "resign",
+      expectedRevision: afterLocal.state.revision,
+      side: "black",
     })).toBe(false);
   });
 
