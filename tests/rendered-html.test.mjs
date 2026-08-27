@@ -23,7 +23,7 @@ async function render() {
   );
 }
 
-test("server-renders the Qin terracotta diorama board", async () => {
+test("server-renders the fullscreen Qin terracotta game", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
@@ -33,18 +33,16 @@ test("server-renders the Qin terracotta diorama board", async () => {
   assert.match(html, /--qin-black-lacquer:#171612/);
   assert.match(html, /--qin-hud-text:#eadcc3/);
   assert.match(html, /<title>兵临九宫｜Q 版秦俑 3D 中国象棋<\/title>/);
-  assert.match(html, /3D 中国象棋 · 本机双人/);
-  assert.match(html, /可玩棋局 · POPULAR V1/);
-  assert.match(html, /32 枚棋子按标准阵型列阵/);
+  assert.match(html, /board-stage board-stage--fullscreen/);
+  assert.match(html, /兵临九宫 · 3D 中国象棋本机双人对局/);
   assert.match(html, /开始本机双人对局/);
   assert.match(html, /aria-label="Q 版秦俑沙盘中国象棋棋盘三维预览"/);
   assert.match(html, /俯视棋盘/);
   assert.match(html, /自动巡游/);
   assert.match(html, /换边视角/);
-  assert.match(html, /9 纵 × 10 横/);
-  assert.match(html, /双九宫 · 楚河汉界/);
-  assert.match(html, /32 子 · 红方先行/);
-  assert.match(html, /popular-v1 · 本机双人/);
+  assert.doesNotMatch(html, /俑已列阵/);
+  assert.doesNotMatch(html, /棋盘规格/);
+  assert.doesNotMatch(html, /沙盘设计/);
 });
 
 test("keeps the rule-correct board and modular R3F runtime wired", async () => {
