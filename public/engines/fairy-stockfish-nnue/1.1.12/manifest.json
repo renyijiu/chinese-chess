@@ -1,0 +1,63 @@
+{
+  "schema": "xiangqi-engine-assets/v1",
+  "engineId": "fairy-stockfish-nnue",
+  "version": "1.1.12",
+  "license": "GPL-3.0-only",
+  "variant": "xiangqi",
+  "runtimeBaseUrl": "/engines/fairy-stockfish-nnue/1.1.12/",
+  "requirements": {
+    "secureContext": true,
+    "crossOriginIsolated": true,
+    "sharedArrayBuffer": true,
+    "wasmSimd": true
+  },
+  "runtimeFiles": [
+    {
+      "name": "stockfish.js",
+      "role": "engine-glue",
+      "mimeType": "text/javascript; charset=utf-8",
+      "bytes": 64273,
+      "sha256": "9080a62e3133e50da0c47b88b186d9c29ed37cc5129401bdeed8bffb5b9a4ca9"
+    },
+    {
+      "name": "stockfish.wasm",
+      "role": "engine-wasm",
+      "mimeType": "application/wasm",
+      "bytes": 1636293,
+      "sha256": "7cea742b8ca1a324fbc500f89112f168134cf68eb49475df23be6c42336255c6"
+    },
+    {
+      "name": "stockfish.worker.js",
+      "role": "pthread-worker",
+      "mimeType": "text/javascript; charset=utf-8",
+      "bytes": 3321,
+      "sha256": "067be484ac62f728b0dad28496997e5862f3c61f9091f59bb35d9d1b1ed14573"
+    },
+    {
+      "name": "xiangqi-c07e94a5c7cb.nnue",
+      "role": "xiangqi-network",
+      "mimeType": "application/octet-stream",
+      "bytes": 11261932,
+      "sha256": "c07e94a5c7cbeae443ed79a8fa412875d833a7f8e04333815e39729c59d52e11"
+    },
+    {
+      "name": "AUTHORS",
+      "role": "authors-notice",
+      "mimeType": "text/plain; charset=utf-8",
+      "bytes": 4950,
+      "sha256": "55a0a4599358308af8349344d79176469f04119558e85595efe0a39b583cdf00"
+    },
+    {
+      "name": "Copying.txt",
+      "role": "license-notice",
+      "mimeType": "text/plain; charset=utf-8",
+      "bytes": 35821,
+      "sha256": "0b383d5a63da644f628d99c33976ea6487ed89aaa59f0b3257992deac1171e6b"
+    }
+  ],
+  "provenance": {
+    "path": "third_party/fairy-stockfish-nnue/1.1.12/provenance.json",
+    "bytes": 2161,
+    "sha256": "cfd2b26e4087bfa52309f142cd33791b2f21fff133f2dc5475539888c5068469"
+  }
+}

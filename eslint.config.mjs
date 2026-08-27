@@ -15,6 +15,7 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
     "public/basis/**",
+    "public/engines/fairy-stockfish-nnue/**",
   ]),
   eslint.configs.recommended,
   ...tseslint.configs.recommended,

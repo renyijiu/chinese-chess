@@ -2,6 +2,7 @@
   "name": "chinese-chess-3d-web",
   "version": "0.1.0",
   "private": true,
+  "license": "GPL-3.0-only",
   "engines": {
     "node": ">=22.13.0"
   },
@@ -18,6 +19,8 @@
     "assets:pieces:validate": "node scripts/assets/validate-pieces.mjs",
     "assets:pieces:report": "node scripts/assets/report-pieces.mjs",
     "assets:audio:validate": "node scripts/verify-audio-assets.mjs",
+    "assets:ai:validate": "node scripts/verify-ai-engine-assets.mjs",
+    "assets:ai:canary": "node scripts/canary-ai-engine-browser.mjs",
     "test": "npm run build && node --test tests/rendered-html.test.mjs",
     "test:rules": "vitest run --config tests/unit/xiangqi/vitest.config.ts",
     "test:game": "vitest run --config tests/unit/game/vitest.config.ts",
@@ -33,7 +36,7 @@
     "test:performance": "RUN_RENDER_PERFORMANCE=1 playwright test tests/e2e/performance.spec.ts --config playwright.performance.config.ts --project desktop-chromium",
     "pretest:performance:headed": "npm run build",
     "test:performance:headed": "RUN_RENDER_PERFORMANCE=1 PLAYWRIGHT_MEASUREMENT_MODE='Visible Chromium rendered-frame interval; not CPU time or GPU render duration' playwright test tests/e2e/performance.spec.ts --config playwright.performance.config.ts --project desktop-chromium --headed",
-    "test:budget": "node scripts/verify-runtime-budgets.mjs && node scripts/verify-audio-assets.mjs",
+    "test:budget": "node scripts/verify-runtime-budgets.mjs && node scripts/verify-audio-assets.mjs && node scripts/verify-ai-engine-assets.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern output",
     "db:generate": "drizzle-kit generate"

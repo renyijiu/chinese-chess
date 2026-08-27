@@ -10,3 +10,11 @@ assets/audio/**/source/**/*.flac filter=lfs diff=lfs merge=lfs -text
 assets/audio/**/source/**/*.wav filter=lfs diff=lfs merge=lfs -text
 assets/audio/**/source/**/*.aif filter=lfs diff=lfs merge=lfs -text
 assets/audio/**/source/**/*.aiff filter=lfs diff=lfs merge=lfs -text
+# Neural-network weights are large immutable runtime binaries. CI and release
+# builds must hydrate them; the engine-asset validator rejects LFS pointers.
+public/engines/**/*.nnue filter=lfs diff=lfs merge=lfs -text
+
+# Preserve the audited GPL bytes from the upstream release. These files use
+# CRLF, so suppress whitespace diagnostics only for the exact license copies.
+LICENSE -text -whitespace
+public/engines/fairy-stockfish-nnue/1.1.12/Copying.txt -text -whitespace

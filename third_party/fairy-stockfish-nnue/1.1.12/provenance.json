@@ -1,0 +1,43 @@
+{
+  "schema": "xiangqi-engine-provenance/v1",
+  "component": "fairy-stockfish-nnue",
+  "version": "1.1.12",
+  "license": "GPL-3.0-only",
+  "package": {
+    "name": "fairy-stockfish-nnue.wasm",
+    "url": "https://registry.npmjs.org/fairy-stockfish-nnue.wasm/-/fairy-stockfish-nnue.wasm-1.1.12.tgz",
+    "path": "third_party/fairy-stockfish-nnue/1.1.12/fairy-stockfish-nnue.wasm-1.1.12.tgz",
+    "bytes": 532807,
+    "sha256": "4945517be0f7a9d4520b08acadfd736e82b15758935395eb828f8f949b485f41"
+  },
+  "source": {
+    "repository": "https://github.com/fairy-stockfish/fairy-stockfish.wasm",
+    "commit": "b2e693ef1e111233ce3fb40685921708b3276ed6",
+    "tag": "1.1.12",
+    "url": "https://github.com/fairy-stockfish/fairy-stockfish.wasm/archive/b2e693ef1e111233ce3fb40685921708b3276ed6.tar.gz",
+    "path": "third_party/fairy-stockfish-nnue/1.1.12/fairy-stockfish-wasm-b2e693e-source.tar.gz",
+    "bytes": 382962,
+    "sha256": "1fc961fb5a6e6cc61bc4a489b12d58a03e503e9fb27352477562994b07041594"
+  },
+  "network": {
+    "repository": "https://github.com/fairy-stockfish/xiangqi-nnue",
+    "commit": "5fbbb9e15fd882cec18a2a5c3d4bfa25dc07169b",
+    "url": "https://raw.githubusercontent.com/fairy-stockfish/xiangqi-nnue/5fbbb9e15fd882cec18a2a5c3d4bfa25dc07169b/nn-c07e94a5c7cb.nnue",
+    "runtimePath": "public/engines/fairy-stockfish-nnue/1.1.12/xiangqi-c07e94a5c7cb.nnue",
+    "bytes": 11261932,
+    "sha256": "c07e94a5c7cbeae443ed79a8fa412875d833a7f8e04333815e39729c59d52e11",
+    "author": "Pikafish developers",
+    "license": "GPL-3.0-only",
+    "redistributionEvidence": "The pinned upstream xiangqi-nnue repository declares GPL-3.0 for the catalog and network distribution."
+  },
+  "build": {
+    "documentation": "third_party/fairy-stockfish-nnue/1.1.12/BUILD.md",
+    "containerImage": "emscripten/emsdk:2.0.26",
+    "workingDirectory": "src/emscripten",
+    "commands": [
+      "tar -xzf fairy-stockfish-wasm-b2e693e-source.tar.gz",
+      "DOCKER_USER=uid:gid docker compose run --rm emscripten make -C .. emscripten_build ARCH=wasm embedded_nnue=no wasm_simd=yes EM_COMMIT=b2e693ef EM_UPSTREAM= EM_EMSCRIPTEN=2.0.26"
+    ],
+    "localPatches": []
+  }
+}
