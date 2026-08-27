@@ -52,6 +52,7 @@ import {
   createComputerMatch,
   createLocalMatch,
   setEffectiveOpponentTier,
+  type ComputerDifficulty,
   type SavedMatch,
 } from "./game/match";
 import { PresentationStore } from "./presentation/PresentationStore";
@@ -68,6 +69,7 @@ import {
 } from "./game/storage";
 import {
   ConfirmDialog,
+  deriveGameHudPermissions,
   formatGameOutcome,
   GameHud,
   GameMenu,
@@ -75,8 +77,13 @@ import {
 } from "./hud/GameHud";
 import { KeyboardBoardControl } from "./hud/KeyboardBoardControl";
 
+type NewGameTarget =
+  | Readonly<{ mode: "local" }>
+  | Readonly<{ mode: "computer"; difficulty: ComputerDifficulty }>;
+
 type Confirmation =
-  | Readonly<{ kind: "new-game" | "restart" }>
+  | Readonly<{ kind: "new-game"; target: NewGameTarget }>
+  | Readonly<{ kind: "restart" }>
   | Readonly<{ kind: "resign"; revision: number; side: GameState["sideToMove"] }>
   | null;
 
@@ -230,6 +237,7 @@ function GameInitializationShell({
 
 export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
   const [animations] = useState(() => new AnimationRegistry());
+  const [animateDieMatchId, setAnimateDieMatchId] = useState<string | null>(null);
   const [audio] = useState(() => new AudioEngine());
   const [semanticAudio] = useState(() => new SemanticAudioDirector(audio));
   const [confirmation, setConfirmation] = useState<Confirmation>(null);
@@ -521,30 +529,76 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     return receipt;
   }, [audio, beforeCommandCommit, commandGate]);
 
-  const startFreshGame = useCallback(() => {
+  const installFreshMatch = useCallback((fresh: SavedMatch, nextPhase: GamePhase) => {
     opponent.invalidate();
     commandGate.invalidate();
     semanticAudio.cancelAll("match-reset");
     presentation.skip("match-reset");
-    const previous = resumableMatch ?? matchRef.current;
-    const fresh = previous.config.mode === "computer"
-      ? createComputerMatch(previous.config.requestedDifficulty)
-      : createLocalMatch();
+    // Persist the complete match config (including the die result) before any
+    // setup animation or playable state is exposed.
+    const resumable = persistMatch(fresh);
     matchEpoch.current += 1;
     matchRef.current = fresh;
     gameRef.current = fresh.game;
-    phaseRef.current = "playing";
+    phaseRef.current = nextPhase;
     runtime.synchronize(fresh);
-    focusBoardWhenReady.current = true;
+    focusBoardWhenReady.current = nextPhase === "playing";
     setMatch(fresh);
     setKeyboardSquare({ file: 4, rank: 0 });
     setSelectedPieceId(null);
     setUnsafeSavePresent(false);
     setConfirmation(null);
+    setPhase(nextPhase);
+    setResumableMatch(resumable ? fresh : null);
+    return resumable;
+  }, [commandGate, opponent, persistMatch, presentation, runtime, semanticAudio]);
+
+  const startLocalGame = useCallback(() => {
+    const fresh = createLocalMatch();
+    installFreshMatch(fresh, "playing");
+    setAnimateDieMatchId(null);
+    setViewSide("red");
+    setNotice("本机双人新局开始，红方先行。");
+  }, [installFreshMatch]);
+
+  const prepareComputerGame = useCallback((difficulty: ComputerDifficulty) => {
+    const fresh = createComputerMatch(difficulty);
+    installFreshMatch(fresh, "menu");
+    if (fresh.config.mode !== "computer") return;
+    setViewSide(fresh.config.humanSide);
+    setAnimateDieMatchId(fresh.config.matchId);
+    setNotice(`掷出 ${fresh.config.dieResult}，你执${fresh.config.humanSide === "red" ? "红方" : "黑方"}。`);
+  }, [installFreshMatch]);
+
+  const startPreparedComputerGame = useCallback(() => {
+    const current = matchRef.current.config.mode === "computer"
+      ? matchRef.current
+      : resumableMatch?.config.mode === "computer"
+        ? resumableMatch
+        : null;
+    if (
+      !current
+      || current.config.mode !== "computer"
+      || current.game.revision !== 0
+      || current.game.history.length !== 0
+    ) return;
+    opponent.invalidate();
+    commandGate.invalidate();
+    matchEpoch.current += 1;
+    matchRef.current = current;
+    gameRef.current = current.game;
+    phaseRef.current = "playing";
+    runtime.synchronize(current);
+    focusBoardWhenReady.current = true;
+    setMatch(current);
+    setSelectedPieceId(null);
     setPhase("playing");
-    setNotice("新局开始，红方先行。 ");
-    setResumableMatch(persistMatch(fresh) ? fresh : null);
-  }, [commandGate, opponent, persistMatch, presentation, resumableMatch, runtime, semanticAudio]);
+    setViewSide(current.config.humanSide);
+    setAnimateDieMatchId(null);
+    setNotice(current.config.humanSide === "red"
+      ? "你执红方，轮到你先行。"
+      : "你执黑方，电脑将以红方先行。");
+  }, [commandGate, opponent, resumableMatch, runtime]);
 
   const activatedMatchId = useRef<string | null>(null);
   const requestedOpponentTurn = useRef<string | null>(null);
@@ -656,10 +710,26 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     await unlockAudio();
     audio.play("ui.confirm");
     if (resumableMatch || unsafeSavePresent) {
-      setConfirmation({ kind: "new-game" });
+      setConfirmation({ kind: "new-game", target: { mode: "local" } });
       return;
     }
-    startFreshGame();
+    startLocalGame();
+  };
+
+  const handleRollComputer = async (difficulty: ComputerDifficulty) => {
+    await unlockAudio();
+    audio.play("ui.confirm");
+    if (resumableMatch || unsafeSavePresent) {
+      setConfirmation({ kind: "new-game", target: { mode: "computer", difficulty } });
+      return;
+    }
+    prepareComputerGame(difficulty);
+  };
+
+  const handleConfirmComputer = async () => {
+    await unlockAudio();
+    audio.play("ui.confirm");
+    startPreparedComputerGame();
   };
 
   const handleContinue = async () => {
@@ -677,6 +747,9 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     runtime.synchronize(resumableMatch);
     focusBoardWhenReady.current = true;
     setMatch(resumableMatch);
+    if (resumableMatch.config.mode === "computer") {
+      setViewSide(resumableMatch.config.humanSide);
+    }
     setKeyboardSquare(resumableMatch.game.lastAction?.kind === "move"
       ? resumableMatch.game.lastAction.move.to
       : { file: 4, rank: 0 });
@@ -746,6 +819,14 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
         description: `${confirmation.side === "red" ? "红方" : "黑方"}认输后立即判负，且不能悔棋。`,
         label: "确认认输",
       }
+    : confirmation?.kind === "restart"
+      ? {
+          title: "确认重新开局？",
+          description: match.config.mode === "computer"
+            ? "当前棋局将被替换，并重新掷骰决定你在新局中的阵营。"
+            : "当前棋局和可恢复备份将被新的标准初始局面取代。",
+          label: "重新开局",
+        }
     : {
         title: "覆盖当前棋局？",
         description: unsafeSavePresent
@@ -762,20 +843,44 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
       void applyCommand({ type: "resign", expectedRevision });
       return;
     }
-    startFreshGame();
+    if (confirmation.kind === "new-game") {
+      if (confirmation.target.mode === "computer") {
+        prepareComputerGame(confirmation.target.difficulty);
+      } else {
+        startLocalGame();
+      }
+      return;
+    }
+    if (matchRef.current.config.mode === "computer") {
+      prepareComputerGame(matchRef.current.config.requestedDifficulty);
+    } else {
+      startLocalGame();
+    }
   };
 
   const boardStatus = game.status.kind === "ended"
     ? formatGameOutcome(game)
     : `${game.sideToMove === "red" ? "红方" : "黑方"}行动${game.status.check ? " · 将军" : ""}`;
+  const preparedComputerMatch = phase === "menu"
+    ? match.config.mode === "computer" && match.revision === 0 && match.game.history.length === 0
+      ? match.config
+      : resumableMatch?.config.mode === "computer"
+        && resumableMatch.revision === 0
+        && resumableMatch.game.history.length === 0
+        ? resumableMatch.config
+        : null
+    : null;
+  const hudPermissions = deriveGameHudPermissions(match, commandBusy);
 
   return (
     <div
       className="xiangqi-game-shell"
       data-audio-state={audio.state === "locked" ? "locked" : settings.muted ? "muted" : "running"}
       data-game-revision={game.revision}
+      data-match-mode={match.config.mode}
       data-quality={settings.quality}
       data-reduced-motion={settings.reducedMotion ? "true" : "false"}
+      data-human-side={match.config.mode === "computer" ? match.config.humanSide : undefined}
     >
       <div inert={confirmation ? true : undefined} aria-hidden={confirmation ? true : undefined}>
         {loading ? (
@@ -786,17 +891,27 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
             audio={audio}
             overlay={phase === "menu" ? (
               <GameMenu
+                animateMatchId={animateDieMatchId}
                 hasSave={Boolean(resumableMatch)}
+                key={preparedComputerMatch?.matchId ?? "new-match-menu"}
                 loading={false}
+                onConfirmComputer={handleConfirmComputer}
                 onContinue={handleContinue}
+                onRollComputer={handleRollComputer}
                 onStart={handleStart}
+                preparedComputerMatch={preparedComputerMatch}
+                reducedMotion={settings.reducedMotion}
                 warning={storageWarning}
               />
             ) : (
               <>
                 <GameHud
                   game={game}
-                  interactionLocked={boardCommandsLocked}
+                  opponent={match.config.mode === "computer" ? {
+                    config: match.config,
+                    computerOwnsTurn,
+                    snapshot: opponentSnapshot,
+                  } : undefined}
                   onResign={() => {
                     if (match.config.mode === "computer" && game.sideToMove !== match.config.humanSide) {
                       setNotice("只能在你的回合认输。");
@@ -808,6 +923,8 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
                   onUndo={() => { void applyCommand({ type: "undo", expectedRevision: game.revision }); }}
                   onSettingsChange={handleSettingsChange}
                   onSkip={() => presentation.skip("user-skip")}
+                  permissions={hudPermissions}
+                  presentationBusy={commandBusy}
                   selectedMoveCount={selection.legalMoves.length}
                   settings={settings}
                   warning={storageWarning}

@@ -122,8 +122,9 @@ test("keeps the rule-correct board and modular R3F runtime wired", async () => {
   assert.match(loader, /setTranscoderPath\(BASIS_TRANSCODER_PATH\)/);
   assert.match(prototype, /red-marshal-runtime\.glb/);
   assert.match(game, /BoardViewer/);
-  assert.match(game, /createInitialGame/);
-  assert.match(game, /dispatch/);
+  assert.match(game, /createLocalMatch/);
+  assert.match(game, /AuthoritativeCommandGate/);
+  assert.match(game, /LightweightWorkerProvider/);
   assert.match(game, /GameBoardLayer/);
   assert.match(gameController, /getLegalMoves/);
   assert.match(gameStorage, /GAME_SAVE_BACKUP_KEY/);

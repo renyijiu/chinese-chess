@@ -3,7 +3,15 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { GameState, Side } from "../../../lib/xiangqi/index";
+import type { OpponentCoordinatorSnapshot } from "../ai/OpponentCoordinator";
+import type {
+  ComputerDifficulty,
+  ComputerMatchConfig,
+  OpponentTier,
+  SavedMatch,
+} from "../game/match";
 import type { GameSettings } from "../game/storage";
+import { ComputerMatchSetup, DIFFICULTY_LABELS } from "./ComputerMatchSetup";
 
 const SIDE_LABELS: Record<Side, string> = { red: "红方", black: "黑方" };
 const QUALITY_LABELS = { high: "高", medium: "中", low: "低" } as const;
@@ -22,6 +30,61 @@ const END_REASON_LABELS = {
   "no-capture": "连续 100 手无吃子",
   resignation: "认输",
 } as const;
+const TIER_LABELS: Record<OpponentTier, string> = {
+  "lightweight-easy": "简单",
+  "lightweight-normal": "标准",
+  "lightweight-hard": "困难",
+  "fairy-master": "大师",
+};
+
+export type OpponentHudState = Readonly<{
+  config: ComputerMatchConfig;
+  computerOwnsTurn: boolean;
+  snapshot: OpponentCoordinatorSnapshot;
+}>;
+
+export type GameHudPermissions = Readonly<{
+  showUndo: boolean;
+  canUndo: boolean;
+  canResign: boolean;
+}>;
+
+export function deriveGameHudPermissions(
+  match: SavedMatch,
+  commandBusy: boolean,
+): GameHudPermissions {
+  return {
+    showUndo: match.config.mode === "local",
+    canUndo: match.config.mode === "local"
+      && match.game.lastAction?.kind === "move"
+      && !commandBusy,
+    canResign: match.game.status.kind === "playing"
+      && !commandBusy
+      && (match.config.mode === "local" || match.game.sideToMove === match.config.humanSide),
+  };
+}
+
+export function describeOpponentStatus(opponent: OpponentHudState): string {
+  const { phase } = opponent.snapshot;
+  let activity: string;
+  switch (phase) {
+    case "booting": activity = "正在加载电脑对手"; break;
+    case "searching": activity = "电脑正在思考"; break;
+    case "candidatePending": activity = "电脑已选定落点"; break;
+    case "committing": activity = "电脑正在落子"; break;
+    case "stopping": activity = "正在停止旧的计算"; break;
+    case "fallback": activity = "电脑对手正在降级恢复"; break;
+    case "hidden": activity = "页面已隐藏，电脑计算已暂停"; break;
+    case "terminal": activity = "棋局已经结束"; break;
+    case "failed": activity = "电脑对手暂时不可用，可重新开局重试"; break;
+    case "disposed": activity = "电脑对手已经关闭"; break;
+    default: activity = opponent.computerOwnsTurn ? "电脑准备思考" : "轮到你行动";
+  }
+  return opponent.config.requestedDifficulty === "master"
+    && opponent.config.effectiveTier === "lightweight-hard"
+    ? `大师引擎不可用，已保存并回退至困难；${activity}`
+    : activity;
+}
 
 export function formatGameOutcome(game: GameState) {
   if (game.status.kind !== "ended") return "棋局进行中";
@@ -32,34 +95,72 @@ export function formatGameOutcome(game: GameState) {
 }
 
 export function GameMenu({
+  animateMatchId = null,
   hasSave,
   loading,
+  onConfirmComputer,
   onContinue,
+  onRollComputer,
   onStart,
+  preparedComputerMatch = null,
+  reducedMotion = false,
   warning,
 }: {
+  animateMatchId?: string | null;
   hasSave: boolean;
   loading: boolean;
+  onConfirmComputer?: () => void;
   onContinue: () => void;
+  onRollComputer?: (difficulty: ComputerDifficulty) => void;
   onStart: () => void;
+  preparedComputerMatch?: ComputerMatchConfig | null;
+  reducedMotion?: boolean;
   warning?: string;
 }) {
+  const [mode, setMode] = useState<"local" | "computer">(
+    preparedComputerMatch ? "computer" : "local",
+  );
+  const [difficulty, setDifficulty] = useState<ComputerDifficulty>(
+    preparedComputerMatch?.requestedDifficulty ?? "normal",
+  );
+
   return (
     <div className="game-menu game-overlay-panel" role="dialog" aria-labelledby="game-menu-title">
-      <p className="game-kicker">LOCAL HOT-SEAT · 本机双人</p>
+      <p className="game-kicker">QIN DIORAMA · 秦俑棋局</p>
       <h2 id="game-menu-title">兵临九宫</h2>
-      <p>红方先行。选择己方棋子，再点击米白圆点落位；朱砂圆环表示可吃子。</p>
+      <p>选择本机双人或无需后端的人机对战。规则仍由同一套中国象棋引擎裁定，红方先行。</p>
       {warning ? <p className="game-warning" role="status">{warning}</p> : null}
-      <div className="game-menu-actions">
-        {hasSave ? (
-          <button className="game-primary-action" disabled={loading} type="button" onClick={onContinue}>
-            继续对局
-          </button>
-        ) : null}
-        <button className={hasSave ? "game-secondary-action" : "game-primary-action"} disabled={loading} type="button" onClick={onStart}>
-          {hasSave ? "开始新局" : "开始本机双人对局"}
+      {hasSave && !preparedComputerMatch ? (
+        <button className="game-continue-action game-primary-action" disabled={loading} type="button" onClick={onContinue}>
+          继续对局
         </button>
+      ) : null}
+
+      <div className="game-mode-switch" role="group" aria-label="对局模式">
+        <button aria-pressed={mode === "local"} disabled={loading} type="button" onClick={() => setMode("local")}>本机双人</button>
+        <button aria-pressed={mode === "computer"} disabled={loading} type="button" onClick={() => setMode("computer")}>人机对战</button>
       </div>
+
+      {mode === "local" ? (
+        <section className="local-match-setup" aria-labelledby="local-setup-title">
+          <h3 id="local-setup-title">同屏对弈</h3>
+          <p>红黑双方轮流操作；保留单步悔棋，所有走法、将军与终局规则保持不变。</p>
+          <button className="game-primary-action" disabled={loading} type="button" onClick={onStart}>
+            {hasSave ? "开始新的本机双人对局" : "开始本机双人对局"}
+          </button>
+        </section>
+      ) : (
+        <ComputerMatchSetup
+          animateMatchId={animateMatchId}
+          difficulty={difficulty}
+          disabled={loading}
+          onConfirm={() => onConfirmComputer?.()}
+          onDifficultyChange={setDifficulty}
+          onRoll={() => onRollComputer?.(difficulty)}
+          preparedConfig={preparedComputerMatch}
+          reducedMotion={reducedMotion}
+        />
+      )}
       <small>{loading ? "正在检查本地存档…" : "自动保存 · 无计时 · 无需登录"}</small>
     </div>
   );
@@ -122,45 +223,69 @@ export function GameOverPanel({
 
 export function GameHud({
   game,
-  interactionLocked,
+  opponent,
   onResign,
   onRestart,
   onSettingsChange,
   onSkip,
   onUndo,
+  permissions,
+  presentationBusy,
   selectedMoveCount,
   settings,
   warning,
 }: {
   game: GameState;
-  interactionLocked: boolean;
+  opponent?: OpponentHudState;
   onResign: () => void;
   onRestart: () => void;
   onSettingsChange: (settings: GameSettings) => void;
   onSkip: () => void;
   onUndo: () => void;
+  permissions: GameHudPermissions;
+  presentationBusy: boolean;
   selectedMoveCount: number;
   settings: GameSettings;
   warning?: string;
 }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const canUndo = game.lastAction?.kind === "move" && !interactionLocked;
   const ended = game.status.kind === "ended";
   const check = game.status.kind === "playing" ? game.status.check : null;
+  const opponentStatus = opponent ? describeOpponentStatus(opponent) : null;
+  const turnLabel = presentationBusy ? "演出处理中"
+    : ended ? "棋局结束"
+      : opponent ? opponent.computerOwnsTurn ? "电脑回合" : "你的回合"
+        : "当前行动";
 
   return (
     <div className="game-hud" aria-label="对局控制台">
       <section
         className={`game-turn-card ${game.sideToMove}`}
         aria-label="当前回合"
+        aria-live="polite"
+        role="status"
         data-check={check ? "true" : undefined}
       >
-        <span>{interactionLocked ? "演出处理中" : ended ? "棋局结束" : "当前行动"}</span>
+        <span>{turnLabel}</span>
         <strong>{ended ? formatGameOutcome(game) : SIDE_LABELS[game.sideToMove]}</strong>
         <small>
           {check ? `${SIDE_LABELS[check]}被将军` : selectedMoveCount > 0 ? `${selectedMoveCount} 个合法落点` : `第 ${game.history.length + 1} 手`}
         </small>
       </section>
+
+      {opponent ? (
+        <section className="game-opponent-status" aria-label="对手状态" aria-live="polite" role="status">
+          <div>
+            <span>电脑对手</span>
+            <strong>{DIFFICULTY_LABELS[opponent.config.requestedDifficulty]}</strong>
+          </div>
+          <p>{opponentStatus}</p>
+          <small>
+            你执{SIDE_LABELS[opponent.config.humanSide]} · 实际强度 {TIER_LABELS[opponent.config.effectiveTier]}
+          </small>
+          {opponent.snapshot.failure ? <em>当前局面保持不变，可使用“重新开局”重试。</em> : null}
+        </section>
+      ) : null}
 
       <aside className="game-history" aria-label="着法历史">
         <div>
@@ -185,10 +310,10 @@ export function GameHud({
       {warning ? <p className="game-persistence-warning" role="status">{warning}</p> : null}
 
       <nav className="game-action-bar" aria-label="棋局操作">
-        {interactionLocked ? <button className="game-skip-action" type="button" onClick={onSkip}>跳过演出</button> : null}
-        <button disabled={!canUndo} type="button" onClick={onUndo}>悔棋</button>
-        <button disabled={interactionLocked || ended} type="button" onClick={onResign}>认输</button>
-        <button disabled={interactionLocked} type="button" onClick={onRestart}>重新开局</button>
+        {presentationBusy ? <button className="game-skip-action" type="button" onClick={onSkip}>跳过演出</button> : null}
+        {permissions.showUndo ? <button disabled={!permissions.canUndo} type="button" onClick={onUndo}>悔棋</button> : null}
+        <button disabled={!permissions.canResign || ended} type="button" onClick={onResign}>认输</button>
+        <button type="button" onClick={onRestart}>重新开局</button>
         <button aria-expanded={settingsOpen} type="button" onClick={() => setSettingsOpen((open) => !open)}>设置</button>
       </nav>
 

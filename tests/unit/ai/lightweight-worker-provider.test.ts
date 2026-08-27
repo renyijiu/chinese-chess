@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { OpponentRequestV1 } from "../../../lib/xiangqi/ai/index";
 import {
+  createLightweightWorker,
   LightweightWorkerProvider,
   type OpponentWorkerLike,
 } from "../../../components/xiangqi/ai/LightweightWorkerProvider";
@@ -52,6 +53,25 @@ const request: OpponentRequestV1 = {
 };
 
 describe("LightweightWorkerProvider", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("constructs its default Worker from the bundler URL without a file-scheme base", () => {
+    const worker = new FakeWorker();
+    let receivedUrl: string | URL | undefined;
+    let receivedOptions: WorkerOptions | undefined;
+    function WorkerStub(url: string | URL, options?: WorkerOptions) {
+      receivedUrl = url;
+      receivedOptions = options;
+      return worker;
+    }
+    vi.stubGlobal("Worker", WorkerStub);
+
+    expect(createLightweightWorker()).toBe(worker);
+    expect(String(receivedUrl)).toContain("lightweight.worker");
+    expect(String(receivedUrl)).not.toMatch(/^file:/);
+    expect(receivedOptions).toMatchObject({ type: "module", name: "xiangqi-lightweight-opponent" });
+  });
+
   it("strictly decodes unknown output and resolves only the matching result", async () => {
     const worker = new FakeWorker();
     const provider = new LightweightWorkerProvider(() => worker);

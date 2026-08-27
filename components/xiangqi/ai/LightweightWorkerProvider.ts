@@ -6,6 +6,7 @@ import {
   type OpponentProviderOutcome,
   type OpponentRequestV1,
 } from "../../../lib/xiangqi/ai/index";
+import lightweightWorkerUrl from "../../../lib/xiangqi/ai/lightweight.worker.ts?worker&url";
 
 export interface OpponentWorkerLike {
   postMessage(message: unknown): void;
@@ -38,7 +39,7 @@ function failure(
 
 export function createLightweightWorker(): OpponentWorkerLike {
   return new Worker(
-    new URL("../../../lib/xiangqi/ai/lightweight.worker.ts", import.meta.url),
+    lightweightWorkerUrl,
     { type: "module", name: "xiangqi-lightweight-opponent" },
   );
 }
