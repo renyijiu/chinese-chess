@@ -60,6 +60,7 @@ import {
   createComputerMatch,
   createLocalMatch,
   createOnlineMatch,
+  ONLINE_MATCH_PROTOCOL_VERSION,
   onlineSideForRematch,
   setEffectiveOpponentTier,
   type ComputerDifficulty,
@@ -721,7 +722,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
       if (bound.intent !== "new") return false;
       const fresh = createOnlineMatch({
         mode: "online",
-        protocolVersion: 1,
+        protocolVersion: ONLINE_MATCH_PROTOCOL_VERSION,
         pairingId: bound.pairingId,
         matchId: bound.matchId,
         rematchIndex: 0,
@@ -744,7 +745,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
         current.config.mode !== "online"
         || current.game.status.kind !== "ended"
         || current.revision !== proposal.terminalRevision
-        || await sha256Hex(serializeGame(current.game)) !== proposal.terminalHash
+        || await fingerprintGame(current.game) !== proposal.terminalHash
         || current.config.pairingId !== identity.pairingId
         || current.config.localPeerId !== identity.localPeerId
         || current.config.remotePeerId !== identity.remotePeerId
@@ -758,7 +759,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
       ) return false;
       const fresh = createOnlineMatch({
         mode: "online",
-        protocolVersion: 1,
+        protocolVersion: ONLINE_MATCH_PROTOCOL_VERSION,
         pairingId: identity.pairingId,
         matchId: identity.matchId,
         rematchIndex: proposal.nextRematchIndex,
@@ -813,7 +814,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
           matchId: randomOnlineId("match"),
           localPeerId: randomOnlineId("peer"),
           intent,
-          localSide: role === "host" ? "red" : "black",
+          localSide: onlineSideForRematch(0, role),
         };
     const session = createBrowserOnlineSession(identity, resumeMatch);
     replaceOnlineSession(session);
@@ -859,7 +860,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
           localPeerId: resumedConfig?.localPeerId ?? randomOnlineId("peer"),
           remotePeerId: offer.hostPeerId,
           intent: offer.intent,
-          localSide: resumedConfig?.localSide ?? "black",
+          localSide: resumedConfig?.localSide ?? onlineSideForRematch(0, "guest"),
           rematchIndex: resumedConfig?.rematchIndex ?? 0,
         };
         session = createBrowserOnlineSession(identity, setup.resumeMatch);

@@ -252,7 +252,10 @@ function isSavedMatch(value: SavedMatch | GameState): value is SavedMatch {
   return "config" in value && "game" in value;
 }
 
-function normalizeSavedMatch(value: SavedMatch | GameState): SavedMatch {
+function normalizeSavedMatch(value: SavedMatch | GameState): Readonly<{
+  savedMatch: SavedMatch;
+  serialized: string;
+}> {
   const savedMatch = isSavedMatch(value) ? value : createLocalMatch(value);
   const config = parseMatchConfig(savedMatch.config);
   if (!isStoredRevision(savedMatch.revision) || savedMatch.revision !== savedMatch.game.revision) {
@@ -263,7 +266,10 @@ function normalizeSavedMatch(value: SavedMatch | GameState): SavedMatch {
   if (replayed.revision !== savedMatch.revision) {
     throw new Error("Saved match replay does not produce its stored revision");
   }
-  return { config, game: savedMatch.game, revision: savedMatch.revision };
+  return {
+    savedMatch: { config, game: savedMatch.game, revision: savedMatch.revision },
+    serialized,
+  };
 }
 
 export function saveGameSnapshot(
@@ -273,7 +279,7 @@ export function saveGameSnapshot(
 ): GameStorageWriteResult {
   try {
     if (!Number.isFinite(savedAt)) throw new Error("Save timestamp must be finite");
-    const savedMatch = normalizeSavedMatch(value);
+    const { savedMatch, serialized } = normalizeSavedMatch(value);
     const current = storage.getItem(GAME_SAVE_KEY);
     if (current && tryLoad(current)) {
       storage.setItem(GAME_SAVE_BACKUP_KEY, current);
@@ -283,7 +289,7 @@ export function saveGameSnapshot(
       version: SAVE_VERSION,
       savedAt,
       revision: savedMatch.revision,
-      serialized: serializeGame(savedMatch.game),
+      serialized,
       match: savedMatch.config,
     };
     storage.setItem(GAME_SAVE_KEY, JSON.stringify(envelope));

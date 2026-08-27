@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import type { GameState, Side } from "../../../lib/xiangqi/index";
 import type { OpponentCoordinatorSnapshot } from "../ai/OpponentCoordinator";
+import type { OnlineMatchCoordinatorSnapshot } from "../online/OnlineMatchCoordinator";
 import type {
   ComputerDifficulty,
   ComputerMatchConfig,
@@ -51,7 +52,7 @@ export type GameHudPermissions = Readonly<{
 
 export type OnlineHudPermissionState = Readonly<{
   peerOpen: boolean;
-  coordinatorPhase: "playable" | "awaiting-ack" | string | null;
+  coordinatorPhase: OnlineMatchCoordinatorSnapshot["phase"] | null;
   conflict: boolean;
 }>;
 
@@ -62,9 +63,7 @@ export function deriveGameHudPermissions(
 ): GameHudPermissions {
   const resigningSide = match.config.mode === "computer"
     ? match.config.humanSide
-    : match.config.mode === "online"
-      ? match.config.localSide
-      : match.game.sideToMove;
+    : match.game.sideToMove;
   return {
     showUndo: match.config.mode === "local",
     canUndo: match.config.mode === "local"

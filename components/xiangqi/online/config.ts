@@ -1,7 +1,6 @@
 export interface OnlineRuntimeConfig {
   readonly enabled: boolean;
   readonly rtcConfiguration: RTCConfiguration;
-  readonly ignoredStunEntries: number;
 }
 
 const MAX_STUN_SERVERS = 8;
@@ -29,10 +28,8 @@ export function resolveOnlineRuntimeConfig(
   stunValue: string | undefined,
 ): OnlineRuntimeConfig {
   const stunUrls = parseStunUrls(stunValue);
-  const candidates = stunValue?.split(",").filter((value) => value.trim().length > 0) ?? [];
   return {
     enabled: enabledValue === "1" || enabledValue === "true",
     rtcConfiguration: { iceServers: stunUrls.length > 0 ? [{ urls: [...stunUrls] }] : [] },
-    ignoredStunEntries: Math.max(0, candidates.length - stunUrls.length),
   };
 }

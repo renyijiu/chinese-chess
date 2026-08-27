@@ -10,7 +10,6 @@ describe("online runtime config", () => {
     expect(resolveOnlineRuntimeConfig(undefined, undefined)).toEqual({
       enabled: false,
       rtcConfiguration: { iceServers: [] },
-      ignoredStunEntries: 0,
     });
   });
 
@@ -28,9 +27,9 @@ describe("online runtime config", () => {
     ]);
   });
 
-  it("enables only explicit public flag values and reports ignored entries", () => {
+  it("enables only explicit public flag values", () => {
     expect(resolveOnlineRuntimeConfig("1", "stun:one.example,turn:two.example"))
-      .toMatchObject({ enabled: true, ignoredStunEntries: 1 });
+      .toMatchObject({ enabled: true });
     expect(resolveOnlineRuntimeConfig("yes", "").enabled).toBe(false);
   });
 });
