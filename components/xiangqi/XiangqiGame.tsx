@@ -4,10 +4,12 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent a
 
 import { BoardViewer } from "../../app/BoardViewer";
 import {
-  createInitialGame,
-  dispatch,
+  LIGHTWEIGHT_TIER_LIMITS,
+} from "../../lib/xiangqi/ai/index";
+import {
   formatSquareCoordinate,
   getPieceAt,
+  serializeGame,
   type CommandErrorCode,
   type DomainEvent,
   type GameCommand,
@@ -15,17 +17,43 @@ import {
   type Side,
   type Square,
 } from "../../lib/xiangqi/index";
-import type { GameActionHandler, GameActionTransition } from "./game/actions";
+import { LightweightWorkerProvider } from "./ai/LightweightWorkerProvider";
+import {
+  OpponentCoordinator,
+  type OpponentCandidateRelease,
+  type OpponentCoordinatorSnapshot,
+} from "./ai/OpponentCoordinator";
+import {
+  canIssueHumanCommand,
+  deriveBoardCommandsLocked,
+  isComputerTurn,
+  opponentTurnRequestKey,
+  shouldRequestOpponentTurn,
+  type GameActionHandler,
+  type GameActionTransition,
+  type GamePhase,
+} from "./game/actions";
 import { AnimationRegistry } from "./animation/AnimationRegistry";
 import { AudioEngine } from "./audio/AudioEngine";
 import { handlePresentationAudioCue } from "./audio/presentation-audio";
 import { SemanticAudioDirector } from "./audio/SemanticAudioDirector";
+import {
+  AuthoritativeCommandGate,
+  type CommandCommit,
+  type CommandGateReceipt,
+} from "./game/command-gate";
 import {
   deriveSelection,
   moveKeyboardCursor,
   resolveBoardClick,
 } from "./game/controller";
 import { GameBoardLayer } from "./game/GameBoardLayer";
+import {
+  createComputerMatch,
+  createLocalMatch,
+  setEffectiveOpponentTier,
+  type SavedMatch,
+} from "./game/match";
 import { PresentationStore } from "./presentation/PresentationStore";
 import { attachAudioDiagnostics } from "./runtime/test-faults";
 import {
@@ -51,6 +79,49 @@ type Confirmation =
   | Readonly<{ kind: "new-game" | "restart" }>
   | Readonly<{ kind: "resign"; revision: number; side: GameState["sideToMove"] }>
   | null;
+
+class ControllerRuntime {
+  #match: SavedMatch;
+  #mounted = true;
+  #commit: (commit: CommandCommit) => Promise<void> = async () => undefined;
+  #fallback: (matchId: string, toTier: "lightweight-hard") => Promise<void> = async () => undefined;
+
+  constructor(match: SavedMatch) {
+    this.#match = match;
+  }
+
+  get currentMatch(): SavedMatch {
+    return this.#match;
+  }
+
+  get isMounted(): boolean {
+    return this.#mounted;
+  }
+
+  synchronize(match: SavedMatch): void {
+    this.#match = match;
+  }
+
+  setMounted(mounted: boolean): void {
+    this.#mounted = mounted;
+  }
+
+  setHandlers(
+    commit: (value: CommandCommit) => Promise<void>,
+    fallback: (matchId: string, toTier: "lightweight-hard") => Promise<void>,
+  ): void {
+    this.#commit = commit;
+    this.#fallback = fallback;
+  }
+
+  commit(value: CommandCommit): Promise<void> {
+    return this.#commit(value);
+  }
+
+  fallback(matchId: string, toTier: "lightweight-hard"): Promise<void> {
+    return this.#fallback(matchId, toTier);
+  }
+}
 
 const ERROR_MESSAGES: Record<CommandErrorCode, string> = {
   "stale-revision": "这次操作已过期，请重新选择棋子。",
@@ -112,6 +183,12 @@ function describeKeyboardSquare(game: GameState, square: Square) {
   return `${piece.side === "red" ? "红方" : "黑方"}${ROLE_LABELS[piece.role]}`;
 }
 
+async function fingerprintSerializedGame(serializedGame: string): Promise<string> {
+  const bytes = new TextEncoder().encode(serializedGame);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
 function GameInitializationShell({
   onContinue,
   onStart,
@@ -156,26 +233,66 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
   const [audio] = useState(() => new AudioEngine());
   const [semanticAudio] = useState(() => new SemanticAudioDirector(audio));
   const [confirmation, setConfirmation] = useState<Confirmation>(null);
-  const [game, setGame] = useState<GameState>(() => createInitialGame());
-  const [interactionLocked, setInteractionLocked] = useState(false);
+  const [match, setMatch] = useState<SavedMatch>(() => createLocalMatch());
+  const [commandBusy, setCommandBusy] = useState(false);
   const [keyboardActive, setKeyboardActive] = useState(false);
   const [keyboardSquare, setKeyboardSquare] = useState<Square>({ file: 4, rank: 0 });
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState("准备开始本机双人对局。");
-  const [phase, setPhase] = useState<"menu" | "playing">("menu");
+  const [phase, setPhase] = useState<GamePhase>("menu");
   const [presentation] = useState(() => new PresentationStore());
-  const [savedGame, setSavedGame] = useState<GameState | null>(null);
+  const [resumableMatch, setResumableMatch] = useState<SavedMatch | null>(null);
   const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
   const [settings, setSettings] = useState<GameSettings>(DEFAULT_GAME_SETTINGS);
   const [storageWarning, setStorageWarning] = useState<string>();
   const [unsafeSavePresent, setUnsafeSavePresent] = useState(false);
   const [viewSide, setViewSide] = useState<Side>("red");
-  const actionInFlight = useRef(false);
   const focusBoardWhenReady = useRef(false);
   const keyboardControlRef = useRef<HTMLButtonElement>(null);
   const mounted = useRef(true);
   const matchEpoch = useRef(0);
   const storageRef = useRef<StorageLike | null>(null);
+  const matchRef = useRef(match);
+  const gameRef = useRef(match.game);
+  const phaseRef = useRef<GamePhase>(phase);
+  const settingsRef = useRef(settings);
+  const viewSideRef = useRef(viewSide);
+  const onActionRef = useRef(onAction);
+  const [runtime] = useState(() => new ControllerRuntime(match));
+  const [opponent] = useState(() => new OpponentCoordinator({
+    providerFactory: async (tier) => {
+      // U7 injects the verified Master adapter. Until then, the coordinator's
+      // persisted fallback contract selects the lightweight Hard provider.
+      if (tier === "fairy-master") throw new Error("Master provider is not installed yet.");
+      return new LightweightWorkerProvider();
+    },
+    onFallback: ({ matchId, toTier }) => {
+      if (toTier !== "lightweight-hard") return;
+      return runtime.fallback(matchId, toTier);
+    },
+  }));
+  const [opponentSnapshot, setOpponentSnapshot] = useState<OpponentCoordinatorSnapshot>(
+    () => opponent.getSnapshot(),
+  );
+  const [commandGate] = useState(() => new AuthoritativeCommandGate({
+    getCurrentMatch: () => runtime.currentMatch,
+    commit: (commit) => runtime.commit(commit),
+    onBusyChange: (busy) => {
+      if (runtime.isMounted) setCommandBusy(busy);
+    },
+  }));
+
+  const game = match.game;
+
+  useEffect(() => {
+    matchRef.current = match;
+    gameRef.current = match.game;
+    phaseRef.current = phase;
+    settingsRef.current = settings;
+    viewSideRef.current = viewSide;
+    onActionRef.current = onAction;
+    runtime.synchronize(match);
+  }, [match, onAction, phase, runtime, settings, viewSide]);
 
   const selection = useMemo(
     () => deriveSelection(game, selectedPieceId),
@@ -184,6 +301,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
 
   useEffect(() => {
     mounted.current = true;
+    runtime.setMounted(true);
     const initializationFrame = window.requestAnimationFrame(() => {
       const storage = browserStorage();
       storageRef.current = storage;
@@ -205,7 +323,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
       setSettings(hasStoredSettings
         ? loadedSettings
         : { ...loadedSettings, reducedMotion: prefersReducedMotion });
-      setSavedGame(loaded.game);
+      setResumableMatch(loaded.savedMatch);
       setStorageWarning(loaded.warning);
       setUnsafeSavePresent(loaded.source === "none" && Boolean(loaded.warning?.includes("损坏")));
       setLoading(false);
@@ -213,12 +331,26 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
 
     return () => {
       mounted.current = false;
+      runtime.setMounted(false);
+      commandGate.invalidate();
+      opponent.dispose();
       semanticAudio.dispose();
       presentation.dispose();
       animations.dispose();
       window.cancelAnimationFrame(initializationFrame);
     };
-  }, [animations, presentation, semanticAudio]);
+  }, [animations, commandGate, opponent, presentation, runtime, semanticAudio]);
+
+  useEffect(() => opponent.subscribe((snapshot) => {
+    if (mounted.current) setOpponentSnapshot(snapshot);
+  }), [opponent]);
+
+  useEffect(() => {
+    const handleVisibility = () => opponent.setVisible(document.visibilityState !== "hidden");
+    document.addEventListener("visibilitychange", handleVisibility);
+    handleVisibility();
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [opponent]);
 
   useEffect(() => {
     const unsubscribeCue = presentation.subscribeCue((cue) => {
@@ -268,48 +400,43 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     focusBoardWhenReady.current = false;
   }, [game, phase]);
 
-  const persist = useCallback((nextGame: GameState) => {
+  const persistMatch = useCallback((nextMatch: SavedMatch): boolean => {
     const storage = storageRef.current;
     if (!storage) {
       setStorageWarning("浏览器存储不可用，本局将只保存在内存中。");
-      return;
+      return false;
     }
-    const result = saveGameSnapshot(storage, nextGame);
+    const result = saveGameSnapshot(storage, nextMatch);
     if (!result.ok) setStorageWarning(result.warning);
+    return result.ok;
   }, []);
 
-  const finishAction = useCallback(() => {
-    actionInFlight.current = false;
-    if (mounted.current) setInteractionLocked(false);
-  }, []);
-
-  const applyCommand = useCallback((command: GameCommand) => {
-    if (actionInFlight.current) return;
-    const result = dispatch(game, command);
-    if (result.error) {
-      audio.play("ui.invalid");
-      setNotice(ERROR_MESSAGES[result.error.code]);
-      return;
-    }
-
-    actionInFlight.current = true;
-    setInteractionLocked(true);
+  const handleCommandCommit = useCallback(async (commit: CommandCommit) => {
+    const nextMatch = commit.after;
+    // Storage is attempted before React exposes the new state. Failure is
+    // recoverable: the in-memory SavedMatch remains authoritative and the UI
+    // is marked non-resumable through the warning.
+    const resumable = persistMatch(nextMatch);
+    matchRef.current = nextMatch;
+    gameRef.current = nextMatch.game;
+    runtime.synchronize(nextMatch);
+    setMatch(nextMatch);
+    setResumableMatch(resumable ? nextMatch : null);
     setSelectedPieceId(null);
-    setGame(result.state);
-    setSavedGame(result.state);
     setUnsafeSavePresent(false);
-    setNotice(eventAnnouncement(result.events, result.state));
-    persist(result.state);
+    setNotice(eventAnnouncement(commit.events, nextMatch.game));
 
-    const domainEventId = result.events[0]?.eventId ?? `${result.state.revision}:ui`;
+    const domainEventId = commit.events[0]?.eventId ?? `${nextMatch.revision}:ui`;
     const transition: GameActionTransition = {
-      actionId: `${matchEpoch.current}:${domainEventId}`,
-      before: game,
-      after: result.state,
-      events: result.events,
-      reducedMotion: settings.reducedMotion,
-      viewSide,
+      actionId: `${matchEpoch.current}:${domainEventId}:${commit.token}`,
+      before: commit.before.game,
+      after: nextMatch.game,
+      events: commit.events,
+      reducedMotion: settingsRef.current.reducedMotion,
+      viewSide: viewSideRef.current,
     };
+
+    let settledVisualAction: Promise<unknown> = Promise.resolve();
     try {
       if (presentation.active) {
         semanticAudio.cancelAll("game-replaced");
@@ -317,49 +444,203 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
       }
       semanticAudio.begin(transition);
       const visualAction = presentation.play(transition);
-      const settledVisualAction = visualAction.then((result) => {
+      settledVisualAction = visualAction.then((result) => {
         semanticAudio.settle(
           transition.actionId,
           result.reason === "duplicate" ? "game-replaced" : result.reason,
         );
         return result;
       });
-      const externalAction = onAction
-        ? Promise.resolve().then(() => onAction(transition))
-        : Promise.resolve();
-      void Promise.allSettled([settledVisualAction, externalAction])
-        .then((settled) => {
-          if (settled.some((result) => result.status === "rejected") && mounted.current) {
-            setNotice("演出未能完成，棋盘已直接对齐到正确局面。");
-          }
-        })
-        .finally(finishAction);
     } catch {
       semanticAudio.settle(transition.actionId, "presentation-error");
       presentation.skip("presentation-error");
-      setNotice("演出未能启动，棋盘已直接对齐到正确局面。");
-      finishAction();
+      if (mounted.current) setNotice("演出未能启动，棋盘已直接对齐到正确局面。");
     }
-  }, [audio, finishAction, game, onAction, persist, presentation, semanticAudio, settings.reducedMotion, viewSide]);
+
+    const externalAction = onActionRef.current
+      ? Promise.resolve().then(() => onActionRef.current?.(transition))
+      : Promise.resolve();
+    const settled = await Promise.allSettled([settledVisualAction, externalAction]);
+    if (settled.some((result) => result.status === "rejected") && mounted.current) {
+      setNotice("演出未能完成，棋盘已直接对齐到正确局面。");
+    }
+  }, [persistMatch, presentation, runtime, semanticAudio]);
+
+  const handleOpponentFallback = useCallback(async (
+    matchId: string,
+    toTier: "lightweight-hard",
+  ) => {
+    const current = matchRef.current;
+    if (current.config.mode !== "computer" || current.config.matchId !== matchId) return;
+    const fallback = setEffectiveOpponentTier(current, toTier);
+    const resumable = persistMatch(fallback);
+    matchRef.current = fallback;
+    gameRef.current = fallback.game;
+    runtime.synchronize(fallback);
+    setMatch(fallback);
+    setResumableMatch(resumable ? fallback : null);
+    if (mounted.current) setNotice("大师引擎当前不可用，本局已切换为困难难度。");
+  }, [persistMatch, runtime]);
+
+  useEffect(() => {
+    runtime.setHandlers(handleCommandCommit, handleOpponentFallback);
+  }, [handleCommandCommit, handleOpponentFallback, runtime]);
+
+  const beforeCommandCommit = useCallback((commit: CommandCommit) => {
+    if (commit.after.config.mode === "computer" && commit.after.game.status.kind === "ended") {
+      opponent.setTerminal();
+    }
+  }, [opponent]);
+
+  const applyCommand = useCallback(async (
+    command: GameCommand,
+    source: "human" | "opponent" = "human",
+    opponentGuard?: (current: SavedMatch) => boolean,
+  ): Promise<CommandGateReceipt> => {
+    const current = matchRef.current;
+    if (source === "human" && !canIssueHumanCommand(current, command)) {
+      audio.play("ui.invalid");
+      setNotice(command.type === "undo"
+        ? "人机对局不支持悔棋。"
+        : "当前由电脑行动，请等待对手落子。");
+      return { status: "superseded", reason: "guard" };
+    }
+
+    const receipt = await commandGate.execute(command, {
+      guard: (latest) => source === "human"
+        ? canIssueHumanCommand(latest, command)
+        : Boolean(opponentGuard?.(latest)),
+      beforeCommit: beforeCommandCommit,
+    });
+    if (receipt.status === "rejected") {
+      audio.play("ui.invalid");
+      if (mounted.current) setNotice(ERROR_MESSAGES[receipt.error.code]);
+    } else if (receipt.status === "superseded" && receipt.reason === "busy" && source === "human") {
+      if (mounted.current) setNotice("当前动作仍在结算，请稍候。");
+    }
+    return receipt;
+  }, [audio, beforeCommandCommit, commandGate]);
 
   const startFreshGame = useCallback(() => {
-    const fresh = createInitialGame();
+    opponent.invalidate();
+    commandGate.invalidate();
     semanticAudio.cancelAll("match-reset");
     presentation.skip("match-reset");
-    actionInFlight.current = false;
+    const previous = resumableMatch ?? matchRef.current;
+    const fresh = previous.config.mode === "computer"
+      ? createComputerMatch(previous.config.requestedDifficulty)
+      : createLocalMatch();
+    matchEpoch.current += 1;
+    matchRef.current = fresh;
+    gameRef.current = fresh.game;
+    phaseRef.current = "playing";
+    runtime.synchronize(fresh);
     focusBoardWhenReady.current = true;
-    setGame(fresh);
+    setMatch(fresh);
     setKeyboardSquare({ file: 4, rank: 0 });
-    setSavedGame(fresh);
     setSelectedPieceId(null);
-    setInteractionLocked(false);
     setUnsafeSavePresent(false);
     setConfirmation(null);
     setPhase("playing");
     setNotice("新局开始，红方先行。 ");
-    persist(fresh);
-    matchEpoch.current += 1;
-  }, [persist, presentation, semanticAudio]);
+    setResumableMatch(persistMatch(fresh) ? fresh : null);
+  }, [commandGate, opponent, persistMatch, presentation, resumableMatch, runtime, semanticAudio]);
+
+  const activatedMatchId = useRef<string | null>(null);
+  const requestedOpponentTurn = useRef<string | null>(null);
+  useEffect(() => {
+    const current = matchRef.current;
+    if (phase !== "playing" || current.config.mode !== "computer") {
+      activatedMatchId.current = null;
+      return;
+    }
+    if (activatedMatchId.current === current.config.matchId) return;
+    activatedMatchId.current = current.config.matchId;
+    const matchId = current.config.matchId;
+    void opponent.activateMatch({
+      matchId,
+      seed: current.config.seed,
+      tier: current.config.effectiveTier,
+    }).then(() => {
+      const latest = matchRef.current;
+      if (
+        latest.config.mode === "computer"
+        && latest.config.matchId === matchId
+        && latest.game.status.kind === "ended"
+      ) opponent.setTerminal();
+    });
+  }, [match.config, opponent, phase]);
+
+  useEffect(() => {
+    if (!shouldRequestOpponentTurn(
+      match,
+      phase,
+      opponentSnapshot.phase,
+      opponentSnapshot.generation,
+      requestedOpponentTurn.current,
+    )) return;
+    const config = match.config;
+    if (config.mode !== "computer") return;
+    const tier = opponentSnapshot.effectiveTier;
+    if (!tier || tier === "fairy-master") return;
+    const requestKey = opponentTurnRequestKey(match, opponentSnapshot.generation);
+    if (!requestKey || requestedOpponentTurn.current === requestKey) return;
+    requestedOpponentTurn.current = requestKey;
+    const limits = LIGHTWEIGHT_TIER_LIMITS[tier];
+    void opponent.requestTurn({
+      matchId: config.matchId,
+      serializedGame: serializeGame(match.game),
+      positionRevision: match.revision,
+      sideToMove: match.game.sideToMove,
+      status: "playing",
+      ...limits,
+    });
+  }, [match, opponent, opponentSnapshot.effectiveTier, opponentSnapshot.generation, opponentSnapshot.phase, phase]);
+
+  const commitOpponentCandidate = useCallback(async (
+    release: OpponentCandidateRelease,
+    serializedAtRelease: string,
+  ) => {
+    const receipt = await applyCommand({
+      type: "move",
+      expectedRevision: release.turn.positionRevision,
+      from: release.candidate.from,
+      to: release.candidate.to,
+    }, "opponent", (current) => current.config.mode === "computer"
+      && current.config.matchId === release.turn.matchId
+      && current.revision === release.turn.positionRevision
+      && current.game.sideToMove === release.turn.sideToMove
+      && current.game.status.kind === "playing"
+      && phaseRef.current === "playing"
+      && current.game.sideToMove !== current.config.humanSide
+      && serializeGame(current.game) === serializedAtRelease);
+    return { ...release.turn, status: receipt.status };
+  }, [applyCommand]);
+
+  useEffect(() => {
+    if (opponentSnapshot.phase !== "candidatePending") return;
+    void (async () => {
+      await commandGate.whenIdle();
+      const serializedGame = serializeGame(gameRef.current);
+      let positionFingerprint: string;
+      try {
+        positionFingerprint = await fingerprintSerializedGame(serializedGame);
+      } catch {
+        opponent.invalidate();
+        if (mounted.current) setNotice("无法校验电脑落子，本次计算已取消。");
+        return;
+      }
+      const latest = matchRef.current;
+      const matchId = latest.config.mode === "computer" ? latest.config.matchId : "local";
+      await opponent.commitPending({
+        matchId,
+        positionRevision: latest.revision,
+        positionFingerprint,
+        sideToMove: latest.game.sideToMove,
+        status: latest.game.status.kind === "playing" ? "playing" : "terminal",
+      }, (release) => commitOpponentCandidate(release, serializedGame));
+    })();
+  }, [commandGate, commitOpponentCandidate, opponent, opponentSnapshot.phase]);
 
   const unlockAudio = useCallback(async () => {
     try {
@@ -374,7 +655,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
   const handleStart = async () => {
     await unlockAudio();
     audio.play("ui.confirm");
-    if (savedGame || unsafeSavePresent) {
+    if (resumableMatch || unsafeSavePresent) {
       setConfirmation({ kind: "new-game" });
       return;
     }
@@ -384,26 +665,45 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
   const handleContinue = async () => {
     await unlockAudio();
     audio.play("ui.confirm");
-    if (!savedGame) return;
+    if (!resumableMatch) return;
+    opponent.invalidate();
+    commandGate.invalidate();
     semanticAudio.cancelAll("game-replaced");
     presentation.skip("game-replaced");
+    matchEpoch.current += 1;
+    matchRef.current = resumableMatch;
+    gameRef.current = resumableMatch.game;
+    phaseRef.current = "playing";
+    runtime.synchronize(resumableMatch);
     focusBoardWhenReady.current = true;
-    setGame(savedGame);
-    setKeyboardSquare(savedGame.lastAction?.kind === "move" ? savedGame.lastAction.move.to : { file: 4, rank: 0 });
+    setMatch(resumableMatch);
+    setKeyboardSquare(resumableMatch.game.lastAction?.kind === "move"
+      ? resumableMatch.game.lastAction.move.to
+      : { file: 4, rank: 0 });
     setPhase("playing");
     setSelectedPieceId(null);
-    setNotice(savedGame.status.kind === "ended" ? formatGameOutcome(savedGame) : `${savedGame.sideToMove === "red" ? "红方" : "黑方"}继续行动。`);
-    // An ended save can still be resumed through Undo, but adoption itself
-    // never creates a presentation action or replays the historical result.
-    matchEpoch.current += 1;
+    setNotice(resumableMatch.game.status.kind === "ended"
+      ? formatGameOutcome(resumableMatch.game)
+      : `${resumableMatch.game.sideToMove === "red" ? "红方" : "黑方"}继续行动。`);
+    // Local ended saves retain the existing single-step undo behavior. A
+    // computer save never makes undo reachable through the command policy.
   };
+
+  const computerOwnsTurn = isComputerTurn(match);
+  const boardCommandsLocked = deriveBoardCommandsLocked({
+    phase,
+    commandBusy,
+    computerOwnsTurn,
+    confirmationOpen: confirmation !== null,
+    terminal: game.status.kind === "ended",
+  });
 
   const handleSquarePress = (square: Square) => {
     setKeyboardSquare(square);
-    if (interactionLocked || game.status.kind === "ended") return;
+    if (boardCommandsLocked) return;
     const decision = resolveBoardClick(game, selection, square);
     if (decision.kind === "move") {
-      applyCommand(decision.command);
+      void applyCommand(decision.command);
     } else {
       audio.play(decision.selection.pieceId ? "ui.select" : decision.announcement === "已取消选择。" ? "ui.select" : "ui.invalid");
       setSelectedPieceId(decision.selection.pieceId);
@@ -422,8 +722,8 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     }
     if (event.key !== "Enter" && event.key !== " ") return;
     event.preventDefault();
-    if (interactionLocked) {
-      setNotice("演出处理中，可先跳过演出再继续操作。");
+    if (boardCommandsLocked) {
+      setNotice(computerOwnsTurn ? "电脑正在思考，请稍候。" : "当前动作仍在结算，请稍候。");
       return;
     }
     handleSquarePress(keyboardSquare);
@@ -459,7 +759,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     if (confirmation.kind === "resign") {
       const expectedRevision = confirmation.revision;
       setConfirmation(null);
-      applyCommand({ type: "resign", expectedRevision });
+      void applyCommand({ type: "resign", expectedRevision });
       return;
     }
     startFreshGame();
@@ -486,7 +786,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
             audio={audio}
             overlay={phase === "menu" ? (
               <GameMenu
-                hasSave={Boolean(savedGame)}
+                hasSave={Boolean(resumableMatch)}
                 loading={false}
                 onContinue={handleContinue}
                 onStart={handleStart}
@@ -496,10 +796,16 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
               <>
                 <GameHud
                   game={game}
-                  interactionLocked={interactionLocked}
-                  onResign={() => setConfirmation({ kind: "resign", revision: game.revision, side: game.sideToMove })}
+                  interactionLocked={boardCommandsLocked}
+                  onResign={() => {
+                    if (match.config.mode === "computer" && game.sideToMove !== match.config.humanSide) {
+                      setNotice("只能在你的回合认输。");
+                      return;
+                    }
+                    setConfirmation({ kind: "resign", revision: game.revision, side: game.sideToMove });
+                  }}
                   onRestart={() => setConfirmation({ kind: "restart" })}
-                  onUndo={() => applyCommand({ type: "undo", expectedRevision: game.revision })}
+                  onUndo={() => { void applyCommand({ type: "undo", expectedRevision: game.revision }); }}
                   onSettingsChange={handleSettingsChange}
                   onSkip={() => presentation.skip("user-skip")}
                   selectedMoveCount={selection.legalMoves.length}
@@ -512,7 +818,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
                     announcement={describeKeyboardSquare(game, keyboardSquare)}
                     controlRef={keyboardControlRef}
                     coordinate={formatSquareCoordinate(keyboardSquare)}
-                    interactionLocked={interactionLocked}
+                    interactionLocked={boardCommandsLocked}
                     onBlur={() => setKeyboardActive(false)}
                     onFocus={() => setKeyboardActive(true)}
                     onKeyDown={handleKeyboardBoardKeyDown}
@@ -520,10 +826,10 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
                 ) : null}
                 {game.status.kind === "ended" ? (
                   <GameOverPanel
-                    canUndo={game.lastAction?.kind === "move" && !interactionLocked}
+                    canUndo={match.config.mode === "local" && game.lastAction?.kind === "move" && !commandBusy}
                     game={game}
                     onRestart={() => setConfirmation({ kind: "restart" })}
-                    onUndo={() => applyCommand({ type: "undo", expectedRevision: game.revision })}
+                    onUndo={() => { void applyCommand({ type: "undo", expectedRevision: game.revision }); }}
                   />
                 ) : null}
               </>
@@ -531,7 +837,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
             pieceLayer={(
               <GameBoardLayer
                 animations={animations}
-                disabled={phase !== "playing" || interactionLocked || game.status.kind === "ended"}
+                disabled={boardCommandsLocked}
                 game={game}
                 keyboardSquare={keyboardActive ? keyboardSquare : null}
                 legalMoves={selection.legalMoves}
