@@ -12,6 +12,9 @@ test("keyboard can select, cancel, move, capture, restore, undo, and resign", as
   });
   await openCleanGame(page);
   const keyboard = await startGame(page);
+  const historyPanel = page.locator(".game-history");
+  await expect(historyPanel).toHaveAttribute("data-expanded", "false");
+  await expect(page.getByRole("button", { name: "展开完整着法历史" })).toBeVisible();
   await setReducedMotion(page);
   await keyboard.focus();
   const turnDetail = page.locator(".game-turn-card small");
@@ -30,7 +33,15 @@ test("keyboard can select, cancel, move, capture, restore, undo, and resign", as
 
   await pressSequence(keyboard, ["ArrowDown", "Enter", "ArrowUp", "Enter"]);
   await waitForRevision(page, 3);
-  await expect(page.locator(".game-history")).toContainText("吃");
+  await expect(page.locator('.game-history li[data-last-move="true"]')).toContainText("吃黑卒");
+  await expect(page.locator('.game-history li[data-capture="true"]')).toHaveCount(1);
+  await expect(page.locator(".game-capture-ledger .black")).toContainText("卒");
+  await expect(page.locator(".game-history li:visible")).toHaveCount(1);
+  await page.getByRole("button", { name: "展开完整着法历史" }).click();
+  await expect(historyPanel).toHaveAttribute("data-expanded", "true");
+  await expect(page.locator(".game-history li:visible")).toHaveCount(3);
+  await page.getByRole("button", { name: "收起着法历史" }).click();
+  await expect(historyPanel).toHaveAttribute("data-expanded", "false");
 
   await page.reload({ waitUntil: "domcontentloaded" });
   await page.getByRole("button", { name: "继续对局" }).click();
@@ -40,12 +51,14 @@ test("keyboard can select, cancel, move, capture, restore, undo, and resign", as
   const restoredMoves = page.locator(".game-history li");
   await expect(restoredMoves).toHaveCount(3);
   await expect(restoredMoves.nth(0)).toContainText("红·兵 a4 → a5");
+  await expect(restoredMoves.nth(0)).toContainText("吃黑卒");
   await expect(restoredMoves.nth(1)).toContainText("黑·卒 a6 → a5");
   await expect(restoredMoves.nth(2)).toContainText("红·兵 a3 → a4");
 
   await page.getByRole("button", { name: "悔棋" }).click();
   await waitForRevision(page, 4);
   await expect(page.locator(".game-history")).not.toContainText("吃");
+  await expect(page.locator(".game-capture-ledger .black strong")).toHaveText("—");
 
   await page.getByRole("button", { name: "认输" }).click();
   const dialog = page.getByRole("alertdialog", { name: "确认认输？" });

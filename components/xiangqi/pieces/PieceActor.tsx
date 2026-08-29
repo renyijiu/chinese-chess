@@ -11,16 +11,10 @@ import type { Piece, Side } from "../../../lib/xiangqi/index";
 import type { AnimationRegistry } from "../animation/AnimationRegistry";
 import type { PieceLod } from "../runtime/quality";
 import { usePieceAsset } from "./asset-loader";
+import { FACTION_MARKER_STYLES } from "./faction-marker";
 import { pieceAssetUrl } from "./piece-catalog";
 import { semanticColor } from "./piece-palette";
 import { QIN_DIORAMA_THEME } from "../scene/scene-theme";
-
-const SELECTION_MATERIAL = new THREE.MeshBasicMaterial({
-  color: QIN_DIORAMA_THEME.states.selected.color,
-  depthWrite: false,
-  opacity: 0.9,
-  transparent: true,
-});
 
 const factionGeometryCache = new WeakMap<THREE.BufferGeometry, Partial<Record<Side, THREE.BufferGeometry>>>();
 
@@ -50,19 +44,32 @@ function factionGeometry(source: THREE.BufferGeometry, side: Side) {
 }
 
 function SelectionAura({ side }: { side: Side }) {
+  const style = FACTION_MARKER_STYLES[side];
   return (
     <group name="selection-aura">
       <mesh position={[0, 0.012, 0]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null}>
         <circleGeometry args={[0.48, 32]} />
         <meshBasicMaterial
-          color={QIN_DIORAMA_THEME.states.selected.color}
+          color={QIN_DIORAMA_THEME.factions[side].trim}
           depthWrite={false}
-          opacity={0.16}
+          opacity={0.18}
+          toneMapped={false}
           transparent
         />
       </mesh>
-      <mesh material={SELECTION_MATERIAL} position={[0, 0.014, 0]} raycast={() => null} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.46, 0.53, 40]} />
+      <mesh
+        position={[0, 0.014, 0]}
+        raycast={() => null}
+        rotation={[-Math.PI / 2, 0, style.rotationZ]}
+      >
+        <ringGeometry args={[0.472, 0.558, style.segments]} />
+        <meshBasicMaterial
+          color={QIN_DIORAMA_THEME.factions[side].glow}
+          depthWrite={false}
+          opacity={0.96}
+          toneMapped={false}
+          transparent
+        />
       </mesh>
       <pointLight color={QIN_DIORAMA_THEME.factions[side].glow} distance={2.1} intensity={0.52} position={[0, 0.5, 0]} />
     </group>
@@ -148,7 +155,6 @@ export function PieceActor({
   onPress,
   piece,
   selected,
-  visualOffset = [0, 0, 0],
 }: {
   actorId: string;
   animation?: string;
@@ -160,7 +166,6 @@ export function PieceActor({
   onPress: (piece: Piece) => void;
   piece: Piece;
   selected: boolean;
-  visualOffset?: readonly [number, number, number];
 }) {
   const handleClick = (event: ThreeEvent<MouseEvent>) => {
     event.stopPropagation();
@@ -172,7 +177,6 @@ export function PieceActor({
     <group
       name={`piece-actor:${actorId}`}
       onClick={handleClick}
-      position={visualOffset}
       scale={Math.max(0.035, 1 - destroyProgress * 0.965)}
       visible={!ghost || destroyProgress < 0.99}
     >

@@ -17,7 +17,7 @@ export function BattlePostprocessing() {
   return (
     <>
       <primitive object={bloomLight} />
-      <EffectComposer depthBuffer={false} enableNormalPass={false} multisampling={0} resolutionScale={0.65}>
+      <EffectComposer depthBuffer enableNormalPass={false} multisampling={0} resolutionScale={0.65}>
         <SelectiveBloom
           intensity={0.62}
           lights={[bloomLight]}

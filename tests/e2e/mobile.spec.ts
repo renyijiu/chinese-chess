@@ -18,6 +18,8 @@ test("390 × 844 touch layout keeps game controls usable", async ({ page }) => {
   await openCleanGame(page);
   await page.getByRole("button", { name: "开始本机双人对局" }).tap();
   await expect(page.locator(".game-keyboard-control button")).toBeVisible();
+  await expect(page.locator(".game-history")).toHaveAttribute("data-expanded", "false");
+  await expect(page.getByRole("button", { name: "展开完整着法历史" })).toBeVisible();
   await setReducedMotion(page);
 
   await page.getByRole("button", { name: "设置" }).click();
@@ -65,6 +67,14 @@ test("390 × 844 touch layout keeps game controls usable", async ({ page }) => {
   await tapBoardSquare(canvas, 0, 4, "black");
   await waitForRevision(page, 1);
   await expect(page.locator(".game-history")).toContainText("红·兵 a3 → a4");
+  const latestMoveFitsHistory = await page.locator(".game-history").evaluate((history) => {
+    const latestMove = history.querySelector<HTMLElement>("[data-last-move='true']");
+    if (!latestMove) return false;
+    const historyRect = history.getBoundingClientRect();
+    const moveRect = latestMove.getBoundingClientRect();
+    return moveRect.top >= historyRect.top && moveRect.bottom <= historyRect.bottom;
+  });
+  expect(latestMoveFitsHistory).toBe(true);
 
   await settleVisualScene(page);
   await expect(page.locator(".viewer-shell")).toHaveScreenshot(

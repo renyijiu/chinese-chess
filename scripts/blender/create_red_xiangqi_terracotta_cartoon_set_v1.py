@@ -537,10 +537,12 @@ def wheel(name: str, x: float, y: float, z: float, radius: float) -> None:
 
 
 def build_chariot() -> None:
-    wheel("Chariot left wheel", -0.75, 0.04, 0.91, 0.52)
-    wheel("Chariot right wheel", 0.75, 0.04, 0.91, 0.52)
-    rounded_box("Chariot compact cart floor", (0, 0.08, 0.77), (0.70, 0.55, 0.11), TERRACOTTA, 0.045)
-    rounded_box("Chariot curved front shield", (0, -0.48, 1.03), (0.67, 0.10, 0.35), LACQUER, 0.055)
+    # Tall command chariot: oversized exposed wheels and twin standards keep
+    # its oblique/top-down silhouette distinct from the low siege crossbow.
+    wheel("Chariot left wheel", -0.75, 0.08, 0.91, 0.57)
+    wheel("Chariot right wheel", 0.75, 0.08, 0.91, 0.57)
+    rounded_box("Chariot compact cart floor", (0, 0.10, 0.78), (0.66, 0.53, 0.12), TERRACOTTA, 0.045)
+    rounded_box("Chariot curved front shield", (0, -0.46, 1.08), (0.65, 0.11, 0.40), LACQUER, 0.055)
     rounded_box("Chariot cinnabar shield rail", (0, -0.59, 1.25), (0.64, 0.025, 0.045), CINNABAR, 0.012)
     for x in (-0.42, 0, 0.42):
         sphere("Chariot jade shield stud", (x, -0.61, 1.04), (0.045, 0.02, 0.045), JADE, 18, 10)
@@ -558,6 +560,44 @@ def build_chariot() -> None:
     torus("Chariot reins", (0, -0.62, 1.38), 0.24, 0.018, EYE_IVORY, (math.pi / 2, 0, 0))
     for x in (-0.42, 0, 0.42):
         rounded_box("Chariot shield armour plate", (x, -0.605, 0.98), (0.15, 0.018, 0.11), LACQUER, 0.020)
+    for side, x, sign in (("left", -0.50, -1), ("right", 0.50, 1)):
+        cylinder_between(
+            f"Chariot {side} command standard",
+            (x, 0.42, 1.02),
+            (x, 0.42, 2.42),
+            0.028,
+            DEEP_BROWN,
+            18,
+            0.004,
+        )
+        cone_between(
+            f"Chariot {side} standard finial",
+            (x, 0.42, 2.40),
+            (x, 0.42, 2.54),
+            0.065,
+            0.006,
+            EYE_IVORY,
+            18,
+            0.004,
+        )
+        rounded_box(
+            f"Chariot {side} cinnabar command pennant",
+            (x + sign * 0.13, 0.41, 2.18),
+            (0.16, 0.025, 0.19),
+            CINNABAR,
+            0.018,
+            (0, sign * 0.05, sign * -0.12),
+        )
+        cylinder_between(
+            f"Chariot forward yoke {side}",
+            (sign * 0.34, -0.40, 0.80),
+            (sign * 0.24, -1.22, 0.62),
+            0.035,
+            TERRACOTTA,
+            18,
+            0.006,
+        )
+    cylinder_between("Chariot yoke crossbar", (-0.34, -1.18, 0.62), (0.34, -1.18, 0.62), 0.04, JADE, 18, 0.006)
 
 
 def build_horse() -> None:
@@ -602,32 +642,37 @@ def build_horse() -> None:
 
 
 def build_cannon() -> None:
-    rounded_box("Cannon torsion machine bed", (-0.18, 0.02, 0.70), (0.73, 0.42, 0.13), TERRACOTTA, 0.045)
-    for x in (-0.70, 0.34):
-        wheel(f"Cannon carriage {x:+.2f}", x, 0.05, 0.65, 0.29)
-    for x in (-0.54, 0.18):
-        rounded_box("Cannon upright", (x, 0.06, 1.14), (0.09, 0.15, 0.46), LACQUER, 0.025)
-        sphere("Cannon jade torsion hub", (x, -0.11, 1.20), (0.12, 0.045, 0.12), JADE, 22, 14)
-    rounded_box("Cannon top torsion crossbeam", (-0.18, 0.06, 1.58), (0.55, 0.16, 0.10), LACQUER, 0.025)
-    cylinder_between("Cannon left throwing arm", (-0.48, -0.10, 1.18), (-0.08, -0.53, 1.72), 0.055, TERRACOTTA, 20, 0.007)
-    cylinder_between("Cannon right throwing arm", (0.12, -0.10, 1.18), (-0.08, -0.53, 1.72), 0.055, TERRACOTTA, 20, 0.007)
-    cylinder_between("Cannon visible bow cord left", (-0.48, -0.12, 1.18), (-0.08, -0.58, 1.72), 0.012, EYE_IVORY, 12, 0.002)
-    cylinder_between("Cannon visible bow cord right", (0.12, -0.12, 1.18), (-0.08, -0.58, 1.72), 0.012, EYE_IVORY, 12, 0.002)
-    sphere("Cannon cinnabar sling stone", (-0.08, -0.61, 1.73), (0.13, 0.10, 0.13), CINNABAR, 24, 14)
-    sphere("Cannon engineer large head", (0.53, -0.03, 1.83), (0.40, 0.35, 0.40), PORTRAIT, 34, 22)
-    sphere("Cannon engineer hair cap", (0.53, 0.08, 1.94), (0.38, 0.30, 0.34), DEEP_BROWN, 30, 20)
-    add_eye_pair("Cannon engineer", (0.53, -0.36, 1.90), 0.14, 0.74)
-    sphere("Cannon engineer nose", (0.53, -0.40, 1.78), (0.04, 0.03, 0.04), PORTRAIT, 18, 10)
-    sphere("Cannon engineer left brow", (0.39, -0.38, 2.02), (0.075, 0.012, 0.018), DEEP_BROWN, 18, 10, (0, 0, -0.10))
-    sphere("Cannon engineer right brow", (0.67, -0.38, 2.02), (0.075, 0.012, 0.018), DEEP_BROWN, 18, 10, (0, 0, 0.10))
-    rounded_box("Cannon engineer armour torso", (0.56, 0.02, 1.31), (0.34, 0.26, 0.31), LACQUER, 0.045)
-    rounded_box("Cannon engineer red belt", (0.56, -0.25, 1.20), (0.33, 0.025, 0.04), CINNABAR, 0.010)
-    sphere("Cannon engineer left mitten", (0.22, -0.38, 1.38), (0.10, 0.08, 0.11), PORTRAIT, 20, 12)
-    sphere("Cannon engineer right mitten", (0.68, -0.40, 1.34), (0.10, 0.08, 0.11), PORTRAIT, 20, 12)
-    cylinder("Cannon engineer helmet band", (0.53, 0.02, 2.18), 0.29, 0.09, LACQUER, 30, edge=0.012)
-    sphere("Cannon engineer jade helmet seal", (0.53, -0.27, 2.18), (0.052, 0.022, 0.052), JADE, 18, 10)
-    cylinder("Cannon side winding axle", (-0.18, -0.48, 1.12), 0.06, 0.82, TERRACOTTA, 24, (0, math.pi / 2, 0), 0.008)
-    torus("Cannon winding wheel", (-0.62, -0.48, 1.12), 0.18, 0.028, CINNABAR, (0, math.pi / 2, 0))
+    # Low, wheel-less heavy crossbow: a broad horizontal weapon silhouette,
+    # long bolt rail and fixed outriggers avoid reading as another chariot.
+    rounded_box("Cannon torsion machine bed", (0, 0.08, 0.62), (0.66, 0.52, 0.14), TERRACOTTA, 0.045)
+    rounded_box("Cannon long bolt stock", (0, -0.22, 0.92), (0.13, 0.83, 0.10), LACQUER, 0.025)
+    rounded_box("Cannon top torsion crossbeam", (0, -0.44, 1.08), (0.74, 0.10, 0.10), LACQUER, 0.025)
+    for side, x in (("left", -0.62), ("right", 0.62)):
+        rounded_box(f"Cannon {side} fixed outrigger", (x, 0.13, 0.46), (0.20, 0.38, 0.08), DEEP_BROWN, 0.025)
+        rounded_box(f"Cannon {side} ground shoe", (x, -0.13, 0.34), (0.24, 0.16, 0.07), TERRACOTTA, 0.025)
+        sphere(f"Cannon {side} jade torsion hub", (x, -0.45, 1.08), (0.14, 0.08, 0.14), JADE, 24, 16)
+
+    bow_points = {
+        "left": ((-0.08, -0.47, 1.08), (-0.54, -0.54, 1.16), (-1.08, -0.39, 1.02)),
+        "right": ((0.08, -0.47, 1.08), (0.54, -0.54, 1.16), (1.08, -0.39, 1.02)),
+    }
+    for side, points in bow_points.items():
+        cylinder_between(f"Cannon {side} bow limb inner", points[0], points[1], 0.065, TERRACOTTA, 22, 0.008)
+        cylinder_between(f"Cannon {side} bow limb outer", points[1], points[2], 0.052, EYE_IVORY, 20, 0.006)
+        cylinder_between(f"Cannon visible bow cord {side}", points[2], (0, 0.28, 1.03), 0.014, DEEP_BROWN, 14, 0.002)
+
+    cylinder_between("Cannon heavy bronze bolt shaft", (0, 0.42, 1.10), (0, -1.13, 1.10), 0.034, CINNABAR, 22, 0.006)
+    cone_between("Cannon heavy bronze bolt head", (0, -1.08, 1.10), (0, -1.35, 1.10), 0.105, 0.008, EYE_IVORY, 24, 0.006)
+    cylinder("Cannon side winding axle", (0, 0.40, 0.93), 0.075, 0.95, TERRACOTTA, 24, (0, math.pi / 2, 0), 0.008)
+    torus("Cannon winding wheel", (-0.52, 0.40, 0.93), 0.22, 0.035, CINNABAR, (0, math.pi / 2, 0))
+    for side, x, sign in (("left", -0.42, -1), ("right", 0.42, 1)):
+        rounded_box(f"Cannon {side} operator kneeling torso", (x, 0.43, 1.28), (0.20, 0.18, 0.27), LACQUER, 0.040, (0, 0, sign * 0.08))
+        sphere(f"Cannon {side} operator head", (x, 0.36, 1.70), (0.24, 0.22, 0.25), PORTRAIT, 30, 20)
+        sphere(f"Cannon {side} operator hair cap", (x, 0.42, 1.82), (0.22, 0.18, 0.18), DEEP_BROWN, 26, 18)
+        add_eye_pair(f"Cannon {side} operator", (x, 0.145, 1.72), 0.085, 0.43)
+        cylinder(f"Cannon {side} operator helmet band", (x, 0.37, 1.94), 0.18, 0.07, LACQUER, 24, edge=0.010)
+        rounded_box(f"Cannon {side} operator topknot", (x, 0.43, 2.10), (0.07, 0.06, 0.13), DEEP_BROWN, 0.025)
+        sphere(f"Cannon {side} operator mitten", (sign * 0.24, 0.14, 1.24), (0.08, 0.07, 0.09), PORTRAIT, 18, 10)
 
 
 def build_soldier() -> None:
@@ -818,7 +863,18 @@ def build_role(spec) -> None:
     print(f"GLB={glb_path}")
 
 
+requested_roles = {
+    role.strip()
+    for role in os.environ.get("XIANGQI_SOURCE_ROLES", ",".join(spec["role"] for spec in ROLES)).split(",")
+    if role.strip()
+}
+unknown_roles = requested_roles - {spec["role"] for spec in ROLES}
+if unknown_roles:
+    raise RuntimeError(f"Unknown XIANGQI_SOURCE_ROLES: {sorted(unknown_roles)}")
+
 for role_spec in ROLES:
+    if role_spec["role"] not in requested_roles:
+        continue
     build_role(role_spec)
 
-print(f"SET_BUILT={STYLE_FAMILY}")
+print(f"SET_BUILT={STYLE_FAMILY} roles={','.join(sorted(requested_roles))}")

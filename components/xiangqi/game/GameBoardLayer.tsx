@@ -3,17 +3,22 @@
 /* eslint-disable react/no-unknown-property -- R3F scene graph props are valid custom JSX properties. */
 
 import type { ThreeEvent } from "@react-three/fiber";
-import { useLayoutEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import { memo, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import * as THREE from "three";
 
-import { boardIndex, type GameState, type Piece, type Square } from "../../../lib/xiangqi/index";
+import { boardIndex, type GameState, type MoveRecord, type Piece, type Square } from "../../../lib/xiangqi/index";
 import type { AnimationRegistry } from "../animation/AnimationRegistry";
 import { PieceActor } from "../pieces/PieceActor";
+import {
+  FACTION_MARKER_CLEARANCE,
+  FACTION_MARKER_STYLES,
+} from "../pieces/faction-marker";
 import type { PresentationStore } from "../presentation/PresentationStore";
 import {
   BOARD_FILES,
   BOARD_RANKS,
   BOARD_SURFACE_Y,
+  interpolateSquareToWorld,
   squareToWorld,
 } from "../runtime/board-coordinates";
 import { getQualityProfile, type QualityTier } from "../runtime/quality";
@@ -21,6 +26,7 @@ import { PieceLayer, type ScenePieceSlot } from "../scene/PieceLayer";
 import { BOARD_HIT_RADIUS } from "../scene/board-geometry";
 import { QIN_DIORAMA_THEME } from "../scene/scene-theme";
 import { PieceCombatVfx } from "../vfx/PieceCombatVfx";
+import { resolveLastMoveMarkerGeometry } from "./last-move-marker";
 
 const ALL_SQUARES: readonly Square[] = Object.freeze(
   Array.from({ length: BOARD_FILES * BOARD_RANKS }, (_, index) => ({
@@ -141,6 +147,49 @@ function KeyboardFocusMarker({ square }: { square: Square }) {
   );
 }
 
+const LastMoveMarker = memo(function LastMoveMarker({ move }: { move: MoveRecord | null }) {
+  const geometry = useMemo(
+    () => move ? resolveLastMoveMarkerGeometry(move) : null,
+    [move],
+  );
+  const quaternion = useMemo(() => geometry
+    ? new THREE.Quaternion().setFromUnitVectors(
+        new THREE.Vector3(0, 1, 0),
+        new THREE.Vector3(...geometry.direction),
+      )
+    : new THREE.Quaternion(), [geometry]);
+  if (!geometry) return null;
+  const factionColor = QIN_DIORAMA_THEME.factions[geometry.side].glow;
+  const destinationColor = geometry.capture
+    ? QIN_DIORAMA_THEME.states.capture.color
+    : factionColor;
+
+  return (
+    <group name="last-move-marker" raycast={() => null}>
+      <mesh position={geometry.start} raycast={() => null} renderOrder={5} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.12, 0.18, 28]} />
+        <meshBasicMaterial color={factionColor} depthWrite={false} opacity={0.56} transparent />
+      </mesh>
+      <group position={geometry.midpoint} quaternion={quaternion}>
+        <mesh raycast={() => null} renderOrder={5}>
+          <cylinderGeometry args={[0.014, 0.014, geometry.length, 8]} />
+          <meshBasicMaterial color={factionColor} depthWrite={false} opacity={0.58} transparent />
+        </mesh>
+      </group>
+      <mesh position={geometry.end} raycast={() => null} renderOrder={6} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={geometry.capture ? [0.34, 0.43, 32] : [0.22, 0.31, 32]} />
+        <meshBasicMaterial color={destinationColor} depthWrite={false} opacity={0.84} transparent />
+      </mesh>
+      {geometry.capture ? (
+        <mesh position={[geometry.end[0], geometry.end[1] + 0.004, geometry.end[2]]} raycast={() => null} renderOrder={6} rotation={[-Math.PI / 2, 0, Math.PI / 4]}>
+          <ringGeometry args={[0.12, 0.17, 4]} />
+          <meshBasicMaterial color={QIN_DIORAMA_THEME.materials.chalk} depthWrite={false} opacity={0.8} transparent />
+        </mesh>
+      ) : null}
+    </group>
+  );
+});
+
 function PieceContactShadows({ pieces }: { pieces: readonly ScenePieceSlot<Piece>[] }) {
   const ref = useRef<THREE.InstancedMesh>(null);
 
@@ -172,6 +221,74 @@ function PieceContactShadows({ pieces }: { pieces: readonly ScenePieceSlot<Piece
   );
 }
 
+function FactionMarkerInstances({
+  pieces,
+  resolveWorldPosition,
+  side,
+}: {
+  pieces: readonly ScenePieceSlot<Piece>[];
+  resolveWorldPosition: (slot: ScenePieceSlot<Piece>) => readonly [number, number, number] | undefined;
+  side: Piece["side"];
+}) {
+  const ref = useRef<THREE.InstancedMesh>(null);
+  const style = FACTION_MARKER_STYLES[side];
+
+  useLayoutEffect(() => {
+    const mesh = ref.current;
+    if (!mesh) return;
+    const transform = new THREE.Object3D();
+    pieces.forEach((piece, index) => {
+      const [x, y, z] = resolveWorldPosition(piece) ?? squareToWorld(piece.square);
+      transform.position.set(x, y + FACTION_MARKER_CLEARANCE, z);
+      transform.rotation.set(-Math.PI / 2, 0, style.rotationZ);
+      transform.updateMatrix();
+      mesh.setMatrixAt(index, transform.matrix);
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+  }, [pieces, resolveWorldPosition, style.rotationZ]);
+
+  return (
+    <instancedMesh
+      ref={ref}
+      args={[undefined, undefined, pieces.length]}
+      name={`faction-base-markers:${side}`}
+      raycast={() => null}
+      renderOrder={3}
+    >
+      <ringGeometry args={[style.innerRadius, style.outerRadius, style.segments]} />
+      <meshBasicMaterial
+        color={QIN_DIORAMA_THEME.factions[side].trim}
+        depthWrite={false}
+        opacity={0.96}
+        toneMapped={false}
+        transparent
+      />
+    </instancedMesh>
+  );
+}
+
+function FactionBaseMarkers({
+  pieces,
+  resolveWorldPosition,
+}: {
+  pieces: readonly ScenePieceSlot<Piece>[];
+  resolveWorldPosition: (slot: ScenePieceSlot<Piece>) => readonly [number, number, number] | undefined;
+}) {
+  const redPieces = useMemo(() => pieces.filter((piece) => piece.data.side === "red"), [pieces]);
+  const blackPieces = useMemo(() => pieces.filter((piece) => piece.data.side === "black"), [pieces]);
+
+  return (
+    <group name="faction-base-markers" raycast={() => null}>
+      {redPieces.length > 0 ? (
+        <FactionMarkerInstances pieces={redPieces} resolveWorldPosition={resolveWorldPosition} side="red" />
+      ) : null}
+      {blackPieces.length > 0 ? (
+        <FactionMarkerInstances pieces={blackPieces} resolveWorldPosition={resolveWorldPosition} side="black" />
+      ) : null}
+    </group>
+  );
+}
+
 export function GameBoardLayer({
   animations,
   disabled,
@@ -198,6 +315,7 @@ export function GameBoardLayer({
     presentation.getSnapshot,
     presentation.getSnapshot,
   );
+  const lastMove = game.history.at(-1) ?? null;
   const active = visual.active;
   const moveEvent = active?.transition.events.find((event) =>
     event.type === "MoveCommitted" || event.type === "MoveUndone",
@@ -215,9 +333,9 @@ export function GameBoardLayer({
   const moveLanding = capture
     ? smoothStep(Math.min(1, Math.max(0, (progress - 0.58) / 0.36)))
     : smoothStep(progress);
-  const movingOffset = visualFrom && visualTo
-    ? offsetBetween(visualFrom, visualTo, 1 - moveLanding)
-    : ([0, 0, 0] as const);
+  const movingWorldPosition = visualFrom && visualTo
+    ? interpolateSquareToWorld(visualFrom, visualTo, moveLanding)
+    : undefined;
   const terminalLoser = game.status.kind === "ended" && game.status.winner
     ? (game.status.winner === "red" ? "black" : "red")
     : null;
@@ -253,14 +371,19 @@ export function GameBoardLayer({
   const ghostDestroyProgress = Math.min(0.99, Math.max(0, (progress - 0.61) / 0.34));
   const qualityProfile = getQualityProfile(quality);
   const lod = qualityProfile.lod;
+  const resolvePieceWorldPosition = (slot: ScenePieceSlot<Piece>) =>
+    slot.id === movingPieceId ? movingWorldPosition : undefined;
 
   return (
     <group name="interactive-game-layer">
       <BoardHitGrid disabled={disabled} onSquarePress={onSquarePress} />
+      <LastMoveMarker move={lastMove} />
       <LegalMoveMarkers game={game} moves={legalMoves} />
       {keyboardSquare ? <KeyboardFocusMarker square={keyboardSquare} /> : null}
       <PieceContactShadows pieces={slots} />
+      <FactionBaseMarkers pieces={slots} resolveWorldPosition={resolvePieceWorldPosition} />
       <PieceLayer
+        resolveWorldPosition={resolvePieceWorldPosition}
         slots={slots}
         renderPiece={(slot) => (
           <PieceActor
@@ -279,7 +402,6 @@ export function GameBoardLayer({
             onPress={(piece) => onSquarePress(piece.square)}
             piece={slot.data}
             selected={slot.id === selectedPieceId}
-            visualOffset={slot.id === movingPieceId ? movingOffset : undefined}
           />
         )}
       />
@@ -316,14 +438,4 @@ export function GameBoardLayer({
 
 function smoothStep(value: number) {
   return value * value * (3 - 2 * value);
-}
-
-function offsetBetween(from: Square, to: Square, remaining: number): readonly [number, number, number] {
-  const [fromX, fromY, fromZ] = squareToWorld(from);
-  const [toX, toY, toZ] = squareToWorld(to);
-  return [
-    (fromX - toX) * remaining,
-    (fromY - toY) * remaining,
-    (fromZ - toZ) * remaining,
-  ];
 }

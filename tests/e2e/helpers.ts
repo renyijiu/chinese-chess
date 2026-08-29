@@ -59,7 +59,7 @@ export async function waitForEnvironmentSettled(
 export async function settleVisualScene(page: Page) {
   await waitForEnvironmentSettled(page);
   await expect.poll(
-    () => page.evaluate(() => window.__XIANGQI_PERFORMANCE__?.sampleCount ?? 0),
+    () => page.evaluate(() => window.__XIANGQI_PERFORMANCE__?.currentDrawCalls ?? 0),
   ).toBeGreaterThan(0);
   await page.evaluate(() => new Promise<void>((resolve) => {
     window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));

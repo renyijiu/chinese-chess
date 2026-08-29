@@ -263,6 +263,7 @@ a {
 
 .game-overlay-panel,
 .game-action-bar,
+.game-history,
 .game-settings,
 .game-keyboard-control {
   pointer-events: auto;
@@ -656,7 +657,7 @@ a {
 
 .game-turn-card span,
 .game-turn-card small,
-.game-history > div span {
+.game-history-heading span {
   color: var(--qin-hud-text-muted);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 9px;
@@ -670,19 +671,90 @@ a {
 }
 
 .game-history {
-  max-height: 310px;
+  max-height: 142px;
   overflow: hidden;
   padding: 13px 14px;
   position: absolute;
   right: 28px;
   top: 92px;
+  transition: max-height 180ms ease, width 180ms ease;
+  width: 210px;
+}
+
+.game-history[data-expanded="true"] {
+  max-height: 310px;
   width: 235px;
 }
 
-.game-history > div {
+.xiangqi-game-shell[data-reduced-motion="true"] .game-history {
+  transition: none;
+}
+
+.game-history-heading {
   align-items: center;
   display: flex;
+  gap: 8px;
   justify-content: space-between;
+}
+
+.game-history-heading strong {
+  color: var(--qin-chalk);
+  font: 600 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  margin-left: auto;
+}
+
+.game-history-heading button {
+  background: color-mix(in srgb, var(--qin-aged-bronze) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--qin-hud-border) 72%, transparent);
+  color: var(--qin-hud-text);
+  cursor: pointer;
+  font: 10px/1 ui-sans-serif, system-ui, sans-serif;
+  min-height: 28px;
+  padding: 5px 8px;
+}
+
+.game-history-heading button:hover,
+.game-history-heading button:focus-visible {
+  background: color-mix(in srgb, var(--qin-aged-bronze) 34%, transparent);
+  border-color: var(--qin-fired-clay-light);
+}
+
+.game-capture-ledger {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: 1fr 1fr;
+  margin-top: 9px;
+}
+
+.game-capture-ledger > span {
+  background: color-mix(in srgb, var(--qin-black-lacquer) 42%, transparent);
+  border: 1px solid color-mix(in srgb, var(--qin-hud-border) 36%, transparent);
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 5px 6px;
+}
+
+.game-capture-ledger > span.red {
+  border-left: 2px solid var(--qin-faction-red-trim);
+}
+
+.game-capture-ledger > span.black {
+  border-left: 2px solid var(--qin-faction-black-trim);
+}
+
+.game-capture-ledger small {
+  color: var(--qin-hud-text-muted);
+  font: 8px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.game-capture-ledger strong {
+  color: var(--qin-chalk);
+  font: 600 11px/1.25 ui-sans-serif, system-ui, sans-serif;
+  min-height: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .game-history > p {
@@ -697,7 +769,20 @@ a {
   gap: 6px;
   list-style: none;
   margin: 12px 0 0;
+  max-height: 186px;
+  overflow-y: auto;
   padding: 0;
+  scrollbar-color: var(--qin-aged-bronze) transparent;
+  scrollbar-width: thin;
+}
+
+.game-history[data-expanded="false"] ol {
+  margin-top: 8px;
+  overflow: hidden;
+}
+
+.game-history[data-expanded="false"] li:not([data-last-move="true"]) {
+  display: none;
 }
 
 .game-history li {
@@ -711,6 +796,17 @@ a {
   padding-top: 6px;
 }
 
+.game-history li[data-last-move="true"] {
+  background: color-mix(in srgb, var(--qin-aged-bronze) 20%, transparent);
+  box-shadow: inset 2px 0 0 var(--qin-fired-clay-light);
+  margin-inline: -6px;
+  padding-inline: 6px;
+}
+
+.game-history li[data-capture="true"] {
+  background: color-mix(in srgb, var(--qin-state-capture) 12%, transparent);
+}
+
 .game-history li > span:first-child {
   color: var(--qin-fired-clay-light);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -718,7 +814,9 @@ a {
 
 .game-history em {
   color: var(--qin-faction-red-glow);
+  font-size: 9px;
   font-style: normal;
+  white-space: nowrap;
 }
 
 .game-action-bar {
@@ -955,14 +1053,14 @@ a {
   }
 
   .game-history {
-    max-height: 142px;
     right: 18px;
     top: 18px;
     width: min(205px, 48vw);
   }
 
-  .game-history ol li:nth-child(n + 4) {
-    display: none;
+  .game-history[data-expanded="true"] {
+    max-height: min(310px, calc(100% - 120px));
+    width: min(235px, 62vw);
   }
 
   .game-action-bar {
@@ -1028,12 +1126,7 @@ a {
   }
 
   .game-history {
-    max-height: 104px;
     padding: 10px;
-  }
-
-  .game-history ol li:nth-child(n + 3) {
-    display: none;
   }
 
   .game-history > p {

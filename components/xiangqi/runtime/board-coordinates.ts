@@ -36,6 +36,28 @@ export function squareToWorld(square: BoardSquare): WorldPosition {
   ];
 }
 
+/**
+ * Interpolates a move in world space so faction-facing rotations can never
+ * reverse the board path. The caller may pass an eased progress value.
+ */
+export function interpolateSquareToWorld(
+  from: BoardSquare,
+  to: BoardSquare,
+  progress: number,
+): WorldPosition {
+  const start = squareToWorld(from);
+  const end = squareToWorld(to);
+  const amount = Number.isFinite(progress) ? Math.min(1, Math.max(0, progress)) : 0;
+  if (amount === 0) return start;
+  if (amount === 1) return end;
+
+  return [
+    start[0] + (end[0] - start[0]) * amount,
+    start[1] + (end[1] - start[1]) * amount,
+    start[2] + (end[2] - start[2]) * amount,
+  ];
+}
+
 export const BOARD_FILE_POSITIONS = Object.freeze(
   Array.from({ length: BOARD_FILES }, (_, file) => squareToWorld({ file, rank: 0 })[0]),
 );

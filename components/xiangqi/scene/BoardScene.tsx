@@ -141,7 +141,7 @@ export function BoardScene({
             quality={quality}
           />
           <Suspense fallback={null}>{pieceLayer ?? <PrototypePieceLayer />}</Suspense>
-          <BoardCamera autoTour={autoTour} side={viewSide} view={view} />
+          <BoardCamera autoTour={autoTour} reducedMotion={reducedMotion} side={viewSide} view={view} />
           <CameraFeedback presentation={presentation} quality={quality.postprocessing ? "high" : quality.dynamicEffectLights ? "medium" : "low"} reducedMotion={reducedMotion} />
           <AudioListenerBridge audio={audio} />
           <PerformanceSummary drawCallsRef={drawCallsRef} />
