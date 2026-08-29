@@ -3,14 +3,24 @@
   "version": "0.1.0",
   "private": true,
   "license": "GPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/renyijiu/chinese-chess.git"
+  },
+  "bugs": {
+    "url": "https://github.com/renyijiu/chinese-chess/issues"
+  },
+  "homepage": "https://github.com/renyijiu/chinese-chess#readme",
   "engines": {
     "node": ">=22.13.0"
   },
   "scripts": {
     "dev": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext dev",
+    "prebuild": "npm run assets:ai:validate && npm run security:metadata",
     "build": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext build",
     "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext start",
     "start:production": "WRANGLER_WRITE_LOGS=false WRANGLER_LOG_PATH=.wrangler/wrangler.log MINIFLARE_REGISTRY_PATH=.wrangler/registry wrangler dev --config dist/server/wrangler.json",
+    "start:production:test": "WRANGLER_WRITE_LOGS=false WRANGLER_LOG_PATH=.wrangler/wrangler.log MINIFLARE_REGISTRY_PATH=.wrangler/release-registry wrangler dev --config dist/server/wrangler.json",
     "generate:model": "node scripts/generate-marshal.mjs",
     "optimize:model": "gltf-transform optimize public/models/red-marshal-web.glb public/models/red-marshal-runtime.glb --compress meshopt --texture-size 2048",
     "inspect:model": "gltf-transform inspect public/models/red-marshal-runtime.glb",
@@ -21,6 +31,7 @@
     "assets:audio:validate": "node scripts/verify-audio-assets.mjs",
     "assets:ai:validate": "node scripts/verify-ai-engine-assets.mjs",
     "assets:ai:canary": "node scripts/canary-ai-engine-browser.mjs",
+    "security:metadata": "node scripts/verify-public-metadata.mjs",
     "test": "npm run build && node --test tests/rendered-html.test.mjs",
     "test:rules": "vitest run --config tests/unit/xiangqi/vitest.config.ts",
     "test:game": "vitest run --config tests/unit/game/vitest.config.ts",
@@ -29,6 +40,9 @@
     "test:unit": "npm run test:rules && npm run test:game && npm run test:ai && npm run test:presentation",
     "test:runtime": "vitest run --config tests/unit/runtime/vitest.config.ts",
     "test:e2e": "playwright test --config playwright.config.ts",
+    "test:e2e:dev": "npm run test:e2e",
+    "pretest:e2e:release": "npm run build",
+    "test:e2e:release": "playwright test tests/e2e/gameplay.spec.ts tests/e2e/two-player-match.spec.ts tests/e2e/computer-match.spec.ts --config playwright.production.config.ts --project desktop-chromium",
     "test:audio:browsers": "AUDIO_BROWSER_MATRIX=1 playwright test tests/e2e/audio.spec.ts --config playwright.config.ts --project desktop-chromium --project audio-firefox --project audio-webkit",
     "test:visual": "playwright test tests/e2e/visual.spec.ts tests/e2e/mobile.spec.ts --config playwright.config.ts",
     "test:visual:update": "npm run test:visual -- --update-snapshots",

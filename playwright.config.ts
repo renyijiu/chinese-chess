@@ -2,6 +2,9 @@ import { defineConfig, devices } from "@playwright/test";
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
 const audioBrowserMatrix = process.env.AUDIO_BROWSER_MATRIX === "1";
+const skipWebServer = process.env.PLAYWRIGHT_SKIP_WEB_SERVER === "1";
+const webServerCommand = process.env.PLAYWRIGHT_SERVER_COMMAND
+  ?? "npm run dev";
 
 export default defineConfig({
   expect: { timeout: 12_000 },
@@ -19,9 +22,9 @@ export default defineConfig({
     screenshot: "only-on-failure",
     trace: "retain-on-failure",
   },
-  webServer: {
-    command: "npm run dev",
-    reuseExistingServer: !process.env.CI,
+  webServer: skipWebServer ? undefined : {
+    command: webServerCommand,
+    reuseExistingServer: process.env.PLAYWRIGHT_REUSE_SERVER === "1" || !process.env.CI,
     timeout: 120_000,
     url: baseURL,
   },

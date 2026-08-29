@@ -72,11 +72,23 @@ describe("LightweightWorkerProvider", () => {
     expect(receivedOptions).toMatchObject({ type: "module", name: "xiangqi-lightweight-opponent" });
   });
 
-  it("strictly decodes unknown output and resolves only the matching result", async () => {
+  it("fails the active search when the Worker returns malformed output", async () => {
     const worker = new FakeWorker();
     const provider = new LightweightWorkerProvider(() => worker);
     const outcome = provider.search(request);
+
     worker.emit({ ...request, type: "result" });
+
+    await expect(outcome).resolves.toMatchObject({
+      ok: false,
+      failure: { code: "failed", message: "The opponent Worker returned malformed output." },
+    });
+  });
+
+  it("ignores a valid stale identity and resolves only the matching result", async () => {
+    const worker = new FakeWorker();
+    const provider = new LightweightWorkerProvider(() => worker);
+    const outcome = provider.search(request);
     worker.emit({
       protocolVersion: 1,
       type: "result",

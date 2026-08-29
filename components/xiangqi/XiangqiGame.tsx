@@ -425,6 +425,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
 
   const handleCommandCommit = useCallback(async (commit: CommandCommit) => {
     const nextMatch = commit.after;
+    const actionEpoch = matchEpoch.current;
     // Storage is attempted before React exposes the new state. Failure is
     // recoverable: the in-memory SavedMatch remains authoritative and the UI
     // is marked non-resumable through the warning.
@@ -440,7 +441,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
 
     const domainEventId = commit.events[0]?.eventId ?? `${nextMatch.revision}:ui`;
     const transition: GameActionTransition = {
-      actionId: `${matchEpoch.current}:${domainEventId}:${commit.token}`,
+      actionId: `${actionEpoch}:${domainEventId}:${commit.token}`,
       before: commit.before.game,
       after: nextMatch.game,
       events: commit.events,
@@ -473,7 +474,11 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
       ? Promise.resolve().then(() => onActionRef.current?.(transition))
       : Promise.resolve();
     const settled = await Promise.allSettled([settledVisualAction, externalAction]);
-    if (settled.some((result) => result.status === "rejected") && mounted.current) {
+    if (
+      settled.some((result) => result.status === "rejected")
+      && mounted.current
+      && matchEpoch.current === actionEpoch
+    ) {
       setNotice("演出未能完成，棋盘已直接对齐到正确局面。");
     }
   }, [persistMatch, presentation, runtime, semanticAudio]);

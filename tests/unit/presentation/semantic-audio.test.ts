@@ -8,6 +8,7 @@ import type { AudioEngine } from "../../../components/xiangqi/audio/AudioEngine"
 import type { AudioTransientCueId } from "../../../components/xiangqi/audio/audio-types";
 import { handlePresentationAudioCue } from "../../../components/xiangqi/audio/presentation-audio";
 import type { GameActionTransition } from "../../../components/xiangqi/game/actions";
+import { squareToWorld } from "../../../components/xiangqi/runtime/board-coordinates";
 import { createInitialGame, dispatch, type DomainEvent, type GameState, type Side } from "../../../lib/xiangqi/index";
 
 afterEach(() => vi.useRealTimers());
@@ -128,6 +129,26 @@ describe("semantic audio event selection", () => {
     });
 
     expect(play).not.toHaveBeenCalled();
+  });
+
+  it("spatializes undo cues along the reversed visual move", () => {
+    const play = vi.fn();
+    const engine = { play, speak: vi.fn() } as unknown as AudioEngine;
+    const action = transition({ undo: true });
+
+    handlePresentationAudioCue(engine, {
+      actionId: action.actionId,
+      marker: "telegraph",
+      transition: action,
+    });
+    handlePresentationAudioCue(engine, {
+      actionId: action.actionId,
+      marker: "impact",
+      transition: action,
+    });
+
+    expect(play.mock.calls[0]?.[1]).toEqual({ position: squareToWorld({ file: 0, rank: 4 }) });
+    expect(play.mock.calls[1]?.[1]).toEqual({ position: squareToWorld({ file: 0, rank: 3 }) });
   });
 });
 

@@ -86,6 +86,13 @@ export function deriveCapturedPieceLedger(history: readonly MoveRecord[]): Reado
   };
 }
 
+export function deriveVisibleMoveHistory(
+  history: readonly MoveRecord[],
+  expanded: boolean,
+): readonly MoveRecord[] {
+  return history.slice(expanded ? 0 : -8).reverse();
+}
+
 const CapturedPieceLedger = memo(function CapturedPieceLedger({ history }: {
   history: readonly MoveRecord[];
 }) {
@@ -385,7 +392,7 @@ export function GameHud({
           <p>尚未落子</p>
         ) : (
           <ol id="game-history-moves">
-            {game.history.slice(-8).reverse().map((move, index) => (
+            {deriveVisibleMoveHistory(game.history, historyExpanded).map((move, index) => (
               <li
                 data-capture={move.captured ? "true" : undefined}
                 data-last-move={index === 0 ? "true" : undefined}

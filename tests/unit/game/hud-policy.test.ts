@@ -5,6 +5,7 @@ import type { OpponentCoordinatorSnapshot } from "../../../components/xiangqi/ai
 import {
   deriveGameHudPermissions,
   deriveCapturedPieceLedger,
+  deriveVisibleMoveHistory,
   describeOpponentStatus,
   formatCaptureDetail,
 } from "../../../components/xiangqi/hud/GameHud";
@@ -141,5 +142,23 @@ describe("game HUD policy", () => {
       red: [{ count: 1, glyph: "傌", role: "horse" }],
       black: [{ count: 2, glyph: "砲", role: "cannon" }],
     });
+  });
+
+  it("shows all moves only when the history panel is expanded", () => {
+    const captured = {
+      id: "black:soldier:fixture",
+      side: "black" as const,
+      role: "soldier" as const,
+      square: { file: 0, rank: 6 },
+    };
+    const history = Array.from({ length: 9 }, (_, index) =>
+      captureMove(index + 1, index % 2 === 0 ? "red" : "black", "chariot", captured));
+
+    expect(deriveVisibleMoveHistory(history, false).map((move) => move.revision)).toEqual([
+      9, 8, 7, 6, 5, 4, 3, 2,
+    ]);
+    expect(deriveVisibleMoveHistory(history, true).map((move) => move.revision)).toEqual([
+      9, 8, 7, 6, 5, 4, 3, 2, 1,
+    ]);
   });
 });

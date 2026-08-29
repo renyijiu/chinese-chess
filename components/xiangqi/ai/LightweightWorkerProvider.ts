@@ -101,7 +101,13 @@ export class LightweightWorkerProvider implements OpponentProvider {
   readonly handleMessage = (event: MessageEvent<unknown>): void => {
     const output = decodeOpponentOutputV1(event.data);
     const pending = this.#pending;
-    if (!output || !pending || !sameIdentity(output, pending.request)) return;
+    if (!pending) return;
+    if (!output) {
+      this.settle(failure("failed", "The opponent Worker returned malformed output."));
+      this.settleStop();
+      return;
+    }
+    if (!sameIdentity(output, pending.request)) return;
     if (output.type === "result") {
       this.settle({ ok: true, result: output });
       this.settleStop();
