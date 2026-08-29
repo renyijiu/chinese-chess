@@ -37,6 +37,21 @@ The weight file is data consumed through Fairy-Stockfish's `EvalFile` option;
 it is not executable JavaScript. It remains independently identified so a
 release audit can distinguish engine code from network data.
 
+## Basis Universal transcoder (via Three.js r185)
+
+- Component: `basis_transcoder.js` and `basis_transcoder.wasm`
+- Runtime location: `public/basis/`
+- Upstream project: https://github.com/BinomialLLC/basis_universal
+- Vendored source: `three@0.185.1`, tag `r185`, commit
+  `2431a09f46f34c560bc8e44b33be0e567723d5b9`
+- License: Apache License 2.0 (`Apache-2.0`)
+- JavaScript SHA-256:
+  `8478b5b6d6b74e7d3082b89f6417321d8d1dc0307f2b30d4484bb11b441696a1`
+- WebAssembly SHA-256:
+  `6cf17dc889352c42e9acf8897107978d127005fe3386c36a0e3845e27967630a`
+
+The vendored README, source links, and license link are in `public/basis/README.md`.
+
 ## Runtime inventory
 
 The authoritative byte counts, content hashes, MIME types, local URLs, and

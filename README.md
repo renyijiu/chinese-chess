@@ -1,6 +1,15 @@
 # 网页 3D 中国象棋
 
+<p align="center">
+  <img alt="秦兵马俑中国象棋阵容" src="assets/characters/reviews/roster-contact-sheet-qin-terracotta.png" width="900">
+</p>
+
 这是一个可进行本机双人或纯前端人机对弈的浏览器 3D 中国象棋。32 枚棋子使用帅/将、仕/士、相/象、车、马、炮、兵/卒七类 Q 版秦兵马俑带骨骼 GLB 资产；棋盘、环境、交互反馈和 HUD 共同采用暖烧陶、黑漆、旧铜、白垩及少量矿物残彩的微缩沙盘语言。
+
+> [!IMPORTANT]
+> 项目当前为实验性预发布版本。规则、存档、桌面浏览器对局与生产构建已有自动化验证；高画质 60 FPS p95 门槛和目标手机实机证据尚未关闭，详见 [`docs/validation.md`](docs/validation.md)。
+
+项目采用 [`GPL-3.0-only`](LICENSE)。欢迎通过 [贡献指南](CONTRIBUTING.md) 参与；漏洞请按 [安全策略](SECURITY.md) 私下报告，使用问题请参阅 [支持说明](SUPPORT.md)。
 
 ## 3D 棋盘场景
 
@@ -103,13 +112,18 @@ npm run assets:pieces:report
 
 ## 本地运行
 
-需要 Node.js `>=22.13.0`。
+需要 Git LFS、Node.js `>=22.13.0` 和 npm。仓库包含 GLB、Blender 源文件、音频和 NNUE 等 LFS 对象；未拉取 LFS 会让构建前校验失败。
 
 ```bash
-npm install
-npm run prepare:model
+git lfs install
+git clone https://github.com/renyijiu/chinese-chess.git
+cd chinese-chess
+git lfs pull
+npm ci
 npm run dev
 ```
+
+不需要重新生成模型即可运行游戏。`npm run prepare:model`、Blender 和字体依赖只用于资产维护。
 
 质量检查：
 
@@ -131,6 +145,22 @@ npm run test:performance:headed
 
 `npm test` 会先执行 Vinext 生产构建，再验证服务端输出、浏览器专属棋局边界、R3F 棋盘接线、九纵十横结构和 WebGL2 回退逻辑。Playwright 另覆盖音频用户手势、键盘完整走子、真实 Canvas 指针/触摸、红黑双方连续八手、吃子、将军、终局、精确存档恢复、骰子与阵营恢复、四档人机、Master 启动/降级、Worker 超时/畸形输出、后台暂停、可选全景失败、画质往返、确认框焦点隔离和 WebGL context loss/恢复。视觉比较在环境状态显式进入 `ready` 或 `degraded` 后才截图。
 
+`npm run test:e2e` 使用开发服务器运行包含故障注入的完整浏览器套件；`npm run test:e2e:release` 会先构建，再针对生产 Worker 验证正常对局和真实 Master 路径。测试已部署地址时设置 `PLAYWRIGHT_BASE_URL` 与 `PLAYWRIGHT_SKIP_WEB_SERVER=1`。
+
 可重复的测试范围、浏览器证据、资源预算、性能数字及尚未关闭的发布门槛记录在 [`docs/validation.md`](docs/validation.md)。2026-08-25 的 M1 Max 可见 Chromium 高画质 1920×1080 在预热后的 208 帧窗口实测为 77 次当前绘制、82 次峰值绘制、16.54 ms 平均 / 18.4 ms p95 渲染帧间隔和 3.66 MiB 首次可玩生产响应体。绘制、DPR、主动全景和下载预算通过，但尚未达到 16.7 ms 精确 p95 门槛；严格性能命令会如实返回失败。
 
 部署层继续使用 Vinext/Vite 与 Cloudflare Worker；当前人机对局完全在浏览器执行。D1、Durable Objects 和账号体系留给联机阶段接入。
+
+## 浏览器与部署支持
+
+- 桌面端：当前 Chromium、Firefox 和 Safari；正式渲染要求 WebGL2。
+- 移动端：现代 Chromium/Safari 可使用触控模式，但目标手机性能与长时间恢复证据仍属于预发布门槛。
+- Master：除上述基础能力外，还要求安全上下文、跨源隔离、SharedArrayBuffer、WASM SIMD 与 CacheStorage；不满足时会明确降级到 Hard。
+- 部署：生产构建、Cloudflare Worker 头部合同和发布检查见 [`docs/deployment.md`](docs/deployment.md)。
+
+## 参与项目
+
+- 报告可复现缺陷：使用 GitHub 的结构化 Bug 表单。
+- 提交功能或资产改动：先阅读 [`CONTRIBUTING.md`](CONTRIBUTING.md) 和 [`ASSET_ATTRIBUTION.md`](ASSET_ATTRIBUTION.md)。
+- 第三方代码与运行时来源：见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
+- 当前质量证据与已知限制：见 [`docs/validation.md`](docs/validation.md)。

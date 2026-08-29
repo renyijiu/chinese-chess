@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/renyijiu/chinese-chess/security/advisories/new
+    about: Report vulnerabilities privately. Do not open a public issue.
+  - name: Support guide
+    url: https://github.com/renyijiu/chinese-chess/blob/main/SUPPORT.md
+    about: Read the support and troubleshooting entry points first.
