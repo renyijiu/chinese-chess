@@ -52,6 +52,17 @@ release audit can distinguish engine code from network data.
 
 The vendored README, source links, and license link are in `public/basis/README.md`.
 
+## node-qrcode 1.5.4
+
+- Component: `qrcode@1.5.4`
+- Author: Ryan Day and the node-qrcode contributors
+- Upstream: https://github.com/soldair/node-qrcode
+- License: MIT
+- Runtime purpose: optional client-side QR rendering for manually exchanged
+  WebRTC offer and answer text
+- Distribution: installed from npm and bundled through the browser build; no
+  local patches
+
 ## Runtime inventory
 
 The authoritative byte counts, content hashes, MIME types, local URLs, and
