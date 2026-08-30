@@ -63,11 +63,14 @@ import { PresentationStore } from "./presentation/PresentationStore";
 import { attachAudioDiagnostics, attachPresentationDiagnostics } from "./runtime/test-faults";
 import {
   DEFAULT_GAME_SETTINGS,
+  GAME_SAVE_CONFLICT_WARNING,
+  GAME_SAVE_KEY,
   GAME_SETTINGS_KEY,
   loadGameSettings,
   loadGameSnapshot,
   saveGameSettings,
   saveGameSnapshot,
+  type GameSnapshotToken,
   type GameSettings,
   type StorageLike,
 } from "./game/storage";
@@ -263,7 +266,9 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
   const keyboardControlRef = useRef<HTMLButtonElement>(null);
   const mounted = useRef(true);
   const matchEpoch = useRef(0);
+  const storageConflictRef = useRef(false);
   const storageRef = useRef<StorageLike | null>(null);
+  const storageTokenRef = useRef<GameSnapshotToken>(null);
   const matchRef = useRef(match);
   const gameRef = useRef(match.game);
   const phaseRef = useRef<GamePhase>(phase);
@@ -322,6 +327,8 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
       }
 
       const loaded = loadGameSnapshot(storage);
+      storageTokenRef.current = loaded.snapshotToken;
+      storageConflictRef.current = false;
       const loadedSettings = loadGameSettings(storage);
       let hasStoredSettings = false;
       try {
@@ -350,6 +357,20 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
       window.cancelAnimationFrame(initializationFrame);
     };
   }, [animations, commandGate, opponent, presentation, runtime, semanticAudio]);
+
+  useEffect(() => {
+    if (loading || !storageRef.current) return;
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== GAME_SAVE_KEY && event.key !== null) return;
+      if (event.newValue === storageTokenRef.current) return;
+      storageConflictRef.current = true;
+      setResumableMatch(null);
+      setUnsafeSavePresent(event.newValue !== null);
+      setStorageWarning(GAME_SAVE_CONFLICT_WARNING);
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, [loading]);
 
   useEffect(() => opponent.subscribe((snapshot) => {
     if (mounted.current) setOpponentSnapshot(snapshot);
@@ -412,15 +433,30 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     focusBoardWhenReady.current = false;
   }, [game, phase]);
 
-  const persistMatch = useCallback((nextMatch: SavedMatch): boolean => {
+  const persistMatch = useCallback((nextMatch: SavedMatch, overwrite = false): boolean => {
     const storage = storageRef.current;
     if (!storage) {
       setStorageWarning("浏览器存储不可用，本局将只保存在内存中。");
       return false;
     }
-    const result = saveGameSnapshot(storage, nextMatch);
-    if (!result.ok) setStorageWarning(result.warning);
-    return result.ok;
+    if (storageConflictRef.current && !overwrite) {
+      setStorageWarning(GAME_SAVE_CONFLICT_WARNING);
+      return false;
+    }
+    const result = saveGameSnapshot(
+      storage,
+      nextMatch,
+      overwrite ? { overwrite: true } : { expectedToken: storageTokenRef.current },
+    );
+    if (!result.ok) {
+      if (result.reason === "conflict") storageConflictRef.current = true;
+      setStorageWarning(result.warning);
+      return false;
+    }
+    storageTokenRef.current = result.snapshotToken;
+    storageConflictRef.current = false;
+    setStorageWarning(undefined);
+    return true;
   }, []);
 
   const handleCommandCommit = useCallback(async (commit: CommandCommit) => {
@@ -436,7 +472,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     setMatch(nextMatch);
     setResumableMatch(resumable ? nextMatch : null);
     setSelectedPieceId(null);
-    setUnsafeSavePresent(false);
+    setUnsafeSavePresent(storageConflictRef.current);
     setNotice(eventAnnouncement(commit.events, nextMatch.game));
 
     const domainEventId = commit.events[0]?.eventId ?? `${nextMatch.revision}:ui`;
@@ -545,7 +581,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     presentation.skip("match-reset");
     // Persist the complete match config (including the die result) before any
     // setup animation or playable state is exposed.
-    const resumable = persistMatch(fresh);
+    const resumable = persistMatch(fresh, true);
     matchEpoch.current += 1;
     matchRef.current = fresh;
     gameRef.current = fresh.game;
@@ -555,7 +591,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     setMatch(fresh);
     setKeyboardSquare({ file: 4, rank: 0 });
     setSelectedPieceId(null);
-    setUnsafeSavePresent(false);
+    setUnsafeSavePresent(!resumable && storageTokenRef.current !== null);
     setConfirmation(null);
     setPhase(nextPhase);
     setResumableMatch(resumable ? fresh : null);

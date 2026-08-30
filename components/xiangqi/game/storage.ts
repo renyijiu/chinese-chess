@@ -17,6 +17,7 @@ export const GAME_SAVE_BACKUP_KEY = "xiangqi3d:game:v2:backup";
 export const LEGACY_GAME_SAVE_KEY = "xiangqi3d:game:v1";
 export const LEGACY_GAME_SAVE_BACKUP_KEY = "xiangqi3d:game:v1:backup";
 export const GAME_SETTINGS_KEY = "xiangqi3d:settings:v1";
+export const GAME_SAVE_CONFLICT_WARNING = "检测到其他标签页已更新本地存档。当前对局仍可继续，但不会覆盖对方进度；重新加载可查看最新进度，或确认开始新局后替换。";
 
 const SAVE_KIND = "xiangqi-game-save";
 const SAVE_VERSION = 2;
@@ -65,18 +66,31 @@ export type LoadGameResult = Readonly<{
   savedMatch: SavedMatch | null;
   /** Temporary compatibility alias for the pre-v2 local-game controller. */
   game: GameState | null;
+  /** Opaque identity for optimistic stale-write detection; this is not a transactional CAS. */
+  snapshotToken: GameSnapshotToken;
   source: "primary" | "backup" | "none";
   migratedFrom?: 1;
   warning?: string;
 }>;
+
+export type GameSnapshotToken = string | null;
+
+export type GameSnapshotWriteIntent =
+  | Readonly<{ expectedToken: GameSnapshotToken }>
+  | Readonly<{ overwrite: true }>;
 
 export type StorageWriteResult =
   | Readonly<{ ok: true }>
   | Readonly<{ ok: false; warning: string }>;
 
 export type GameStorageWriteResult =
-  | Readonly<{ ok: true; resumable: true }>
-  | Readonly<{ ok: false; resumable: false; warning: string }>;
+  | Readonly<{ ok: true; resumable: true; snapshotToken: Exclude<GameSnapshotToken, null> }>
+  | Readonly<{
+    ok: false;
+    reason: "conflict" | "unavailable";
+    resumable: false;
+    warning: string;
+  }>;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -163,11 +177,13 @@ function tryLoadLegacy(raw: string | null): SavedMatch | null {
 function loadedResult(
   savedMatch: SavedMatch,
   source: "primary" | "backup",
+  snapshotToken: GameSnapshotToken,
   options: Readonly<{ migratedFrom?: 1; warning?: string }> = {},
 ): LoadGameResult {
   return {
     savedMatch,
     game: savedMatch.game,
+    snapshotToken,
     source,
     ...options,
   };
@@ -187,24 +203,25 @@ export function loadGameSnapshot(storage: StorageLike): LoadGameResult {
     return {
       savedMatch: null,
       game: null,
+      snapshotToken: null,
       source: "none",
       warning: "浏览器存储不可用，本局将只保存在内存中。",
     };
   }
 
   const primaryMatch = tryLoad(primary);
-  if (primaryMatch) return loadedResult(primaryMatch, "primary");
+  if (primaryMatch) return loadedResult(primaryMatch, "primary", primary);
 
   const backupMatch = tryLoad(backup);
   if (backupMatch) {
-    return loadedResult(backupMatch, "backup", {
+    return loadedResult(backupMatch, "backup", primary, {
       warning: "主存档损坏，已恢复最后一次有效备份。",
     });
   }
 
   const legacyPrimaryMatch = tryLoadLegacy(legacyPrimary);
   if (legacyPrimaryMatch) {
-    return loadedResult(legacyPrimaryMatch, "primary", {
+    return loadedResult(legacyPrimaryMatch, "primary", primary, {
       migratedFrom: 1,
       warning: "旧版本地双人存档已安全迁移。",
     });
@@ -212,7 +229,7 @@ export function loadGameSnapshot(storage: StorageLike): LoadGameResult {
 
   const legacyBackupMatch = tryLoadLegacy(legacyBackup);
   if (legacyBackupMatch) {
-    return loadedResult(legacyBackupMatch, "backup", {
+    return loadedResult(legacyBackupMatch, "backup", primary, {
       migratedFrom: 1,
       warning: "旧版主存档损坏，已迁移最后一次有效备份。",
     });
@@ -222,11 +239,12 @@ export function loadGameSnapshot(storage: StorageLike): LoadGameResult {
     return {
       savedMatch: null,
       game: null,
+      snapshotToken: primary,
       source: "none",
       warning: "本地存档已损坏，开始新局前不会覆盖原数据。",
     };
   }
-  return { savedMatch: null, game: null, source: "none" };
+  return { savedMatch: null, game: null, snapshotToken: null, source: "none" };
 }
 
 function isSavedMatch(value: SavedMatch | GameState): value is SavedMatch {
@@ -250,12 +268,25 @@ function normalizeSavedMatch(value: SavedMatch | GameState): SavedMatch {
 export function saveGameSnapshot(
   storage: StorageLike,
   value: SavedMatch | GameState,
+  intent: GameSnapshotWriteIntent,
   savedAt = Date.now(),
 ): GameStorageWriteResult {
   try {
     if (!Number.isFinite(savedAt)) throw new Error("Save timestamp must be finite");
     const savedMatch = normalizeSavedMatch(value);
     const current = storage.getItem(GAME_SAVE_KEY);
+    // This prevents a writer that already has a stale parent from rotating or
+    // replacing the newer primary. localStorage does not make the following
+    // multi-step sequence transactional, so the caller also listens for
+    // storage events and treats a read-back mismatch as non-resumable.
+    if ("expectedToken" in intent && current !== intent.expectedToken) {
+      return {
+        ok: false,
+        reason: "conflict",
+        resumable: false,
+        warning: GAME_SAVE_CONFLICT_WARNING,
+      };
+    }
     if (current && tryLoad(current)) {
       storage.setItem(GAME_SAVE_BACKUP_KEY, current);
     }
@@ -267,11 +298,21 @@ export function saveGameSnapshot(
       serialized: serializeGame(savedMatch.game),
       match: savedMatch.config,
     };
-    storage.setItem(GAME_SAVE_KEY, JSON.stringify(envelope));
-    return { ok: true, resumable: true };
+    const snapshotToken = JSON.stringify(envelope);
+    storage.setItem(GAME_SAVE_KEY, snapshotToken);
+    if (storage.getItem(GAME_SAVE_KEY) !== snapshotToken) {
+      return {
+        ok: false,
+        reason: "conflict",
+        resumable: false,
+        warning: GAME_SAVE_CONFLICT_WARNING,
+      };
+    }
+    return { ok: true, resumable: true, snapshotToken };
   } catch {
     return {
       ok: false,
+      reason: "unavailable",
       resumable: false,
       warning: "无法写入浏览器存储，本局将只保存在内存中。",
     };

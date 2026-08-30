@@ -3,8 +3,10 @@ import { expect, test } from "@playwright/test";
 import {
   clickBoardSquare,
   openCleanGame,
+  pressSequence,
   setReducedMotion,
   startGame,
+  waitForEnvironmentSettled,
   waitForRevision,
 } from "./helpers";
 
@@ -44,4 +46,50 @@ test("red and black can alternate legal moves across four complete turns", async
   await expect(page.locator(".xiangqi-game-shell")).toHaveAttribute("data-game-revision", "8");
   await expect(page.locator(".game-history li")).toHaveCount(8);
   await expect(turn).toHaveText("红方");
+});
+
+test("warns a stale tab, preserves the newer save, and allows an explicit new game", async ({ context, page }) => {
+  test.setTimeout(120_000);
+  await openCleanGame(page);
+  await startGame(page);
+  await setReducedMotion(page);
+
+  const staleTab = await context.newPage();
+  await staleTab.goto("/", { waitUntil: "domcontentloaded" });
+  await waitForEnvironmentSettled(staleTab);
+  await staleTab.getByRole("button", { name: "继续对局" }).click();
+  await expect(staleTab.locator(".xiangqi-game-shell")).toHaveAttribute("data-game-revision", "0");
+
+  const activeKeyboard = page.locator(".game-keyboard-control button");
+  await activeKeyboard.focus();
+  await pressSequence(activeKeyboard, [
+    "ArrowLeft", "ArrowLeft", "ArrowLeft", "ArrowLeft",
+    "ArrowUp", "ArrowUp", "ArrowUp", "Enter", "ArrowUp", "Enter",
+  ]);
+  await waitForRevision(page, 1);
+  const advancedSave = await page.evaluate(() => window.localStorage.getItem("xiangqi3d:game:v2"));
+  expect(advancedSave).not.toBeNull();
+
+  await expect(staleTab.locator(".game-persistence-warning")).toContainText("其他标签页已更新本地存档");
+  const staleKeyboard = staleTab.locator(".game-keyboard-control button");
+  await staleKeyboard.focus();
+  await pressSequence(staleKeyboard, [
+    "ArrowLeft", "ArrowLeft",
+    "ArrowUp", "ArrowUp", "ArrowUp", "Enter", "ArrowUp", "Enter",
+  ]);
+  await waitForRevision(staleTab, 1);
+
+  expect(await staleTab.evaluate(() => window.localStorage.getItem("xiangqi3d:game:v2"))).toBe(advancedSave);
+  await expect(staleTab.locator(".game-persistence-warning")).toContainText("不会覆盖对方进度");
+
+  await staleTab.getByRole("button", { name: "重新开局" }).click();
+  const confirmation = staleTab.getByRole("alertdialog", { name: "确认重新开局？" });
+  await confirmation.getByRole("button", { name: "重新开局" }).click();
+  await expect(staleTab.locator(".xiangqi-game-shell")).toHaveAttribute("data-game-revision", "0");
+  const replacement = await staleTab.evaluate(() => {
+    const raw = window.localStorage.getItem("xiangqi3d:game:v2");
+    return raw ? JSON.parse(raw) as { revision?: number; serialized?: string } : null;
+  });
+  expect(replacement?.revision).toBe(0);
+  expect(replacement?.serialized).not.toBe(JSON.parse(advancedSave ?? "{}").serialized);
 });

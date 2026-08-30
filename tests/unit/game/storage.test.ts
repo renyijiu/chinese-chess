@@ -44,7 +44,7 @@ describe("local game persistence", () => {
     const storage = new MemoryStorage();
     const match = createLocalMatch(createInitialGame());
 
-    expect(saveGameSnapshot(storage, match, 1_700_000_000_000)).toEqual({
+    expect(saveGameSnapshot(storage, match, { overwrite: true }, 1_700_000_000_000)).toMatchObject({
       ok: true,
       resumable: true,
     });
@@ -65,7 +65,14 @@ describe("local game persistence", () => {
   it("keeps the last valid primary as backup and restores it when the new primary is corrupt", () => {
     const storage = new MemoryStorage();
     const initial = createInitialGame();
-    expect(saveGameSnapshot(storage, createLocalMatch(initial), 1)).toMatchObject({ ok: true });
+    const initialWrite = saveGameSnapshot(
+      storage,
+      createLocalMatch(initial),
+      { overwrite: true },
+      1,
+    );
+    expect(initialWrite).toMatchObject({ ok: true });
+    if (!initialWrite.ok) throw new Error("Expected the initial save to succeed");
 
     const moved = dispatch(initial, {
       type: "move",
@@ -73,7 +80,12 @@ describe("local game persistence", () => {
       from: { file: 0, rank: 3 },
       to: { file: 0, rank: 4 },
     }).state;
-    expect(saveGameSnapshot(storage, createLocalMatch(moved), 2)).toMatchObject({ ok: true });
+    expect(saveGameSnapshot(
+      storage,
+      createLocalMatch(moved),
+      { expectedToken: initialWrite.snapshotToken },
+      2,
+    )).toMatchObject({ ok: true });
     expect(storage.getItem(GAME_SAVE_BACKUP_KEY)).not.toBeNull();
 
     storage.setItem(GAME_SAVE_KEY, "{broken");
@@ -81,6 +93,72 @@ describe("local game persistence", () => {
     expect(loaded.source).toBe("backup");
     expect(loaded.game?.revision).toBe(0);
     expect(loaded.warning).toMatch(/备份/);
+  });
+
+  it("rejects the second writer when two tabs branch from the same parent snapshot", () => {
+    const storage = new MemoryStorage();
+    const initial = createLocalMatch(createInitialGame());
+    expect(saveGameSnapshot(storage, initial, { overwrite: true }, 1)).toMatchObject({ ok: true });
+
+    const writerA = loadGameSnapshot(storage);
+    const writerB = loadGameSnapshot(storage);
+    expect(writerA.snapshotToken).toBe(writerB.snapshotToken);
+
+    const firstBranch = createLocalMatch(dispatch(initial.game, {
+      type: "move",
+      expectedRevision: 0,
+      from: { file: 0, rank: 3 },
+      to: { file: 0, rank: 4 },
+    }).state);
+    const secondBranch = createLocalMatch(dispatch(initial.game, {
+      type: "move",
+      expectedRevision: 0,
+      from: { file: 2, rank: 3 },
+      to: { file: 2, rank: 4 },
+    }).state);
+
+    const firstWrite = saveGameSnapshot(storage, firstBranch, {
+      expectedToken: writerA.snapshotToken,
+    }, 2);
+    expect(firstWrite).toMatchObject({ ok: true, resumable: true });
+    const secondWrite = saveGameSnapshot(storage, secondBranch, {
+      expectedToken: writerB.snapshotToken,
+    }, 3);
+
+    expect(secondWrite).toMatchObject({
+      ok: false,
+      reason: "conflict",
+      resumable: false,
+      warning: expect.stringMatching(/其他标签页/),
+    });
+    expect(loadGameSnapshot(storage).savedMatch).toEqual(firstBranch);
+  });
+
+  it("allows an explicit new-game overwrite after another writer advances the save", () => {
+    const storage = new MemoryStorage();
+    const initial = createLocalMatch(createInitialGame());
+    const initialWrite = saveGameSnapshot(storage, initial, { overwrite: true }, 1);
+    if (!initialWrite.ok) throw new Error("Expected the initial save to succeed");
+
+    const advanced = createLocalMatch(dispatch(initial.game, {
+      type: "move",
+      expectedRevision: 0,
+      from: { file: 0, rank: 3 },
+      to: { file: 0, rank: 4 },
+    }).state);
+    expect(saveGameSnapshot(
+      storage,
+      advanced,
+      { expectedToken: initialWrite.snapshotToken },
+      2,
+    )).toMatchObject({ ok: true });
+
+    const fresh = createLocalMatch(createInitialGame());
+    expect(saveGameSnapshot(storage, fresh, { overwrite: true }, 3)).toMatchObject({
+      ok: true,
+      resumable: true,
+    });
+    expect(loadGameSnapshot(storage).savedMatch).toEqual(fresh);
   });
 
   it("returns an empty recoverable result when both snapshots are invalid", () => {
@@ -102,7 +180,11 @@ describe("local game persistence", () => {
       },
     };
 
-    const result = saveGameSnapshot(storage, createLocalMatch(createInitialGame()));
+    const result = saveGameSnapshot(
+      storage,
+      createLocalMatch(createInitialGame()),
+      { overwrite: true },
+    );
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("Expected the storage write to fail");
     expect(result.warning).toMatch(/内存/);
@@ -127,7 +209,14 @@ describe("local game persistence", () => {
   it("does not replace the primary save when rotating its backup fails", () => {
     const initial = createInitialGame();
     const seeded = new MemoryStorage();
-    expect(saveGameSnapshot(seeded, createLocalMatch(initial), 1)).toMatchObject({ ok: true });
+    const initialWrite = saveGameSnapshot(
+      seeded,
+      createLocalMatch(initial),
+      { overwrite: true },
+      1,
+    );
+    expect(initialWrite).toMatchObject({ ok: true });
+    if (!initialWrite.ok) throw new Error("Expected the initial save to succeed");
     const original = seeded.getItem(GAME_SAVE_KEY);
     const storage: StorageLike = {
       getItem: (key) => seeded.getItem(key),
@@ -143,7 +232,12 @@ describe("local game persistence", () => {
       to: { file: 0, rank: 4 },
     }).state;
 
-    expect(saveGameSnapshot(storage, createLocalMatch(moved), 2)).toMatchObject({
+    expect(saveGameSnapshot(
+      storage,
+      createLocalMatch(moved),
+      { expectedToken: initialWrite.snapshotToken },
+      2,
+    )).toMatchObject({
       ok: false,
       resumable: false,
     });
@@ -154,7 +248,7 @@ describe("local game persistence", () => {
     const storage = new MemoryStorage();
     const match = createComputerMatch("master", { entropy: fixedEntropy });
 
-    expect(saveGameSnapshot(storage, match, 10)).toMatchObject({ ok: true, resumable: true });
+    expect(saveGameSnapshot(storage, match, { overwrite: true }, 10)).toMatchObject({ ok: true, resumable: true });
     const loaded = loadGameSnapshot(storage);
 
     expect(loaded.savedMatch).toEqual(match);
@@ -172,7 +266,15 @@ describe("local game persistence", () => {
     const master = createComputerMatch("master", { entropy: fixedEntropy });
     const fallback = setEffectiveOpponentTier(master, "lightweight-hard");
 
-    expect(saveGameSnapshot(storage, fallback, 11)).toMatchObject({ ok: true });
+    const masterWrite = saveGameSnapshot(storage, master, { overwrite: true }, 10);
+    expect(masterWrite).toMatchObject({ ok: true });
+    if (!masterWrite.ok) throw new Error("Expected the Master save to succeed");
+    expect(saveGameSnapshot(
+      storage,
+      fallback,
+      { expectedToken: masterWrite.snapshotToken },
+      11,
+    )).toMatchObject({ ok: true });
     expect(loadGameSnapshot(storage).savedMatch).toEqual(fallback);
   });
 
@@ -226,7 +328,7 @@ describe("local game persistence", () => {
   it("rejects partial AI metadata, extra fields, and revision mismatches", () => {
     const storage = new MemoryStorage();
     const match = createComputerMatch("master", { entropy: fixedEntropy });
-    expect(saveGameSnapshot(storage, match, 10)).toMatchObject({ ok: true });
+    expect(saveGameSnapshot(storage, match, { overwrite: true }, 10)).toMatchObject({ ok: true });
     const valid = JSON.parse(storage.getItem(GAME_SAVE_KEY) ?? "{}") as MutableSaveEnvelope;
 
     for (const mutate of [
@@ -256,7 +358,9 @@ describe("local game persistence", () => {
 
     for (const failingWrite of [1, 2]) {
       const seeded = new MemoryStorage();
-      expect(saveGameSnapshot(seeded, initial, 1)).toMatchObject({ ok: true });
+      const initialWrite = saveGameSnapshot(seeded, initial, { overwrite: true }, 1);
+      expect(initialWrite).toMatchObject({ ok: true });
+      if (!initialWrite.ok) throw new Error("Expected the initial save to succeed");
       const original = seeded.getItem(GAME_SAVE_KEY);
       let writes = 0;
       const storage: StorageLike = {
@@ -268,7 +372,12 @@ describe("local game persistence", () => {
         },
       };
 
-      expect(saveGameSnapshot(storage, moved, 2)).toMatchObject({
+      expect(saveGameSnapshot(
+        storage,
+        moved,
+        { expectedToken: initialWrite.snapshotToken },
+        2,
+      )).toMatchObject({
         ok: false,
         resumable: false,
       });
