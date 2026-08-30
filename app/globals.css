@@ -140,6 +140,14 @@ a {
   width: min(80%, 360px);
 }
 
+.viewer-fallback > p {
+  margin: 0;
+}
+
+.viewer-retry {
+  margin-top: 16px;
+}
+
 .viewer-corner-label {
   display: grid;
   gap: 4px;

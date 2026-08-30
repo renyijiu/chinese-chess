@@ -53,6 +53,7 @@ export function BoardViewer({
     status: EnvironmentStatus;
   }>({ quality, status: "loading" });
   const [error, setError] = useState(false);
+  const [sceneGeneration, setSceneGeneration] = useState(0);
   const [view, setView] = useState<BoardView>("battle");
   const [webglAvailable, setWebglAvailable] = useState(true);
   const qualityProfile = useMemo(() => getQualityProfile(quality), [quality]);
@@ -68,6 +69,11 @@ export function BoardViewer({
   }, [reducedMotion]);
 
   const handleSceneError = useCallback(() => setError(true), []);
+  const handleSceneRetry = useCallback(() => {
+    setError(false);
+    setEnvironmentState({ quality, status: "loading" });
+    setSceneGeneration((generation) => generation + 1);
+  }, [quality]);
   const handleEnvironmentStatusChange = useCallback(
     (status: EnvironmentStatus) => setEnvironmentState((current) => (
       current.quality === quality && current.status === status
@@ -94,7 +100,19 @@ export function BoardViewer({
       <div className="viewer-canvas">
         {webglAvailable ? (
           <SceneErrorBoundary
-            fallback={<p className="viewer-fallback" role="status">棋盘场景加载失败。</p>}
+            fallback={(
+              <div className="viewer-fallback">
+                <p role="status">棋盘场景加载失败。</p>
+                <button
+                  className="viewer-control viewer-retry"
+                  type="button"
+                  onClick={handleSceneRetry}
+                >
+                  重新加载场景
+                </button>
+              </div>
+            )}
+            key={sceneGeneration}
             onError={handleSceneError}
           >
             <Canvas

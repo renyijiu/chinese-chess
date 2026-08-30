@@ -13,6 +13,7 @@ import { FrameScheduler } from "../runtime/FrameScheduler";
 import { PerformanceSummary } from "../runtime/PerformanceSummary";
 import { StaticShadowMap } from "../runtime/StaticShadowMap";
 import { WebGLContextRecovery } from "../runtime/WebGLContextRecovery";
+import { isTestFaultEnabled } from "../runtime/test-faults";
 import type { QualityProfile } from "../runtime/quality";
 import { BoardCamera, type BoardView, type BoardViewSide } from "./BoardCamera";
 import { BattlePostprocessing } from "./BattlePostprocessing";
@@ -126,6 +127,10 @@ export function BoardScene({
   view,
   viewSide,
 }: BoardSceneProps) {
+  if (isTestFaultEnabled("sceneRender")) {
+    throw new Error("Forced required scene failure for resilience coverage");
+  }
+
   return (
     <FrameScheduler ambientFps={quality.ambientFps}>
       <Selection enabled={quality.postprocessing}>

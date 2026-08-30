@@ -138,6 +138,46 @@ test("a failed optional ambient task degrades its owner without blocking the gam
   await waitForRevision(page, 1);
 });
 
+test("a required scene failure can retry without changing the authoritative match", async ({ page }) => {
+  await openCleanGame(page);
+  const keyboard = await startGame(page);
+  await keyboard.focus();
+  await pressSequence(keyboard, ["ArrowLeft", "ArrowLeft", "ArrowLeft", "ArrowLeft", "ArrowUp", "ArrowUp", "ArrowUp", "Enter", "ArrowUp", "Enter"]);
+  await waitForRevision(page, 1);
+  const savedBeforeFailure = await page.evaluate(() => window.localStorage.getItem("xiangqi3d:game:v2"));
+
+  await page.evaluate(() => {
+    window.__XIANGQI_TEST_FAULTS__ = { sceneRender: true };
+  });
+  await page.getByRole("button", { name: "俯视棋盘" }).click();
+
+  await expect(page.locator(".viewer-fallback")).toContainText("棋盘场景加载失败");
+  const retry = page.getByRole("button", { name: "重新加载场景" });
+  await expect(retry).toBeVisible();
+
+  // Vinext's development error overlay covers the application after an
+  // intentionally thrown render error, so dispatch through the verified,
+  // accessible control while exercising this development-only fault seam.
+  const firstRetryControl = await retry.elementHandle();
+  expect(firstRetryControl).not.toBeNull();
+  await retry.evaluate((button: HTMLButtonElement) => button.click());
+  await expect.poll(() => firstRetryControl!.evaluate((element) => element.isConnected)).toBe(false);
+  await expect(retry).toBeVisible();
+
+  const secondRetryControl = await retry.elementHandle();
+  expect(secondRetryControl).not.toBeNull();
+  await page.evaluate(() => {
+    delete window.__XIANGQI_TEST_FAULTS__;
+  });
+  await retry.evaluate((button: HTMLButtonElement) => button.click());
+  await expect.poll(() => secondRetryControl!.evaluate((element) => element.isConnected)).toBe(false);
+
+  await expect(page.locator(".viewer-canvas canvas")).toBeVisible();
+  await waitForEnvironmentSettled(page);
+  await expect(page.locator(".xiangqi-game-shell")).toHaveAttribute("data-game-revision", "1");
+  expect(await page.evaluate(() => window.localStorage.getItem("xiangqi3d:game:v2"))).toBe(savedBeforeFailure);
+});
+
 test.describe("authored audio failure isolation", () => {
   test("a network abort is attempted once and both sides continue on synth", async ({ page }, testInfo) => {
     await page.route(`**${QIN_AUDIO_MANIFEST_URL}`, (route) => route.abort("failed"));

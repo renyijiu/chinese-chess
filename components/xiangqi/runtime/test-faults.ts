@@ -2,7 +2,7 @@ import type { AudioEngine } from "../audio/AudioEngine";
 import type { AudioTransientCueId } from "../audio/audio-types";
 import type { PresentationStore } from "../presentation/PresentationStore";
 
-export type XiangqiTestFault = "ambientTask" | "riverRender";
+export type XiangqiTestFault = "ambientTask" | "riverRender" | "sceneRender";
 
 type AudioDebugSnapshot = ReturnType<AudioEngine["debugSnapshot"]>;
 type AudioTestControls = Readonly<{
