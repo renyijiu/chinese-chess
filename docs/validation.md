@@ -1,6 +1,32 @@
 # 验证与交付证据
 
-本文记录 2026-08-25 的 3D 棋局基线及 2026-08-27 的纯前端人机对战 U8 发布验证。验证机为 Apple M1 Max；除明确标注的限制外，结果来自自动化命令。无头软件渲染数据不替代可见 GPU 浏览器或目标手机证据。
+本文记录 2026-08-25 的 3D 棋局基线、2026-08-27 的纯前端人机对战 U8 发布验证及 2026-08-30 的开源前硬化验证。验证机为 Apple M1 Max；除明确标注的限制外，结果来自自动化命令。无头软件渲染数据不替代可见 GPU 浏览器或目标手机证据。
+
+## 2026-08-30 开源前硬化验证
+
+本轮修复了 AI 同局面无限重试、Master 启动取消、CacheStorage 卡死边界、跨标签页存档竞争、同页异步命令回滚、重复开始、场景重试以及性能证据可能读取旧构建等问题。存档比较、备份、写入和回读在同源 Web Lock 内串行；同页的新局、走子和 Master 降级也由单一队列提交；不支持 Web Locks 时明确降级为仅内存模式。Master provider 在协调器持有后再执行可取消的准备阶段，真实 host Worker canary 已完成 manifest/hash、UCI、NNUE、合法着法、stop 与 quit 验证。Vinext 升级到 beta.8 后，Cloudflare Worker 对轻量 AI 的新旧产物路径都执行同一组 MIME、缓存与跨源隔离头策略。
+
+最终自动化证据：
+
+| 范围 | 结果 |
+| --- | --- |
+| typecheck / lint | 通过 / 通过 |
+| rules / game / AI / presentation / runtime Vitest | 26 / 47 / 87 / 61 / 62，共 283 tests 通过 |
+| `npm test` | 生产构建与 4 个 Worker HTML/MIME/接线 smoke 通过 |
+| `npm run test:e2e` | 38 passed / 3 expected skipped / 0 failed；performance ×2 与 lifecycle ×1 分开运行 |
+| 生产模式 E2E | 17 passed / 1 expected skipped / 0 failed；正常棋局、Master、存档冲突与确认覆盖路径通过 |
+| `npm run test:audio:browsers` | Chromium / Firefox / WebKit 共 9/9 通过 |
+| `npm run test:ai:lifecycle` | 100 次电脑开局通过；最终 1 个活动 Worker、0 个活动 timer、4 个 visibility listeners |
+| 资源验证 | 21 个 GLB、音频、预算及 Fairy-Stockfish 12.40 MiB 运行时全部通过 |
+| `npm audit --omit=dev` | 0 vulnerabilities |
+
+100 局生命周期的 page JS heap 在第 1 / 50 / 100 局分别为 `43,373,464` / `46,433,460` / `46,915,860` bytes；Worker 创建/终止为 `100 / 99`，最终仅保留当前对局的一个 Worker。该 heap 仍不包含 Dedicated Worker、WASM linear memory 或 GPU driver 分配。
+
+可见 Chromium 1920×1080 高画质证据 wrapper 得到 204 个正式样本：current / peak draw calls `82 / 90`、p90 / p95 / max rendered-frame interval `17.58 / 18.30 / 18.95 ms`、原生 rAF p95 `18.12 ms`、geometry / texture `71 / 38`、DPR `1`、首次可玩响应体 `3,880,488` bytes。除 16.7 ms p95 目标外，权威样本数、draw calls、DPR 和 12 MiB 下载契约均通过。wrapper 要求 Playwright 干净地以 0 退出，随后单独记录 p95 是否越线；独立运行严格 `test:performance:headed` 得到 p95 `17.79 ms`，保留严格断言并以非零退出。
+
+画质生命周期测试现在显式等待对应棋子 LOD 的 Suspense 子树提交，再强制两帧后读取 `renderer.info`；连续三轮重复证据均为 warmed high `75 / 38`、warmed low `53 / 36`，且每次切换都只保留当前全景 URL。这样排除了首次解析 GLB 的有界缓存预热，同时仍保持同档 geometry / texture `+1` 的严格泄漏阈值。
+
+未关闭项：高画质严格 p95 `17.79 > 16.7 ms`，目标手机 30 FPS / GPU 内存证据仍缺失；完整 npm audit 另有 6 个仅开发/构建链告警（4 moderate、2 high），剩余自动修复要求破坏性降级，生产依赖审计为 0。项目因此继续标记为 experimental / pre-release，不宣称达到正式性能发布门槛。
 
 ## 2026-08-27 人机对战 U8 发布验证
 

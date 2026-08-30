@@ -1,16 +1,14 @@
 import { spawnSync } from "node:child_process";
 
+import { assertPerformanceProbeOutcome } from "./render-performance-contract.mjs";
+
+const EVIDENCE_PREFIX = "PERFORMANCE_EVIDENCE ";
 const result = spawnSync(
-  "npx",
+  "npm",
   [
-    "playwright",
-    "test",
-    "tests/e2e/performance.spec.ts",
-    "--config",
-    "playwright.performance.config.ts",
-    "--project",
-    "desktop-chromium",
-    "--headed",
+    "run",
+    "test:performance:headed",
+    "--",
     "--grep",
     "captures first-playable transfer size",
   ],
@@ -19,26 +17,24 @@ const result = spawnSync(
     encoding: "utf8",
     env: {
       ...process.env,
-      PLAYWRIGHT_MEASUREMENT_MODE:
-        "Visible Chromium rendered-frame interval; not CPU time or GPU render duration",
-      RUN_RENDER_PERFORMANCE: "1",
+      RENDER_P95_EVIDENCE_ONLY: "1",
     },
     maxBuffer: 32 * 1024 * 1024,
   },
 );
 
 const combined = `${result.stdout ?? ""}\n${result.stderr ?? ""}`;
-const evidenceLines = combined
+const evidenceLine = combined
   .split(/\r?\n/u)
-  .filter((line) => line.includes("PERFORMANCE_EVIDENCE "));
-const evidenceLine = evidenceLines.at(-1);
+  .findLast((line) => line.includes(EVIDENCE_PREFIX));
 
 if (!evidenceLine) {
   process.stderr.write(combined);
   throw new Error(`Performance evidence was not produced (exit ${result.status ?? "unknown"}).`);
 }
 
-const evidence = JSON.parse(evidenceLine.slice(evidenceLine.indexOf("PERFORMANCE_EVIDENCE ") + 21));
+const evidence = JSON.parse(evidenceLine.slice(evidenceLine.indexOf(EVIDENCE_PREFIX) + EVIDENCE_PREFIX.length));
+assertPerformanceProbeOutcome(evidence, result.status);
 const metrics = {
   canvas_dpr: evidence.canvasDpr,
   current_draw_calls: evidence.currentDrawCalls,

@@ -27,7 +27,8 @@ const ALLOWED_IMAGE_WIDTHS = [...DEFAULT_DEVICE_SIZES, ...DEFAULT_IMAGE_SIZES];
 
 const ENGINE_BASE_PATH = "/engines/fairy-stockfish-nnue/1.1.12/";
 const MASTER_HOST_WORKER_PATH = "/workers/xiangqi-master-v1.worker.js";
-const LIGHTWEIGHT_WORKER_PATH = /^\/_next\/static\/lightweight\.worker-[A-Za-z0-9_-]+\.js$/;
+const LIGHTWEIGHT_WORKER_PATH =
+  /^\/_next\/static\/(?:workers\/)?lightweight\.worker-[A-Za-z0-9_-]+\.js$/;
 const ENGINE_MIME_TYPES = Object.freeze<Record<string, string>>({
   AUTHORS: "text/plain; charset=utf-8",
   "Copying.txt": "text/plain; charset=utf-8",

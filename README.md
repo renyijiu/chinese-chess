@@ -145,9 +145,9 @@ npm run test:performance:headed
 
 `npm test` 会先执行 Vinext 生产构建，再验证服务端输出、浏览器专属棋局边界、R3F 棋盘接线、九纵十横结构和 WebGL2 回退逻辑。Playwright 另覆盖音频用户手势、键盘完整走子、真实 Canvas 指针/触摸、红黑双方连续八手、吃子、将军、终局、精确存档恢复、骰子与阵营恢复、四档人机、Master 启动/降级、Worker 超时/畸形输出、后台暂停、可选全景失败、画质往返、确认框焦点隔离和 WebGL context loss/恢复。视觉比较在环境状态显式进入 `ready` 或 `degraded` 后才截图。
 
-`npm run test:e2e` 使用开发服务器运行包含故障注入的完整浏览器套件；`npm run test:e2e:release` 会先构建，再针对生产 Worker 验证正常对局和真实 Master 路径。测试已部署地址时设置 `PLAYWRIGHT_BASE_URL` 与 `PLAYWRIGHT_SKIP_WEB_SERVER=1`。
+`npm run test:e2e` 使用开发服务器运行包含故障注入的完整浏览器套件；`npm run test:e2e:release` 会先构建，再针对刚构建完成的生产 Worker 验证正常对局、存档冲突与真实 Master 路径。依赖开发测试钩子的故障注入、音频诊断、性能和长生命周期场景保留在各自专用命令中。测试已部署地址时设置 `PLAYWRIGHT_BASE_URL` 与 `PLAYWRIGHT_SKIP_WEB_SERVER=1`。
 
-可重复的测试范围、浏览器证据、资源预算、性能数字及尚未关闭的发布门槛记录在 [`docs/validation.md`](docs/validation.md)。2026-08-25 的 M1 Max 可见 Chromium 高画质 1920×1080 在预热后的 208 帧窗口实测为 77 次当前绘制、82 次峰值绘制、16.54 ms 平均 / 18.4 ms p95 渲染帧间隔和 3.66 MiB 首次可玩生产响应体。绘制、DPR、主动全景和下载预算通过，但尚未达到 16.7 ms 精确 p95 门槛；严格性能命令会如实返回失败。
+可重复的测试范围、浏览器证据、资源预算、性能数字及尚未关闭的发布门槛记录在 [`docs/validation.md`](docs/validation.md)。2026-08-30 的 M1 Max 可见 Chromium 高画质 1920×1080 在预热后的 204 帧窗口实测为 82 次当前绘制、90 次峰值绘制、18.30 ms p95 渲染帧间隔、18.12 ms 原生 rAF p95 和 3.70 MiB 首次可玩生产响应体。绘制、DPR、主动全景和下载预算通过，但尚未达到 16.7 ms 精确 p95 门槛；严格性能命令会如实返回失败。
 
 部署层继续使用 Vinext/Vite 与 Cloudflare Worker；当前人机对局完全在浏览器执行。D1、Durable Objects 和账号体系留给联机阶段接入。
 

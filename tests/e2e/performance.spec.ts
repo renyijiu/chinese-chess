@@ -12,6 +12,7 @@ import {
   QIN_AUDIO_MANIFEST_URL,
   type QinAudioPackManifestV1,
 } from "../../components/xiangqi/audio/qin-audio-pack-contract";
+import { RENDER_PERFORMANCE_GATES } from "../../scripts/render-performance-contract.mjs";
 import { openCleanGame, startGame } from "./helpers";
 
 const rootDir = process.cwd();
@@ -38,6 +39,7 @@ test.skip(
 
 test("@performance captures first-playable transfer size and renderer telemetry", async ({ page }, testInfo) => {
   const authoritativeFrameGate = Boolean(process.env.PLAYWRIGHT_MEASUREMENT_MODE);
+  const p95EvidenceOnly = process.env.RENDER_P95_EVIDENCE_ONLY === "1";
   const baseUrl = new URL(testInfo.project.use.baseURL as string);
   const expectedAssetPaths = ["marshal", "advisor", "elephant", "chariot", "horse", "cannon", "soldier"]
     .map((role) => `/models/pieces/v1/${role}/${role}-lod1.glb`);
@@ -140,9 +142,13 @@ test("@performance captures first-playable transfer size and renderer telemetry"
     await keyboard.press("Enter");
     await expect(page.locator(".xiangqi-game-shell")).toHaveAttribute("data-game-revision", "1");
     await expect(keyboard).toHaveAttribute("aria-disabled", "false");
-    if ((await page.evaluate(() => window.__XIANGQI_PERFORMANCE__?.sampleCount ?? 0)) < 180) {
+    if ((await page.evaluate(() => window.__XIANGQI_PERFORMANCE__?.sampleCount ?? 0))
+      < RENDER_PERFORMANCE_GATES.minimumSampleCount) {
       await page.getByRole("button", { name: "自动巡游" }).click();
-      await page.waitForFunction(() => (window.__XIANGQI_PERFORMANCE__?.sampleCount ?? 0) >= 180);
+      await page.waitForFunction(
+        (minimumSampleCount) => (window.__XIANGQI_PERFORMANCE__?.sampleCount ?? 0) >= minimumSampleCount,
+        RENDER_PERFORMANCE_GATES.minimumSampleCount,
+      );
       await page.getByRole("button", { name: "停止巡游" }).click();
     }
     metrics = await page.evaluate(() => window.__XIANGQI_PERFORMANCE__) as RuntimePerformanceSnapshot;
@@ -199,12 +205,16 @@ test("@performance captures first-playable transfer size and renderer telemetry"
   });
   console.info(`PERFORMANCE_EVIDENCE ${JSON.stringify(evidence)}`);
 
-  expect(metrics.sampleCount).toBeGreaterThanOrEqual(authoritativeFrameGate ? 180 : 1);
-  expect(metrics.peakDrawCalls).toBeLessThanOrEqual(160);
-  expect(metrics.currentDrawCalls).toBeLessThanOrEqual(100);
-  if (authoritativeFrameGate) expect(metrics.p95FrameIntervalMs).toBeLessThanOrEqual(16.7);
-  expect(canvasDpr).toBeLessThanOrEqual(1.5);
-  expect(firstPlayableBytes).toBeLessThanOrEqual(12 * 1024 * 1024);
+  expect(metrics.sampleCount).toBeGreaterThanOrEqual(
+    authoritativeFrameGate ? RENDER_PERFORMANCE_GATES.minimumSampleCount : 1,
+  );
+  expect(metrics.peakDrawCalls).toBeLessThanOrEqual(RENDER_PERFORMANCE_GATES.peakDrawCalls);
+  expect(metrics.currentDrawCalls).toBeLessThanOrEqual(RENDER_PERFORMANCE_GATES.currentDrawCalls);
+  if (authoritativeFrameGate && !p95EvidenceOnly) {
+    expect(metrics.p95FrameIntervalMs).toBeLessThanOrEqual(RENDER_PERFORMANCE_GATES.p95FrameIntervalMs);
+  }
+  expect(canvasDpr).toBeLessThanOrEqual(RENDER_PERFORMANCE_GATES.canvasDpr);
+  expect(firstPlayableBytes).toBeLessThanOrEqual(RENDER_PERFORMANCE_GATES.firstPlayableBytes);
 });
 
 test("@performance keeps lightweight AI search off the main thread during presentation", async ({ page }, testInfo) => {
@@ -346,6 +356,8 @@ test("@performance keeps lightweight AI search off the main thread during presen
     expect(evidence.renderer?.p95FrameIntervalMs ?? Infinity)
       .toBeLessThanOrEqual(AI_P95_REGRESSION_LIMIT_MS);
   }
-  expect(evidence.renderer?.peakDrawCalls ?? Infinity).toBeLessThanOrEqual(160);
-  expect(evidence.renderer?.currentDrawCalls ?? Infinity).toBeLessThanOrEqual(100);
+  expect(evidence.renderer?.peakDrawCalls ?? Infinity)
+    .toBeLessThanOrEqual(RENDER_PERFORMANCE_GATES.peakDrawCalls);
+  expect(evidence.renderer?.currentDrawCalls ?? Infinity)
+    .toBeLessThanOrEqual(RENDER_PERFORMANCE_GATES.currentDrawCalls);
 });

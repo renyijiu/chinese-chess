@@ -58,6 +58,7 @@ test("serves Master assets with exact MIME, isolation, and version-aware cache p
     "/engines/fairy-stockfish-nnue/1.1.12/*",
     "/workers/xiangqi-master-v1.worker.js",
     "/_next/static/lightweight.worker-*.js",
+    "/_next/static/workers/lightweight.worker-*.js",
   ]);
 
   const wasm = await render(
@@ -86,14 +87,19 @@ test("serves Master assets with exact MIME, isolation, and version-aware cache p
   assert.equal(hostWorker.headers.get("content-type"), "text/javascript; charset=utf-8");
   assert.equal(hostWorker.headers.get("cache-control"), "public, max-age=31536000, immutable");
 
-  const lightweightWorker = await render(
+  for (const path of [
     "/_next/static/lightweight.worker-AbC_123.js",
-    new Response("self.onmessage = () => {};", { headers: { "content-type": "text/plain" } }),
-  );
-  assert.equal(lightweightWorker.status, 200);
-  assert.equal(lightweightWorker.headers.get("content-type"), "text/javascript; charset=utf-8");
-  assert.equal(lightweightWorker.headers.get("cache-control"), "public, max-age=31536000, immutable");
-  assert.equal(lightweightWorker.headers.get("cross-origin-embedder-policy"), "require-corp");
+    "/_next/static/workers/lightweight.worker-AbC_123.js",
+  ]) {
+    const lightweightWorker = await render(
+      path,
+      new Response("self.onmessage = () => {};", { headers: { "content-type": "text/plain" } }),
+    );
+    assert.equal(lightweightWorker.status, 200);
+    assert.equal(lightweightWorker.headers.get("content-type"), "text/javascript; charset=utf-8");
+    assert.equal(lightweightWorker.headers.get("cache-control"), "public, max-age=31536000, immutable");
+    assert.equal(lightweightWorker.headers.get("cross-origin-embedder-policy"), "require-corp");
+  }
 });
 
 test("rejects engine HTML fallthrough and preserves missing-asset status", async () => {
