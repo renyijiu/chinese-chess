@@ -10,6 +10,7 @@ const result = spawnSync(
     "playwright.performance.config.ts",
     "--project",
     "desktop-chromium",
+    "--headed",
     "--grep",
     "captures first-playable transfer size",
   ],
