@@ -94,6 +94,8 @@ type Confirmation =
   | Readonly<{ kind: "resign"; revision: number; side: GameState["sideToMove"] }>
   | null;
 
+type StorageHazard = "corrupt" | "external-update" | null;
+
 class ControllerRuntime {
   #match: SavedMatch;
   #mounted = true;
@@ -248,11 +250,13 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
   const [audio] = useState(() => new AudioEngine());
   const [semanticAudio] = useState(() => new SemanticAudioDirector(audio));
   const [confirmation, setConfirmation] = useState<Confirmation>(null);
+  const [confirmationPending, setConfirmationPending] = useState(false);
   const [match, setMatch] = useState<SavedMatch>(() => createLocalMatch());
   const [commandBusy, setCommandBusy] = useState(false);
   const [keyboardActive, setKeyboardActive] = useState(false);
   const [keyboardSquare, setKeyboardSquare] = useState<Square>({ file: 4, rank: 0 });
   const [loading, setLoading] = useState(true);
+  const [menuActionPending, setMenuActionPending] = useState(false);
   const [notice, setNotice] = useState("准备开始本机双人对局。");
   const [phase, setPhase] = useState<GamePhase>("menu");
   const [presentation] = useState(() => new PresentationStore());
@@ -260,11 +264,14 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
   const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
   const [settings, setSettings] = useState<GameSettings>(DEFAULT_GAME_SETTINGS);
   const [storageWarning, setStorageWarning] = useState<string>();
-  const [unsafeSavePresent, setUnsafeSavePresent] = useState(false);
+  const [storageHazard, setStorageHazard] = useState<StorageHazard>(null);
   const [viewSide, setViewSide] = useState<Side>("red");
   const focusBoardWhenReady = useRef(false);
+  const confirmationBusy = useRef(false);
   const keyboardControlRef = useRef<HTMLButtonElement>(null);
+  const matchMutationTail = useRef<Promise<void>>(Promise.resolve());
   const mounted = useRef(true);
+  const menuActionBusy = useRef(false);
   const matchEpoch = useRef(0);
   const storageConflictRef = useRef(false);
   const storageRef = useRef<StorageLike | null>(null);
@@ -342,7 +349,9 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
         : { ...loadedSettings, reducedMotion: prefersReducedMotion });
       setResumableMatch(loaded.savedMatch);
       setStorageWarning(loaded.warning);
-      setUnsafeSavePresent(loaded.source === "none" && Boolean(loaded.warning?.includes("损坏")));
+      setStorageHazard(loaded.source === "none" && Boolean(loaded.warning?.includes("损坏"))
+        ? "corrupt"
+        : null);
       setLoading(false);
     });
 
@@ -362,10 +371,17 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     if (loading || !storageRef.current) return;
     const handleStorage = (event: StorageEvent) => {
       if (event.key !== GAME_SAVE_KEY && event.key !== null) return;
-      if (event.newValue === storageTokenRef.current) return;
+      let currentToken: string | null;
+      try {
+        currentToken = storageRef.current?.getItem(GAME_SAVE_KEY) ?? null;
+      } catch {
+        currentToken = event.newValue;
+      }
+      if (currentToken === storageTokenRef.current) return;
+      if (event.key === GAME_SAVE_KEY && currentToken !== event.newValue) return;
       storageConflictRef.current = true;
       setResumableMatch(null);
-      setUnsafeSavePresent(event.newValue !== null);
+      setStorageHazard("external-update");
       setStorageWarning(GAME_SAVE_CONFLICT_WARNING);
     };
     window.addEventListener("storage", handleStorage);
@@ -416,6 +432,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       if (confirmation) {
+        if (confirmationBusy.current) return;
         setConfirmation(null);
         setNotice("已取消确认操作。");
       } else if (selectedPieceId) {
@@ -433,47 +450,78 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     focusBoardWhenReady.current = false;
   }, [game, phase]);
 
-  const persistMatch = useCallback((nextMatch: SavedMatch, overwrite = false): boolean => {
+  const persistMatch = useCallback(async (nextMatch: SavedMatch, overwrite = false): Promise<boolean> => {
     const storage = storageRef.current;
     if (!storage) {
       setStorageWarning("浏览器存储不可用，本局将只保存在内存中。");
       return false;
     }
     if (storageConflictRef.current && !overwrite) {
+      setStorageHazard("external-update");
       setStorageWarning(GAME_SAVE_CONFLICT_WARNING);
       return false;
     }
-    const result = saveGameSnapshot(
+    const result = await saveGameSnapshot(
       storage,
       nextMatch,
       overwrite ? { overwrite: true } : { expectedToken: storageTokenRef.current },
     );
     if (!result.ok) {
-      if (result.reason === "conflict") storageConflictRef.current = true;
+      if (result.reason === "conflict") {
+        storageConflictRef.current = true;
+        setStorageHazard("external-update");
+      }
       setStorageWarning(result.warning);
       return false;
     }
     storageTokenRef.current = result.snapshotToken;
     storageConflictRef.current = false;
+    setStorageHazard(null);
     setStorageWarning(undefined);
     return true;
   }, []);
 
+  const serializeMatchMutation = useCallback(<T,>(mutation: () => Promise<T>): Promise<T> => {
+    const result = matchMutationTail.current.then(mutation, mutation);
+    matchMutationTail.current = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
+  }, []);
+
   const handleCommandCommit = useCallback(async (commit: CommandCommit) => {
-    const nextMatch = commit.after;
     const actionEpoch = matchEpoch.current;
-    // Storage is attempted before React exposes the new state. Failure is
-    // recoverable: the in-memory SavedMatch remains authoritative and the UI
-    // is marked non-resumable through the warning.
-    const resumable = persistMatch(nextMatch);
-    matchRef.current = nextMatch;
-    gameRef.current = nextMatch.game;
-    runtime.synchronize(nextMatch);
-    setMatch(nextMatch);
-    setResumableMatch(resumable ? nextMatch : null);
-    setSelectedPieceId(null);
-    setUnsafeSavePresent(storageConflictRef.current);
-    setNotice(eventAnnouncement(commit.events, nextMatch.game));
+    const applied = await serializeMatchMutation(async () => {
+      if (!mounted.current || matchEpoch.current !== actionEpoch) return null;
+      const latest = matchRef.current;
+      // A provider fallback changes only config and retains the exact game
+      // object. Rebase this already-validated command onto that config; any
+      // revision/game replacement makes the command stale instead.
+      if (latest.revision !== commit.before.revision || latest.game !== commit.before.game) return null;
+      const nextMatch: SavedMatch = latest.config === commit.after.config
+        ? commit.after
+        : Object.freeze({ ...commit.after, config: latest.config });
+      // Storage is attempted before React exposes the new state. Failure is
+      // recoverable: the in-memory SavedMatch remains authoritative and the UI
+      // is marked non-resumable through the warning.
+      const resumable = await persistMatch(nextMatch);
+      if (
+        !mounted.current
+        || matchEpoch.current !== actionEpoch
+        || matchRef.current !== latest
+      ) return null;
+      matchRef.current = nextMatch;
+      gameRef.current = nextMatch.game;
+      runtime.synchronize(nextMatch);
+      setMatch(nextMatch);
+      setResumableMatch(resumable ? nextMatch : null);
+      setSelectedPieceId(null);
+      setNotice(eventAnnouncement(commit.events, nextMatch.game));
+      return nextMatch;
+    });
+    if (!applied) return;
+    const nextMatch = applied;
 
     const domainEventId = commit.events[0]?.eventId ?? `${nextMatch.revision}:ui`;
     const transition: GameActionTransition = {
@@ -517,23 +565,37 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     ) {
       setNotice("演出未能完成，棋盘已直接对齐到正确局面。");
     }
-  }, [persistMatch, presentation, runtime, semanticAudio]);
+  }, [persistMatch, presentation, runtime, semanticAudio, serializeMatchMutation]);
 
   const handleOpponentFallback = useCallback(async (
     matchId: string,
     toTier: "lightweight-hard",
   ) => {
-    const current = matchRef.current;
-    if (current.config.mode !== "computer" || current.config.matchId !== matchId) return;
-    const fallback = setEffectiveOpponentTier(current, toTier);
-    const resumable = persistMatch(fallback);
-    matchRef.current = fallback;
-    gameRef.current = fallback.game;
-    runtime.synchronize(fallback);
-    setMatch(fallback);
-    setResumableMatch(resumable ? fallback : null);
-    if (mounted.current) setNotice("大师引擎当前不可用，本局已切换为困难难度。");
-  }, [persistMatch, runtime]);
+    const actionEpoch = matchEpoch.current;
+    const applied = await serializeMatchMutation(async () => {
+      const latest = matchRef.current;
+      if (
+        !mounted.current
+        || matchEpoch.current !== actionEpoch
+        || latest.config.mode !== "computer"
+        || latest.config.matchId !== matchId
+      ) return false;
+      const fallback = setEffectiveOpponentTier(latest, toTier);
+      const resumable = await persistMatch(fallback);
+      if (
+        !mounted.current
+        || matchEpoch.current !== actionEpoch
+        || matchRef.current !== latest
+      ) return false;
+      matchRef.current = fallback;
+      gameRef.current = fallback.game;
+      runtime.synchronize(fallback);
+      setMatch(fallback);
+      setResumableMatch(resumable ? fallback : null);
+      return true;
+    });
+    if (applied && mounted.current) setNotice("大师引擎当前不可用，本局已切换为困难难度。");
+  }, [persistMatch, runtime, serializeMatchMutation]);
 
   useEffect(() => {
     runtime.setHandlers(handleCommandCommit, handleOpponentFallback);
@@ -574,41 +636,52 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     return receipt;
   }, [audio, beforeCommandCommit, commandGate]);
 
-  const installFreshMatch = useCallback((fresh: SavedMatch, nextPhase: GamePhase) => {
+  const installFreshMatch = useCallback(async (
+    fresh: SavedMatch,
+    nextPhase: GamePhase,
+    overwriteConfirmed = false,
+  ) => {
+    const installEpoch = matchEpoch.current + 1;
+    matchEpoch.current = installEpoch;
     opponent.invalidate();
     commandGate.invalidate();
     semanticAudio.cancelAll("match-reset");
     presentation.skip("match-reset");
     // Persist the complete match config (including the die result) before any
     // setup animation or playable state is exposed.
-    const resumable = persistMatch(fresh, true);
-    matchEpoch.current += 1;
-    matchRef.current = fresh;
-    gameRef.current = fresh.game;
-    phaseRef.current = nextPhase;
-    runtime.synchronize(fresh);
-    focusBoardWhenReady.current = nextPhase === "playing";
-    setMatch(fresh);
-    setKeyboardSquare({ file: 4, rank: 0 });
-    setSelectedPieceId(null);
-    setUnsafeSavePresent(!resumable && storageTokenRef.current !== null);
-    setConfirmation(null);
-    setPhase(nextPhase);
-    setResumableMatch(resumable ? fresh : null);
-    return resumable;
-  }, [commandGate, opponent, persistMatch, presentation, runtime, semanticAudio]);
+    return serializeMatchMutation(async () => {
+      if (!mounted.current || matchEpoch.current !== installEpoch) return false;
+      const resumable = await persistMatch(fresh, overwriteConfirmed);
+      if (!mounted.current || matchEpoch.current !== installEpoch) return false;
+      matchRef.current = fresh;
+      gameRef.current = fresh.game;
+      phaseRef.current = nextPhase;
+      runtime.synchronize(fresh);
+      focusBoardWhenReady.current = nextPhase === "playing";
+      setMatch(fresh);
+      setKeyboardSquare({ file: 4, rank: 0 });
+      setSelectedPieceId(null);
+      setConfirmation(null);
+      setPhase(nextPhase);
+      setResumableMatch(resumable ? fresh : null);
+      return true;
+    });
+  }, [commandGate, opponent, persistMatch, presentation, runtime, semanticAudio, serializeMatchMutation]);
 
-  const startLocalGame = useCallback(() => {
+  const startLocalGame = useCallback(async (overwriteConfirmed = false) => {
     const fresh = createLocalMatch();
-    installFreshMatch(fresh, "playing");
+    if (!await installFreshMatch(fresh, "playing", overwriteConfirmed)) return;
     setAnimateDieMatchId(null);
     setViewSide("red");
     setNotice("本机双人新局开始，红方先行。");
   }, [installFreshMatch]);
 
-  const prepareComputerGame = useCallback((difficulty: ComputerDifficulty) => {
+  const prepareComputerGame = useCallback(async (
+    difficulty: ComputerDifficulty,
+    overwriteConfirmed = false,
+  ) => {
     const fresh = createComputerMatch(difficulty);
-    installFreshMatch(fresh, "menu");
+    if (!await installFreshMatch(fresh, "menu", overwriteConfirmed)) return;
     if (fresh.config.mode !== "computer") return;
     setViewSide(fresh.config.humanSide);
     setAnimateDieMatchId(fresh.config.matchId);
@@ -753,33 +826,41 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     }
   }, [audio]);
 
-  const handleStart = async () => {
+  const runMenuAction = async (action: () => void | Promise<void>) => {
+    if (menuActionBusy.current) return;
+    menuActionBusy.current = true;
+    setMenuActionPending(true);
+    try {
+      await action();
+    } finally {
+      menuActionBusy.current = false;
+      if (mounted.current) setMenuActionPending(false);
+    }
+  };
+
+  const handleStart = () => runMenuAction(async () => {
     await unlockAudio();
     audio.play("ui.confirm");
-    if (resumableMatch || unsafeSavePresent) {
+    if (resumableMatch || storageHazard) {
       setConfirmation({ kind: "new-game", target: { mode: "local" } });
-      return;
-    }
-    startLocalGame();
-  };
+    } else await startLocalGame();
+  });
 
-  const handleRollComputer = async (difficulty: ComputerDifficulty) => {
+  const handleRollComputer = (difficulty: ComputerDifficulty) => runMenuAction(async () => {
     await unlockAudio();
     audio.play("ui.confirm");
-    if (resumableMatch || unsafeSavePresent) {
+    if (resumableMatch || storageHazard) {
       setConfirmation({ kind: "new-game", target: { mode: "computer", difficulty } });
-      return;
-    }
-    prepareComputerGame(difficulty);
-  };
+    } else await prepareComputerGame(difficulty);
+  });
 
-  const handleConfirmComputer = async () => {
+  const handleConfirmComputer = () => runMenuAction(async () => {
     await unlockAudio();
     audio.play("ui.confirm");
     startPreparedComputerGame();
-  };
+  });
 
-  const handleContinue = async () => {
+  const handleContinue = () => runMenuAction(async () => {
     await unlockAudio();
     audio.play("ui.confirm");
     if (!resumableMatch) return;
@@ -807,7 +888,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
       : `${resumableMatch.game.sideToMove === "red" ? "红方" : "黑方"}继续行动。`);
     // Local ended saves retain the existing single-step undo behavior. A
     // computer save never makes undo reachable through the command policy.
-  };
+  });
 
   const computerOwnsTurn = isComputerTurn(match);
   const boardCommandsLocked = deriveBoardCommandsLocked({
@@ -876,32 +957,41 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
         }
     : {
         title: "覆盖当前棋局？",
-        description: unsafeSavePresent
+        description: storageHazard === "corrupt"
           ? "检测到损坏的本地存档。确认后将以标准初始局面覆盖它。"
-          : "当前棋局和可恢复备份将被新的标准初始局面取代。",
+          : storageHazard === "external-update"
+            ? "其他标签页已有有效的新进度。确认后将以标准初始局面覆盖该进度。"
+            : "当前棋局和可恢复备份将被新的标准初始局面取代。",
         label: "开始新局",
       };
 
-  const handleConfirm = () => {
-    if (!confirmation) return;
+  const handleConfirm = async () => {
+    if (!confirmation || confirmationBusy.current) return;
     if (confirmation.kind === "resign") {
       const expectedRevision = confirmation.revision;
       setConfirmation(null);
       void applyCommand({ type: "resign", expectedRevision });
       return;
     }
-    if (confirmation.kind === "new-game") {
-      if (confirmation.target.mode === "computer") {
-        prepareComputerGame(confirmation.target.difficulty);
-      } else {
-        startLocalGame();
+    confirmationBusy.current = true;
+    setConfirmationPending(true);
+    try {
+      if (confirmation.kind === "new-game") {
+        if (confirmation.target.mode === "computer") {
+          await prepareComputerGame(confirmation.target.difficulty, true);
+        } else {
+          await startLocalGame(true);
+        }
+        return;
       }
-      return;
-    }
-    if (matchRef.current.config.mode === "computer") {
-      prepareComputerGame(matchRef.current.config.requestedDifficulty);
-    } else {
-      startLocalGame();
+      if (matchRef.current.config.mode === "computer") {
+        await prepareComputerGame(matchRef.current.config.requestedDifficulty, true);
+      } else {
+        await startLocalGame(true);
+      }
+    } finally {
+      confirmationBusy.current = false;
+      if (mounted.current) setConfirmationPending(false);
     }
   };
 
@@ -941,7 +1031,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
                 animateMatchId={animateDieMatchId}
                 hasSave={Boolean(resumableMatch)}
                 key={preparedComputerMatch?.matchId ?? "new-match-menu"}
-                loading={false}
+                loading={menuActionPending}
                 onConfirmComputer={handleConfirmComputer}
                 onContinue={handleContinue}
                 onRollComputer={handleRollComputer}
@@ -1023,9 +1113,12 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
 
       {confirmation ? (
         <ConfirmDialog
+          busy={confirmationPending}
           confirmLabel={confirmDetails.label}
           description={confirmDetails.description}
-          onCancel={() => setConfirmation(null)}
+          onCancel={() => {
+            if (!confirmationBusy.current) setConfirmation(null);
+          }}
           onConfirm={handleConfirm}
           title={confirmDetails.title}
         />

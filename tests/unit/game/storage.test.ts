@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { createInitialGame, dispatch } from "../../../lib/xiangqi/index";
+import { createInitialGame, dispatch, type GameState } from "../../../lib/xiangqi/index";
 import {
   createComputerMatch,
   createLocalMatch,
   setEffectiveOpponentTier,
   type EntropySource,
+  type SavedMatch,
 } from "../../../components/xiangqi/game/match";
 import {
   DEFAULT_GAME_SETTINGS,
@@ -18,6 +19,8 @@ import {
   loadGameSettings,
   saveGameSettings,
   saveGameSnapshot,
+  type GameSnapshotLockManager,
+  type GameSnapshotWriteIntent,
   type StorageLike,
 } from "../../../components/xiangqi/game/storage";
 
@@ -33,6 +36,53 @@ class MemoryStorage implements StorageLike {
   }
 }
 
+class ReadbackWinnerStorage implements StorageLike {
+  attemptedPrimary: string | null = null;
+  #replacePrimaryOnReadback = false;
+
+  constructor(
+    private readonly backing: MemoryStorage,
+    private readonly winnerToken: string,
+  ) {}
+
+  getItem(key: string) {
+    if (key === GAME_SAVE_KEY && this.#replacePrimaryOnReadback) {
+      this.#replacePrimaryOnReadback = false;
+      this.backing.setItem(key, this.winnerToken);
+    }
+    return this.backing.getItem(key);
+  }
+
+  setItem(key: string, value: string) {
+    this.backing.setItem(key, value);
+    if (key === GAME_SAVE_KEY) {
+      this.attemptedPrimary = value;
+      this.#replacePrimaryOnReadback = true;
+    }
+  }
+}
+
+class MemoryLockManager implements GameSnapshotLockManager {
+  #tail: Promise<unknown> = Promise.resolve();
+
+  request<T>(_name: string, callback: () => T): Promise<T> {
+    const result = this.#tail.then(callback);
+    this.#tail = result.catch(() => undefined);
+    return result;
+  }
+}
+
+const testLockManager = new MemoryLockManager();
+
+function saveSnapshot(
+  storage: StorageLike,
+  value: SavedMatch | GameState,
+  intent: GameSnapshotWriteIntent,
+  savedAt = Date.now(),
+) {
+  return saveGameSnapshot(storage, value, intent, savedAt, testLockManager);
+}
+
 const fixedEntropy: EntropySource = (target) => target.fill(7);
 
 type MutableSaveEnvelope = Record<string, unknown> & {
@@ -40,11 +90,11 @@ type MutableSaveEnvelope = Record<string, unknown> & {
 };
 
 describe("local game persistence", () => {
-  it("round-trips a versioned primary snapshot", () => {
+  it("round-trips a versioned primary snapshot", async () => {
     const storage = new MemoryStorage();
     const match = createLocalMatch(createInitialGame());
 
-    expect(saveGameSnapshot(storage, match, { overwrite: true }, 1_700_000_000_000)).toMatchObject({
+    expect(await saveSnapshot(storage, match, { overwrite: true }, 1_700_000_000_000)).toMatchObject({
       ok: true,
       resumable: true,
     });
@@ -62,10 +112,10 @@ describe("local game persistence", () => {
     });
   });
 
-  it("keeps the last valid primary as backup and restores it when the new primary is corrupt", () => {
+  it("keeps the last valid primary as backup and restores it when the new primary is corrupt", async () => {
     const storage = new MemoryStorage();
     const initial = createInitialGame();
-    const initialWrite = saveGameSnapshot(
+    const initialWrite = await saveSnapshot(
       storage,
       createLocalMatch(initial),
       { overwrite: true },
@@ -80,7 +130,7 @@ describe("local game persistence", () => {
       from: { file: 0, rank: 3 },
       to: { file: 0, rank: 4 },
     }).state;
-    expect(saveGameSnapshot(
+    expect(await saveSnapshot(
       storage,
       createLocalMatch(moved),
       { expectedToken: initialWrite.snapshotToken },
@@ -95,10 +145,10 @@ describe("local game persistence", () => {
     expect(loaded.warning).toMatch(/备份/);
   });
 
-  it("rejects the second writer when two tabs branch from the same parent snapshot", () => {
+  it("rejects the second writer when two tabs branch from the same parent snapshot", async () => {
     const storage = new MemoryStorage();
     const initial = createLocalMatch(createInitialGame());
-    expect(saveGameSnapshot(storage, initial, { overwrite: true }, 1)).toMatchObject({ ok: true });
+    expect(await saveSnapshot(storage, initial, { overwrite: true }, 1)).toMatchObject({ ok: true });
 
     const writerA = loadGameSnapshot(storage);
     const writerB = loadGameSnapshot(storage);
@@ -117,11 +167,11 @@ describe("local game persistence", () => {
       to: { file: 2, rank: 4 },
     }).state);
 
-    const firstWrite = saveGameSnapshot(storage, firstBranch, {
+    const firstWrite = await saveSnapshot(storage, firstBranch, {
       expectedToken: writerA.snapshotToken,
     }, 2);
     expect(firstWrite).toMatchObject({ ok: true, resumable: true });
-    const secondWrite = saveGameSnapshot(storage, secondBranch, {
+    const secondWrite = await saveSnapshot(storage, secondBranch, {
       expectedToken: writerB.snapshotToken,
     }, 3);
 
@@ -134,10 +184,87 @@ describe("local game persistence", () => {
     expect(loadGameSnapshot(storage).savedMatch).toEqual(firstBranch);
   });
 
-  it("allows an explicit new-game overwrite after another writer advances the save", () => {
+  it("serializes two synchronized writers so exactly one advances their shared parent", async () => {
     const storage = new MemoryStorage();
     const initial = createLocalMatch(createInitialGame());
-    const initialWrite = saveGameSnapshot(storage, initial, { overwrite: true }, 1);
+    const initialWrite = await saveSnapshot(storage, initial, { overwrite: true }, 1);
+    if (!initialWrite.ok) throw new Error("Expected the initial save to succeed");
+
+    const firstBranch = createLocalMatch(dispatch(initial.game, {
+      type: "move",
+      expectedRevision: 0,
+      from: { file: 0, rank: 3 },
+      to: { file: 0, rank: 4 },
+    }).state);
+    const secondBranch = createLocalMatch(dispatch(initial.game, {
+      type: "move",
+      expectedRevision: 0,
+      from: { file: 2, rank: 3 },
+      to: { file: 2, rank: 4 },
+    }).state);
+
+    let releaseWriters!: () => void;
+    const writerBarrier = new Promise<void>((resolve) => { releaseWriters = resolve; });
+    const write = async (branch: SavedMatch, savedAt: number) => {
+      await writerBarrier;
+      return saveSnapshot(storage, branch, { expectedToken: initialWrite.snapshotToken }, savedAt);
+    };
+    const writes = [write(firstBranch, 2), write(secondBranch, 3)];
+    releaseWriters();
+    const results = await Promise.all(writes);
+
+    expect(results.filter((result) => result.ok)).toHaveLength(1);
+    expect(results.filter((result) => !result.ok && result.reason === "conflict")).toHaveLength(1);
+    const winner = results[0]?.ok ? firstBranch : secondBranch;
+    expect(loadGameSnapshot(storage).savedMatch).toEqual(winner);
+  });
+
+  it("reports a conflict when an external writer replaces the primary before readback", async () => {
+    const backing = new MemoryStorage();
+    const initial = createLocalMatch(createInitialGame());
+    const initialWrite = await saveSnapshot(backing, initial, { overwrite: true }, 1);
+    if (!initialWrite.ok) throw new Error("Expected the initial save to succeed");
+
+    const attemptedBranch = createLocalMatch(dispatch(initial.game, {
+      type: "move",
+      expectedRevision: 0,
+      from: { file: 0, rank: 3 },
+      to: { file: 0, rank: 4 },
+    }).state);
+    const winnerBranch = createLocalMatch(dispatch(initial.game, {
+      type: "move",
+      expectedRevision: 0,
+      from: { file: 2, rank: 3 },
+      to: { file: 2, rank: 4 },
+    }).state);
+    const winnerStorage = new MemoryStorage();
+    const winnerWrite = await saveSnapshot(winnerStorage, winnerBranch, { overwrite: true }, 3);
+    if (!winnerWrite.ok) throw new Error("Expected the external winner save to succeed");
+
+    const storage = new ReadbackWinnerStorage(backing, winnerWrite.snapshotToken);
+    const result = await saveSnapshot(
+      storage,
+      attemptedBranch,
+      { expectedToken: initialWrite.snapshotToken },
+      2,
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      reason: "conflict",
+      resumable: false,
+      warning: expect.stringMatching(/其他标签页/),
+    });
+    expect(result).not.toHaveProperty("snapshotToken");
+    expect(storage.attemptedPrimary).not.toBe(winnerWrite.snapshotToken);
+    expect(storage.getItem(GAME_SAVE_KEY)).toBe(winnerWrite.snapshotToken);
+    expect(loadGameSnapshot(storage).savedMatch).toEqual(winnerBranch);
+  });
+
+  it("allows an explicit new-game overwrite after another writer advances the save", async () => {
+    const storage = new MemoryStorage();
+    const initial = createLocalMatch(createInitialGame());
+    const initialWrite = await saveSnapshot(storage, initial, { overwrite: true }, 1);
     if (!initialWrite.ok) throw new Error("Expected the initial save to succeed");
 
     const advanced = createLocalMatch(dispatch(initial.game, {
@@ -146,7 +273,7 @@ describe("local game persistence", () => {
       from: { file: 0, rank: 3 },
       to: { file: 0, rank: 4 },
     }).state);
-    expect(saveGameSnapshot(
+    expect(await saveSnapshot(
       storage,
       advanced,
       { expectedToken: initialWrite.snapshotToken },
@@ -154,7 +281,7 @@ describe("local game persistence", () => {
     )).toMatchObject({ ok: true });
 
     const fresh = createLocalMatch(createInitialGame());
-    expect(saveGameSnapshot(storage, fresh, { overwrite: true }, 3)).toMatchObject({
+    expect(await saveSnapshot(storage, fresh, { overwrite: true }, 3)).toMatchObject({
       ok: true,
       resumable: true,
     });
@@ -172,7 +299,7 @@ describe("local game persistence", () => {
     expect(loaded.warning).toMatch(/损坏/);
   });
 
-  it("reports memory-only mode when a write fails", () => {
+  it("reports memory-only mode when a write fails", async () => {
     const storage: StorageLike = {
       getItem: () => null,
       setItem: () => {
@@ -180,7 +307,7 @@ describe("local game persistence", () => {
       },
     };
 
-    const result = saveGameSnapshot(
+    const result = await saveSnapshot(
       storage,
       createLocalMatch(createInitialGame()),
       { overwrite: true },
@@ -189,6 +316,24 @@ describe("local game persistence", () => {
     if (result.ok) throw new Error("Expected the storage write to fail");
     expect(result.warning).toMatch(/内存/);
     expect(result.resumable).toBe(false);
+  });
+
+  it("uses memory-only mode instead of an unsafe compare-and-write without Web Locks", async () => {
+    const storage = new MemoryStorage();
+    const result = await saveGameSnapshot(
+      storage,
+      createLocalMatch(createInitialGame()),
+      { overwrite: true },
+      1,
+      null,
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      reason: "unavailable",
+      warning: expect.stringMatching(/跨标签页存档锁/),
+    });
+    expect(storage.getItem(GAME_SAVE_KEY)).toBeNull();
   });
 
   it("falls back to memory-only mode when reading browser storage throws", () => {
@@ -206,10 +351,10 @@ describe("local game persistence", () => {
     });
   });
 
-  it("does not replace the primary save when rotating its backup fails", () => {
+  it("does not replace the primary save when rotating its backup fails", async () => {
     const initial = createInitialGame();
     const seeded = new MemoryStorage();
-    const initialWrite = saveGameSnapshot(
+    const initialWrite = await saveSnapshot(
       seeded,
       createLocalMatch(initial),
       { overwrite: true },
@@ -232,7 +377,7 @@ describe("local game persistence", () => {
       to: { file: 0, rank: 4 },
     }).state;
 
-    expect(saveGameSnapshot(
+    expect(await saveSnapshot(
       storage,
       createLocalMatch(moved),
       { expectedToken: initialWrite.snapshotToken },
@@ -244,11 +389,11 @@ describe("local game persistence", () => {
     expect(seeded.getItem(GAME_SAVE_KEY)).toBe(original);
   });
 
-  it("round-trips a complete computer match without rerolling its die", () => {
+  it("round-trips a complete computer match without rerolling its die", async () => {
     const storage = new MemoryStorage();
     const match = createComputerMatch("master", { entropy: fixedEntropy });
 
-    expect(saveGameSnapshot(storage, match, { overwrite: true }, 10)).toMatchObject({ ok: true, resumable: true });
+    expect(await saveSnapshot(storage, match, { overwrite: true }, 10)).toMatchObject({ ok: true, resumable: true });
     const loaded = loadGameSnapshot(storage);
 
     expect(loaded.savedMatch).toEqual(match);
@@ -261,15 +406,15 @@ describe("local game persistence", () => {
     });
   });
 
-  it("persists a Master-to-Hard fallback before any search state exists", () => {
+  it("persists a Master-to-Hard fallback before any search state exists", async () => {
     const storage = new MemoryStorage();
     const master = createComputerMatch("master", { entropy: fixedEntropy });
     const fallback = setEffectiveOpponentTier(master, "lightweight-hard");
 
-    const masterWrite = saveGameSnapshot(storage, master, { overwrite: true }, 10);
+    const masterWrite = await saveSnapshot(storage, master, { overwrite: true }, 10);
     expect(masterWrite).toMatchObject({ ok: true });
     if (!masterWrite.ok) throw new Error("Expected the Master save to succeed");
-    expect(saveGameSnapshot(
+    expect(await saveSnapshot(
       storage,
       fallback,
       { expectedToken: masterWrite.snapshotToken },
@@ -325,10 +470,10 @@ describe("local game persistence", () => {
     });
   });
 
-  it("rejects partial AI metadata, extra fields, and revision mismatches", () => {
+  it("rejects partial AI metadata, extra fields, and revision mismatches", async () => {
     const storage = new MemoryStorage();
     const match = createComputerMatch("master", { entropy: fixedEntropy });
-    expect(saveGameSnapshot(storage, match, { overwrite: true }, 10)).toMatchObject({ ok: true });
+    expect(await saveSnapshot(storage, match, { overwrite: true }, 10)).toMatchObject({ ok: true });
     const valid = JSON.parse(storage.getItem(GAME_SAVE_KEY) ?? "{}") as MutableSaveEnvelope;
 
     for (const mutate of [
@@ -346,7 +491,7 @@ describe("local game persistence", () => {
     }
   });
 
-  it("keeps every recoverable snapshot whole when either write step fails", () => {
+  it("keeps every recoverable snapshot whole when either write step fails", async () => {
     const initial = createLocalMatch(createInitialGame());
     const movedGame = dispatch(initial.game, {
       type: "move",
@@ -358,7 +503,7 @@ describe("local game persistence", () => {
 
     for (const failingWrite of [1, 2]) {
       const seeded = new MemoryStorage();
-      const initialWrite = saveGameSnapshot(seeded, initial, { overwrite: true }, 1);
+      const initialWrite = await saveSnapshot(seeded, initial, { overwrite: true }, 1);
       expect(initialWrite).toMatchObject({ ok: true });
       if (!initialWrite.ok) throw new Error("Expected the initial save to succeed");
       const original = seeded.getItem(GAME_SAVE_KEY);
@@ -372,7 +517,7 @@ describe("local game persistence", () => {
         },
       };
 
-      expect(saveGameSnapshot(
+      expect(await saveSnapshot(
         storage,
         moved,
         { expectedToken: initialWrite.snapshotToken },

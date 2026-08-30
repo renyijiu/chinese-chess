@@ -8,6 +8,7 @@ import { PerformanceMetrics, type RuntimePerformanceSnapshot } from "./performan
 declare global {
   interface Window {
     __XIANGQI_PERFORMANCE__?: RuntimePerformanceSnapshot;
+    __XIANGQI_SETTLE_RENDERER__?: () => Promise<RuntimePerformanceSnapshot>;
     __XIANGQI_RESET_PERFORMANCE__?: () => void;
   }
 }
@@ -21,24 +22,77 @@ export function PerformanceSummary({
   const lastRendererTotals = useRef({ drawCalls: 0, triangles: 0 });
   const metrics = useRef(new PerformanceMetrics());
   const gl = useThree((state) => state.gl);
+  const invalidate = useThree((state) => state.invalidate);
 
   useEffect(() => {
     const activeMetrics = metrics.current;
+    let active = true;
+    const pendingFrames = new Set<() => void>();
     const publishEmptySnapshot = () => {
+      if (!active) return;
       activeMetrics.reset();
       gl.info.reset();
       lastRendererTotals.current = { drawCalls: 0, triangles: 0 };
       window.__XIANGQI_PERFORMANCE__ = activeMetrics.snapshot();
     };
+    const waitForRenderedFrame = () => new Promise<void>((resolve, reject) => {
+      if (!active) {
+        reject(new Error("Renderer diagnostic was disposed."));
+        return;
+      }
+      let firstFrame = 0;
+      let secondFrame = 0;
+      let settled = false;
+      const finish = (error?: Error) => {
+        if (settled) return;
+        settled = true;
+        pendingFrames.delete(cancel);
+        if (error) reject(error);
+        else resolve();
+      };
+      const cancel = () => {
+        window.cancelAnimationFrame(firstFrame);
+        window.cancelAnimationFrame(secondFrame);
+        finish(new Error("Renderer diagnostic was disposed."));
+      };
+      pendingFrames.add(cancel);
+      invalidate();
+      firstFrame = window.requestAnimationFrame(() => {
+        if (!active) {
+          cancel();
+          return;
+        }
+        secondFrame = window.requestAnimationFrame(() => {
+          if (!active) cancel();
+          else finish();
+        });
+      });
+    });
+    const settleRenderer = async () => {
+      // PerformanceSummary samples gl.info before each draw. Two forced frames
+      // ensure the second sample observes resources uploaded by the first.
+      await waitForRenderedFrame();
+      await waitForRenderedFrame();
+      if (!active || window.__XIANGQI_SETTLE_RENDERER__ !== settleRenderer) {
+        throw new Error("Renderer diagnostic was superseded.");
+      }
+      const snapshot = activeMetrics.snapshot();
+      window.__XIANGQI_PERFORMANCE__ = snapshot;
+      return snapshot;
+    };
     window.__XIANGQI_RESET_PERFORMANCE__ = publishEmptySnapshot;
+    window.__XIANGQI_SETTLE_RENDERER__ = settleRenderer;
     publishEmptySnapshot();
     return () => {
+      active = false;
+      for (const cancel of [...pendingFrames]) cancel();
       if (window.__XIANGQI_RESET_PERFORMANCE__ === publishEmptySnapshot) {
         delete window.__XIANGQI_RESET_PERFORMANCE__;
         delete window.__XIANGQI_PERFORMANCE__;
       }
+      if (window.__XIANGQI_SETTLE_RENDERER__ === settleRenderer) delete window.__XIANGQI_SETTLE_RENDERER__;
     };
-  }, [gl]);
+  }, [gl, invalidate]);
 
   useFrame(({ clock, gl: frameGl }, deltaSeconds) => {
     const drawCalls = Math.max(0, frameGl.info.render.calls - lastRendererTotals.current.drawCalls);

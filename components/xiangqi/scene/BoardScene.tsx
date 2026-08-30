@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState, useSyncExternalStore, type ReactNode, type RefObject } from "react";
+import { Suspense, useCallback, useEffect, useLayoutEffect, useState, useSyncExternalStore, type ReactNode, type RefObject } from "react";
 import { Selection } from "@react-three/postprocessing";
 
 import { AnimationDirector } from "../animation/AnimationDirector";
@@ -14,7 +14,7 @@ import { PerformanceSummary } from "../runtime/PerformanceSummary";
 import { StaticShadowMap } from "../runtime/StaticShadowMap";
 import { WebGLContextRecovery } from "../runtime/WebGLContextRecovery";
 import { isTestFaultEnabled } from "../runtime/test-faults";
-import type { QualityProfile } from "../runtime/quality";
+import type { PieceLod, QualityProfile } from "../runtime/quality";
 import { BoardCamera, type BoardView, type BoardViewSide } from "./BoardCamera";
 import { BattlePostprocessing } from "./BattlePostprocessing";
 import { CameraFeedback } from "./CameraFeedback";
@@ -50,6 +50,35 @@ const prototypeSlots: readonly ScenePieceSlot<"prototype-marshal">[] = [
     square: { file: 4, rank: 0 },
   },
 ];
+
+declare global {
+  interface Window {
+    __XIANGQI_PIECE_LOD_COMMIT__?: Readonly<{
+      generation: number;
+      lod: PieceLod;
+    }>;
+  }
+}
+
+let pieceLodCommitGeneration = 0;
+
+function PieceLodCommitSignal({ lod }: { lod: PieceLod }) {
+  useLayoutEffect(() => {
+    if (process.env.NODE_ENV === "production" || typeof window === "undefined") return;
+    pieceLodCommitGeneration += 1;
+    const commit = Object.freeze({
+      generation: pieceLodCommitGeneration,
+      lod,
+    });
+    window.__XIANGQI_PIECE_LOD_COMMIT__ = commit;
+    return () => {
+      if (window.__XIANGQI_PIECE_LOD_COMMIT__ === commit) {
+        delete window.__XIANGQI_PIECE_LOD_COMMIT__;
+      }
+    };
+  }, [lod]);
+  return null;
+}
 
 function PrototypePieceLayer() {
   return <PieceLayer slots={prototypeSlots} renderPiece={() => <PrototypeMarshal />} />;
@@ -145,7 +174,10 @@ export function BoardScene({
             presentation={presentation}
             quality={quality}
           />
-          <Suspense fallback={null}>{pieceLayer ?? <PrototypePieceLayer />}</Suspense>
+          <Suspense fallback={null}>
+            {pieceLayer ?? <PrototypePieceLayer />}
+            <PieceLodCommitSignal lod={quality.lod} />
+          </Suspense>
           <BoardCamera autoTour={autoTour} reducedMotion={reducedMotion} side={viewSide} view={view} />
           <CameraFeedback presentation={presentation} quality={quality.postprocessing ? "high" : quality.dynamicEffectLights ? "medium" : "low"} reducedMotion={reducedMotion} />
           <AudioListenerBridge audio={audio} />

@@ -238,12 +238,14 @@ export function GameMenu({
 }
 
 export function ConfirmDialog({
+  busy,
   confirmLabel,
   description,
   onCancel,
   onConfirm,
   title,
 }: {
+  busy: boolean;
   confirmLabel: string;
   description: string;
   onCancel: () => void;
@@ -256,12 +258,12 @@ export function ConfirmDialog({
 
   return (
     <div className="game-dialog-backdrop">
-      <div className="game-confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-description">
+      <div className="game-confirm-dialog" role="alertdialog" aria-busy={busy} aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-description">
         <h2 id="confirm-title">{title}</h2>
         <p id="confirm-description">{description}</p>
         <div>
-          <button ref={cancelButton} className="game-secondary-action" type="button" onClick={onCancel}>取消</button>
-          <button className="game-danger-action" type="button" onClick={onConfirm}>{confirmLabel}</button>
+          <button ref={cancelButton} className="game-secondary-action" disabled={busy} type="button" onClick={onCancel}>取消</button>
+          <button className="game-danger-action" disabled={busy} type="button" onClick={onConfirm}>{confirmLabel}</button>
         </div>
       </div>
     </div>

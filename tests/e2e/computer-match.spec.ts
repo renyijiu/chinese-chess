@@ -1,9 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import { createInitialGame, dispatch, serializeGame, type GameState } from "../../lib/xiangqi/index";
-import { openCleanGame, waitForRevision } from "./helpers";
+import { openCleanGame, pressSequence, waitForRevision } from "./helpers";
 
 const GAME_SAVE_KEY = "xiangqi3d:game:v2";
+const GAME_SAVE_LOCK_NAME = "xiangqi3d:game-save:v2";
 
 function applyFixtureMoves(
   moves: ReadonlyArray<readonly [readonly [number, number], readonly [number, number]]>,
@@ -318,6 +319,88 @@ test("discloses Master fallback, hides computer undo, and preserves local undo",
   await page.reload({ waitUntil: "domcontentloaded" });
   await page.getByRole("button", { name: "开始本机双人对局" }).click();
   await expect(page.getByRole("button", { name: "悔棋" })).toBeVisible();
+});
+
+test("serializes Master fallback with a locked human move without rolling back either state", async ({ page }) => {
+  test.setTimeout(120_000);
+  let releaseManifest: (() => void) | undefined;
+  let markManifestRequested: (() => void) | undefined;
+  const manifestRequested = new Promise<void>((resolve) => {
+    markManifestRequested = resolve;
+  });
+  const manifestGate = new Promise<void>((resolve) => {
+    releaseManifest = resolve;
+  });
+  await page.route("**/engines/fairy-stockfish-nnue/1.1.12/manifest.json", async (route) => {
+    markManifestRequested?.();
+    await manifestGate;
+    await route.fulfill({
+      body: "Master unavailable in this concurrency scenario",
+      contentType: "text/plain",
+      status: 404,
+    });
+  });
+  await forceNextDie(page, 5);
+  await openCleanGame(page, "low", true);
+  await chooseComputerMode(page, "大师");
+  await page.getByRole("button", { name: "掷骰决定阵营" }).click();
+  await page.getByRole("button", { name: "以红方开始对局" }).click();
+  await manifestRequested;
+
+  await page.evaluate((lockName) => {
+    const state = window as typeof window & {
+      __releaseGameSaveLock?: () => void;
+      __gameSaveLockHeld?: boolean;
+    };
+    void navigator.locks.request(lockName, () => new Promise<void>((resolve) => {
+      state.__releaseGameSaveLock = resolve;
+      state.__gameSaveLockHeld = true;
+    }));
+  }, GAME_SAVE_LOCK_NAME);
+  await expect.poll(() => page.evaluate(() => Boolean(
+    (window as typeof window & { __gameSaveLockHeld?: boolean }).__gameSaveLockHeld,
+  ))).toBe(true);
+
+  releaseManifest?.();
+  await expect.poll(() => page.evaluate(async (lockName) => {
+    const snapshot = await navigator.locks.query();
+    return snapshot.pending?.filter((lock) => lock.name === lockName).length ?? 0;
+  }, GAME_SAVE_LOCK_NAME)).toBe(1);
+  const keyboard = page.locator(".game-keyboard-control button");
+  await keyboard.focus();
+  await pressSequence(keyboard, [
+    "ArrowLeft", "ArrowLeft", "ArrowLeft", "ArrowLeft",
+    "ArrowUp", "ArrowUp", "ArrowUp", "Enter", "ArrowUp", "Enter",
+  ]);
+  await expect.poll(() => page.evaluate(async (lockName) => {
+    const snapshot = await navigator.locks.query();
+    return snapshot.pending?.filter((lock) => lock.name === lockName).length ?? 0;
+  }, GAME_SAVE_LOCK_NAME)).toBe(1);
+
+  await page.evaluate(() => {
+    (window as typeof window & { __releaseGameSaveLock?: () => void }).__releaseGameSaveLock?.();
+  });
+  await waitForRevision(page, 1);
+  await expect(page.getByRole("status", { name: "对手状态" })).toContainText("困难");
+  await expect(page.locator(".game-history")).toContainText("红·兵 a3 → a4");
+  await expect.poll(() => page.evaluate((key) => {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return null;
+    const envelope = JSON.parse(raw) as {
+      match?: { effectiveTier?: string };
+      revision?: number;
+    };
+    const shellRevision = Number(document.querySelector(".xiangqi-game-shell")?.getAttribute("data-game-revision"));
+    return {
+      revisionConsistent: envelope.revision === shellRevision,
+      revisionPreserved: typeof envelope.revision === "number" && envelope.revision >= 1,
+      tier: envelope.match?.effectiveTier,
+    };
+  }, GAME_SAVE_KEY)).toEqual({
+    revisionConsistent: true,
+    revisionPreserved: true,
+    tier: "lightweight-hard",
+  });
 });
 
 test("boots the isolated verified Master Worker and commits one legal opening move", async ({ page }) => {

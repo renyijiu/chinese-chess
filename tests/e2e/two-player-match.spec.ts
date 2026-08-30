@@ -10,6 +10,9 @@ import {
   waitForRevision,
 } from "./helpers";
 
+const GAME_SAVE_KEY = "xiangqi3d:game:v2";
+const GAME_SAVE_LOCK_NAME = "xiangqi3d:game-save:v2";
+
 test("red and black can alternate legal moves across four complete turns", async ({ page }) => {
   test.setTimeout(120_000);
   await openCleanGame(page);
@@ -92,4 +95,206 @@ test("warns a stale tab, preserves the newer save, and allows an explicit new ga
   });
   expect(replacement?.revision).toBe(0);
   expect(replacement?.serialized).not.toBe(JSON.parse(advancedSave ?? "{}").serialized);
+});
+
+test("serializes synchronized new-game writers and keeps the loser in memory-only mode", async ({ context, page }) => {
+  test.setTimeout(120_000);
+  await openCleanGame(page);
+  const contender = await context.newPage();
+  await contender.goto("/", { waitUntil: "domcontentloaded" });
+  await waitForEnvironmentSettled(contender);
+  await expect(contender.getByRole("button", { name: "开始本机双人对局" })).toBeVisible();
+
+  await page.evaluate((lockName) => {
+    const state = window as typeof window & {
+      __releaseGameSaveLock?: () => void;
+      __gameSaveLockHeld?: boolean;
+    };
+    void navigator.locks.request(lockName, () => new Promise<void>((resolve) => {
+      state.__releaseGameSaveLock = resolve;
+      state.__gameSaveLockHeld = true;
+    }));
+  }, GAME_SAVE_LOCK_NAME);
+  await expect.poll(() => page.evaluate(() => Boolean(
+    (window as typeof window & { __gameSaveLockHeld?: boolean }).__gameSaveLockHeld,
+  ))).toBe(true);
+
+  await Promise.all([
+    page.getByRole("button", { name: "开始本机双人对局" }).click(),
+    contender.getByRole("button", { name: "开始本机双人对局" }).click(),
+  ]);
+  await expect.poll(() => page.evaluate(async (lockName) => {
+    const snapshot = await navigator.locks.query();
+    return snapshot.pending?.filter((lock) => lock.name === lockName).length ?? 0;
+  }, GAME_SAVE_LOCK_NAME)).toBe(2);
+  await page.evaluate(() => {
+    (window as typeof window & { __releaseGameSaveLock?: () => void }).__releaseGameSaveLock?.();
+  });
+
+  await Promise.all([
+    expect(page.locator(".xiangqi-game-shell")).toHaveAttribute("data-game-revision", "0"),
+    expect(contender.locator(".xiangqi-game-shell")).toHaveAttribute("data-game-revision", "0"),
+    expect(page.locator(".game-keyboard-control button")).toBeFocused(),
+    expect(contender.locator(".game-keyboard-control button")).toBeFocused(),
+  ]);
+  const warnings = await Promise.all([
+    page.locator(".game-persistence-warning").allTextContents().then((values) => values.join(" ")),
+    contender.locator(".game-persistence-warning").allTextContents().then((values) => values.join(" ")),
+  ]);
+  expect(warnings.filter((warning) => warning.includes("其他标签页已更新本地存档"))).toHaveLength(1);
+
+  const winnerSave = await page.evaluate((key) => window.localStorage.getItem(key), GAME_SAVE_KEY);
+  expect(winnerSave).not.toBeNull();
+  await page.waitForTimeout(100);
+  expect(await contender.evaluate((key) => window.localStorage.getItem(key), GAME_SAVE_KEY)).toBe(winnerSave);
+});
+
+test("single-flights repeated menu starts while persistence waits for the save lock", async ({ page }) => {
+  test.setTimeout(120_000);
+  await openCleanGame(page);
+  await page.evaluate((lockName) => {
+    const state = window as typeof window & {
+      __releaseGameSaveLock?: () => void;
+      __gameSaveLockHeld?: boolean;
+    };
+    void navigator.locks.request(lockName, () => new Promise<void>((resolve) => {
+      state.__releaseGameSaveLock = resolve;
+      state.__gameSaveLockHeld = true;
+    }));
+  }, GAME_SAVE_LOCK_NAME);
+  await expect.poll(() => page.evaluate(() => Boolean(
+    (window as typeof window & { __gameSaveLockHeld?: boolean }).__gameSaveLockHeld,
+  ))).toBe(true);
+
+  const start = page.getByRole("button", { name: "开始本机双人对局" });
+  await start.evaluate((button: HTMLButtonElement) => {
+    button.click();
+    button.click();
+  });
+  await expect(start).toBeDisabled();
+  await expect.poll(() => page.evaluate(async (lockName) => {
+    const snapshot = await navigator.locks.query();
+    return snapshot.pending?.filter((lock) => lock.name === lockName).length ?? 0;
+  }, GAME_SAVE_LOCK_NAME)).toBe(1);
+
+  await page.evaluate(() => {
+    (window as typeof window & { __releaseGameSaveLock?: () => void }).__releaseGameSaveLock?.();
+  });
+  await expect(page.locator(".xiangqi-game-shell")).toHaveAttribute("data-game-revision", "0");
+  await expect(page.locator(".game-keyboard-control button")).toBeFocused();
+  await expect(page.locator(".game-persistence-warning")).toHaveCount(0);
+  await expect.poll(() => page.evaluate((key) => {
+    const raw = window.localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as { revision?: number }).revision : null;
+  }, GAME_SAVE_KEY)).toBe(0);
+});
+
+test("invalidates a locked stale move and makes restart confirmation single-submit", async ({ page }) => {
+  test.setTimeout(120_000);
+  await openCleanGame(page);
+  const keyboard = await startGame(page);
+  await setReducedMotion(page);
+
+  await page.evaluate((lockName) => {
+    const state = window as typeof window & {
+      __releaseGameSaveLock?: () => void;
+      __gameSaveLockHeld?: boolean;
+      __revisionTrace?: string[];
+    };
+    state.__revisionTrace = [];
+    const shell = document.querySelector(".xiangqi-game-shell");
+    if (shell) {
+      new MutationObserver(() => {
+        state.__revisionTrace?.push(shell.getAttribute("data-game-revision") ?? "missing");
+      }).observe(shell, { attributeFilter: ["data-game-revision"] });
+    }
+    void navigator.locks.request(lockName, () => new Promise<void>((resolve) => {
+      state.__releaseGameSaveLock = resolve;
+      state.__gameSaveLockHeld = true;
+    }));
+  }, GAME_SAVE_LOCK_NAME);
+  await expect.poll(() => page.evaluate(() => Boolean(
+    (window as typeof window & { __gameSaveLockHeld?: boolean }).__gameSaveLockHeld,
+  ))).toBe(true);
+
+  await keyboard.focus();
+  await pressSequence(keyboard, [
+    "ArrowLeft", "ArrowLeft", "ArrowLeft", "ArrowLeft",
+    "ArrowUp", "ArrowUp", "ArrowUp", "Enter", "ArrowUp", "Enter",
+  ]);
+  await expect.poll(() => page.evaluate(async (lockName) => {
+    const snapshot = await navigator.locks.query();
+    return snapshot.pending?.filter((lock) => lock.name === lockName).length ?? 0;
+  }, GAME_SAVE_LOCK_NAME)).toBe(1);
+
+  await page.getByRole("button", { name: "重新开局" }).click();
+  const confirmation = page.getByRole("alertdialog", { name: "确认重新开局？" });
+  await confirmation.getByRole("button", { name: "重新开局" }).click();
+  await expect(confirmation).toHaveAttribute("aria-busy", "true");
+  await expect(confirmation.getByRole("button", { name: "取消" })).toBeDisabled();
+  await expect(confirmation.getByRole("button", { name: "重新开局" })).toBeDisabled();
+  // The restart is single-filed behind the active command mutation, so only
+  // that command has reached the browser Web Lock queue at this point.
+  await expect.poll(() => page.evaluate(async (lockName) => {
+    const snapshot = await navigator.locks.query();
+    return snapshot.pending?.filter((lock) => lock.name === lockName).length ?? 0;
+  }, GAME_SAVE_LOCK_NAME)).toBe(1);
+
+  await page.evaluate(() => {
+    (window as typeof window & { __releaseGameSaveLock?: () => void }).__releaseGameSaveLock?.();
+  });
+  await expect(confirmation).toBeHidden();
+  await expect(page.locator(".xiangqi-game-shell")).toHaveAttribute("data-game-revision", "0");
+  await expect(page.locator(".game-history li")).toHaveCount(0);
+  expect(await page.evaluate(() => (
+    (window as typeof window & { __revisionTrace?: string[] }).__revisionTrace ?? []
+  ))).not.toContain("1");
+  await expect.poll(() => page.evaluate((key) => {
+    const raw = window.localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as { revision?: number }).revision : null;
+  }, GAME_SAVE_KEY)).toBe(0);
+});
+
+test("labels a valid external menu update separately and overwrites it only after confirmation", async ({ context, page }) => {
+  test.setTimeout(120_000);
+  await openCleanGame(page);
+  await startGame(page);
+  await setReducedMotion(page);
+
+  const staleMenu = await context.newPage();
+  await staleMenu.goto("/", { waitUntil: "domcontentloaded" });
+  await waitForEnvironmentSettled(staleMenu);
+  await expect(staleMenu.getByRole("button", { name: "继续对局" })).toBeVisible();
+
+  const activeKeyboard = page.locator(".game-keyboard-control button");
+  await activeKeyboard.focus();
+  await pressSequence(activeKeyboard, [
+    "ArrowLeft", "ArrowLeft", "ArrowLeft", "ArrowLeft",
+    "ArrowUp", "ArrowUp", "ArrowUp", "Enter", "ArrowUp", "Enter",
+  ]);
+  await waitForRevision(page, 1);
+  const advancedSave = await page.evaluate((key) => window.localStorage.getItem(key), GAME_SAVE_KEY);
+  expect(advancedSave).not.toBeNull();
+
+  await expect(staleMenu.locator(".game-warning")).toContainText("其他标签页已更新本地存档");
+  await staleMenu.getByRole("button", { name: "开始本机双人对局" }).click();
+  const confirmation = staleMenu.getByRole("alertdialog", { name: "覆盖当前棋局？" });
+  await expect(confirmation).toContainText("其他标签页已有有效的新进度");
+  await expect(confirmation).not.toContainText("损坏");
+  expect(await staleMenu.evaluate((key) => window.localStorage.getItem(key), GAME_SAVE_KEY)).toBe(advancedSave);
+
+  await confirmation.getByRole("button", { name: "开始新局" }).click();
+  await expect(confirmation).toBeHidden();
+  await expect(staleMenu.locator(".xiangqi-game-shell")).toHaveAttribute("data-game-revision", "0");
+  await expect(staleMenu.locator(".game-keyboard-control button")).toBeFocused();
+  await expect.poll(
+    () => staleMenu.evaluate((key) => window.localStorage.getItem(key), GAME_SAVE_KEY),
+  ).not.toBe(advancedSave);
+  await staleMenu.evaluate(({ key, staleValue }) => {
+    window.dispatchEvent(new StorageEvent("storage", { key, newValue: staleValue }));
+  }, { key: GAME_SAVE_KEY, staleValue: advancedSave });
+  await expect.poll(() => staleMenu.evaluate(() => (
+    ![...document.querySelectorAll(".game-persistence-warning")]
+      .some((element) => element.textContent?.includes("其他标签页已更新本地存档"))
+  ))).toBe(true);
 });

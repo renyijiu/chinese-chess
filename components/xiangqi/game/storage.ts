@@ -17,7 +17,9 @@ export const GAME_SAVE_BACKUP_KEY = "xiangqi3d:game:v2:backup";
 export const LEGACY_GAME_SAVE_KEY = "xiangqi3d:game:v1";
 export const LEGACY_GAME_SAVE_BACKUP_KEY = "xiangqi3d:game:v1:backup";
 export const GAME_SETTINGS_KEY = "xiangqi3d:settings:v1";
+export const GAME_SAVE_LOCK_NAME = "xiangqi3d:game-save:v2";
 export const GAME_SAVE_CONFLICT_WARNING = "检测到其他标签页已更新本地存档。当前对局仍可继续，但不会覆盖对方进度；重新加载可查看最新进度，或确认开始新局后替换。";
+export const GAME_SAVE_LOCK_UNAVAILABLE_WARNING = "当前浏览器不支持安全的跨标签页存档锁，本局将只保存在内存中。";
 
 const SAVE_KIND = "xiangqi-game-save";
 const SAVE_VERSION = 2;
@@ -27,6 +29,10 @@ const SETTINGS_VERSION = 1;
 export interface StorageLike {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
+}
+
+export interface GameSnapshotLockManager {
+  request<T>(name: string, callback: () => T): Promise<T>;
 }
 
 export type GameSettings = Readonly<{
@@ -66,7 +72,7 @@ export type LoadGameResult = Readonly<{
   savedMatch: SavedMatch | null;
   /** Temporary compatibility alias for the pre-v2 local-game controller. */
   game: GameState | null;
-  /** Opaque identity for optimistic stale-write detection; this is not a transactional CAS. */
+  /** Opaque identity used by the locked compare-and-write transaction. */
   snapshotToken: GameSnapshotToken;
   source: "primary" | "backup" | "none";
   migratedFrom?: 1;
@@ -265,7 +271,14 @@ function normalizeSavedMatch(value: SavedMatch | GameState): SavedMatch {
   return { config, game: savedMatch.game, revision: savedMatch.revision };
 }
 
-export function saveGameSnapshot(
+function browserGameSnapshotLockManager(): GameSnapshotLockManager | null {
+  if (typeof navigator === "undefined" || !("locks" in navigator)) return null;
+  return {
+    request: (name, callback) => navigator.locks.request(name, callback),
+  };
+}
+
+function saveGameSnapshotWhileLocked(
   storage: StorageLike,
   value: SavedMatch | GameState,
   intent: GameSnapshotWriteIntent,
@@ -275,10 +288,8 @@ export function saveGameSnapshot(
     if (!Number.isFinite(savedAt)) throw new Error("Save timestamp must be finite");
     const savedMatch = normalizeSavedMatch(value);
     const current = storage.getItem(GAME_SAVE_KEY);
-    // This prevents a writer that already has a stale parent from rotating or
-    // replacing the newer primary. localStorage does not make the following
-    // multi-step sequence transactional, so the caller also listens for
-    // storage events and treats a read-back mismatch as non-resumable.
+    // Every application writer reaches this comparison while holding the
+    // origin-scoped Web Lock, so two tabs cannot both advance the same parent.
     if ("expectedToken" in intent && current !== intent.expectedToken) {
       return {
         ok: false,
@@ -315,6 +326,36 @@ export function saveGameSnapshot(
       reason: "unavailable",
       resumable: false,
       warning: "无法写入浏览器存储，本局将只保存在内存中。",
+    };
+  }
+}
+
+export async function saveGameSnapshot(
+  storage: StorageLike,
+  value: SavedMatch | GameState,
+  intent: GameSnapshotWriteIntent,
+  savedAt = Date.now(),
+  lockManager: GameSnapshotLockManager | null = browserGameSnapshotLockManager(),
+): Promise<GameStorageWriteResult> {
+  if (!lockManager) {
+    return {
+      ok: false,
+      reason: "unavailable",
+      resumable: false,
+      warning: GAME_SAVE_LOCK_UNAVAILABLE_WARNING,
+    };
+  }
+  try {
+    return await lockManager.request(
+      GAME_SAVE_LOCK_NAME,
+      () => saveGameSnapshotWhileLocked(storage, value, intent, savedAt),
+    );
+  } catch {
+    return {
+      ok: false,
+      reason: "unavailable",
+      resumable: false,
+      warning: "无法锁定浏览器存储，本局将只保存在内存中。",
     };
   }
 }

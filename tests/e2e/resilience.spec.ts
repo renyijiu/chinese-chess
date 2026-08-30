@@ -147,11 +147,29 @@ test("a required scene failure can retry without changing the authoritative matc
   const savedBeforeFailure = await page.evaluate(() => window.localStorage.getItem("xiangqi3d:game:v2"));
 
   await page.evaluate(() => {
+    const state = window as typeof window & {
+      __oldRendererSettlement?: "pending" | "rejected" | "resolved";
+      __oldSettleRenderer?: typeof window.__XIANGQI_SETTLE_RENDERER__;
+    };
+    state.__oldSettleRenderer = window.__XIANGQI_SETTLE_RENDERER__;
+    state.__oldRendererSettlement = "pending";
+    void window.__XIANGQI_SETTLE_RENDERER__?.().then(
+      () => { state.__oldRendererSettlement = "resolved"; },
+      () => { state.__oldRendererSettlement = "rejected"; },
+    );
     window.__XIANGQI_TEST_FAULTS__ = { sceneRender: true };
+    const viewButton = [...document.querySelectorAll<HTMLButtonElement>("button")]
+      .find((button) => button.textContent?.includes("俯视棋盘"));
+    viewButton?.click();
   });
-  await page.getByRole("button", { name: "俯视棋盘" }).click();
 
   await expect(page.locator(".viewer-fallback")).toContainText("棋盘场景加载失败");
+  await expect.poll(() => page.evaluate(() => ({
+    lod: window.__XIANGQI_PIECE_LOD_COMMIT__,
+    performance: window.__XIANGQI_PERFORMANCE__,
+    settlement: (window as typeof window & { __oldRendererSettlement?: string }).__oldRendererSettlement,
+    settleType: typeof window.__XIANGQI_SETTLE_RENDERER__,
+  }))).toEqual({ lod: undefined, performance: undefined, settlement: "rejected", settleType: "undefined" });
   const retry = page.getByRole("button", { name: "重新加载场景" });
   await expect(retry).toBeVisible();
 
@@ -174,6 +192,14 @@ test("a required scene failure can retry without changing the authoritative matc
 
   await expect(page.locator(".viewer-canvas canvas")).toBeVisible();
   await waitForEnvironmentSettled(page);
+  await expect.poll(() => page.evaluate(() => {
+    const oldSettle = (window as typeof window & {
+      __oldSettleRenderer?: typeof window.__XIANGQI_SETTLE_RENDERER__;
+    }).__oldSettleRenderer;
+    return typeof window.__XIANGQI_SETTLE_RENDERER__ === "function"
+      && window.__XIANGQI_SETTLE_RENDERER__ !== oldSettle
+      && Boolean(window.__XIANGQI_PIECE_LOD_COMMIT__);
+  })).toBe(true);
   await expect(page.locator(".xiangqi-game-shell")).toHaveAttribute("data-game-revision", "1");
   expect(await page.evaluate(() => window.localStorage.getItem("xiangqi3d:game:v2"))).toBe(savedBeforeFailure);
 });
@@ -332,19 +358,26 @@ test("high-low-high environment switching settles without cumulative renderer gr
   await setReducedMotion(page);
 
   const switchQuality = async (quality: "high" | "low") => {
+    const previousCommit = await page.evaluate(() => window.__XIANGQI_PIECE_LOD_COMMIT__ ?? null);
+    const expectedLod = quality === "high" ? 1 : 2;
     await page.getByRole("button", { name: "设置" }).click();
     await page.getByLabel("画质").selectOption(quality);
     await expect(page.locator(".xiangqi-game-shell")).toHaveAttribute("data-quality", quality);
     await waitForEnvironmentSettled(page, "ready");
     await page.getByRole("button", { name: "设置" }).click();
-    await expect.poll(
-      () => page.evaluate(() => window.__XIANGQI_PERFORMANCE__?.geometries ?? 0),
-    ).toBeGreaterThan(0);
-    // Renderer memory counters are published at 500 ms intervals; wait for a
-    // post-transition sample instead of re-reading the outgoing tier.
-    await page.waitForTimeout(1_500);
-    return page.evaluate(() => {
-      const metrics = window.__XIANGQI_PERFORMANCE__;
+    await expect.poll(() => page.evaluate(({ generation, lod }) => {
+      const commit = window.__XIANGQI_PIECE_LOD_COMMIT__;
+      return Boolean(commit
+        && commit.lod === lod
+        && (!generation || commit.generation > generation));
+    }, {
+      generation: previousCommit?.lod === expectedLod ? 0 : previousCommit?.generation ?? 0,
+      lod: expectedLod,
+    })).toBe(true);
+    return page.evaluate(async () => {
+      const settleRenderer = window.__XIANGQI_SETTLE_RENDERER__;
+      if (!settleRenderer) throw new Error("Renderer settle diagnostic is unavailable.");
+      const metrics = await settleRenderer();
       const diagnostics = window.__XIANGQI_ENVIRONMENT_DIAGNOSTICS__;
       return {
         activePanoramaUrls: diagnostics?.activePanoramaUrls ?? [],
@@ -358,9 +391,13 @@ test("high-low-high environment switching settles without cumulative renderer gr
   const initialHigh = await switchQuality("high");
   const lowAfterHigh = await switchQuality("low");
   const warmedHigh = await switchQuality("high");
-  const secondLow = await switchQuality("low");
+  // The first visit to each LOD also warms useLoader's parsed GLB cache. Compare
+  // repeated visits only after both piece tiers have completed that warm-up so
+  // delayed LOD allocation cannot be mistaken for an environment leak.
+  const warmedLow = await switchQuality("low");
   const settledHigh = await switchQuality("high");
-  const evidence = { initialHigh, lowAfterHigh, secondLow, settledHigh, warmedHigh };
+  const settledLow = await switchQuality("low");
+  const evidence = { initialHigh, lowAfterHigh, settledHigh, settledLow, warmedHigh, warmedLow };
   console.info(`ENVIRONMENT_LIFECYCLE ${JSON.stringify(evidence)}`);
   await testInfo.attach("environment-lifecycle.json", {
     body: Buffer.from(JSON.stringify(evidence, null, 2)),
@@ -368,18 +405,20 @@ test("high-low-high environment switching settles without cumulative renderer gr
   });
   expect(settledHigh.geometries).toBeLessThanOrEqual(warmedHigh.geometries + 1);
   expect(settledHigh.textures).toBeLessThanOrEqual(warmedHigh.textures + 1);
-  expect(secondLow.geometries).toBeLessThanOrEqual(lowAfterHigh.geometries + 1);
-  expect(secondLow.textures).toBeLessThanOrEqual(lowAfterHigh.textures + 1);
+  expect(settledLow.geometries).toBeLessThanOrEqual(warmedLow.geometries + 1);
+  expect(settledLow.textures).toBeLessThanOrEqual(warmedLow.textures + 1);
   expect(lowAfterHigh.textures).toBeLessThanOrEqual(initialHigh.textures + 1);
   expect(initialHigh.activePanoramaUrls).toEqual([getPanoramaUrl("high")]);
   expect(lowAfterHigh.activePanoramaUrls).toEqual([getPanoramaUrl("low")]);
   expect(warmedHigh.activePanoramaUrls).toEqual([getPanoramaUrl("high")]);
-  expect(secondLow.activePanoramaUrls).toEqual([getPanoramaUrl("low")]);
+  expect(warmedLow.activePanoramaUrls).toEqual([getPanoramaUrl("low")]);
   expect(settledHigh.activePanoramaUrls).toEqual([getPanoramaUrl("high")]);
+  expect(settledLow.activePanoramaUrls).toEqual([getPanoramaUrl("low")]);
   expect(lowAfterHigh.disposedPanoramaCount).toBeGreaterThan(initialHigh.disposedPanoramaCount);
   expect(warmedHigh.disposedPanoramaCount).toBeGreaterThan(lowAfterHigh.disposedPanoramaCount);
-  expect(secondLow.disposedPanoramaCount).toBeGreaterThan(warmedHigh.disposedPanoramaCount);
-  expect(settledHigh.disposedPanoramaCount).toBeGreaterThan(secondLow.disposedPanoramaCount);
+  expect(warmedLow.disposedPanoramaCount).toBeGreaterThan(warmedHigh.disposedPanoramaCount);
+  expect(settledHigh.disposedPanoramaCount).toBeGreaterThan(warmedLow.disposedPanoramaCount);
+  expect(settledLow.disposedPanoramaCount).toBeGreaterThan(settledHigh.disposedPanoramaCount);
 });
 
 test("authoritative rules continue through a WebGL context loss and restore", async ({ page }) => {
