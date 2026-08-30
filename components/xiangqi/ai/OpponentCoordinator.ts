@@ -116,6 +116,15 @@ type ActiveMatch = {
   requestedTier: OpponentTier;
 };
 type PendingCandidate = Readonly<{ request: OpponentRequestV1; result: OpponentResultV1 }>;
+type TimeoutRetryState = Readonly<{
+  matchId: string;
+  positionRevision: number;
+  positionFingerprint: string;
+  sideToMove: Side;
+  timeoutCount: number;
+}>;
+
+const MAX_AUTOMATIC_TIMEOUT_RETRIES_PER_POSITION = 1;
 
 const defaultTimers: OpponentCoordinatorTimers = {
   setTimeout: (callback, delayMs) => globalThis.setTimeout(callback, delayMs),
@@ -189,6 +198,7 @@ export class OpponentCoordinator {
   #pending: PendingCandidate | null = null;
   #failure: OpponentProviderFailure | null = null;
   #searchTimeout: unknown = null;
+  #timeoutRetryState: TimeoutRetryState | null = null;
   #disposed = false;
 
   constructor(options: OpponentCoordinatorOptions) {
@@ -230,6 +240,7 @@ export class OpponentCoordinator {
     const oldProvider = this.#provider;
     const oldIdentity = this.#activeRequest;
     this.invalidateSynchronously();
+    this.#timeoutRetryState = null;
     this.#match = { ...activation, requestedTier: activation.tier };
     this.#terminal = false;
     this.#failure = null;
@@ -297,6 +308,7 @@ export class OpponentCoordinator {
       depthCeiling: input.depthCeiling,
       safetyDeadlineMs: input.safetyDeadlineMs,
     });
+    this.resetTimeoutRetryBudgetForDifferentPosition(request);
     this.#activeRequest = request;
     this.emit();
     this.#searchTimeout = this.#timers.setTimeout(
@@ -415,6 +427,7 @@ export class OpponentCoordinator {
     const identity = this.#activeRequest;
     const provider = this.#provider;
     this.invalidateSynchronously();
+    this.#timeoutRetryState = null;
     const generation = this.#generation;
     this.#phase = identity && provider ? "stopping" : this.restingPhase();
     this.emit();
@@ -512,21 +525,60 @@ export class OpponentCoordinator {
     this.invalidateSynchronously();
     const generation = this.#generation;
     const matchId = this.#match?.matchId;
-    this.#failure = providerFailure("timeout", "The opponent search timed out.");
+    const failure = providerFailure("timeout", "The opponent search timed out.");
+    const canRetry = this.consumeTimeoutRetry(request);
+    this.#failure = failure;
     this.#phase = "stopping";
     this.emit();
     const cooperative = await this.stopWithinGrace(provider, request);
     if (!matchId || !this.isCurrent(generation, matchId)) return;
     if (cooperative) {
-      this.#phase = this.restingPhase();
-      this.emit();
+      if (canRetry) {
+        this.#phase = this.restingPhase();
+        this.emit();
+      } else {
+        this.fail(failure);
+      }
       return;
     }
     provider.dispose();
     if (this.#provider === provider) this.#provider = null;
+    if (!canRetry) {
+      this.fail(failure);
+      return;
+    }
     if (this.#visible && !this.#terminal && this.#match) {
       await this.bootProvider(generation, this.#match.tier);
     }
+  }
+
+  private consumeTimeoutRetry(request: OpponentRequestV1): boolean {
+    const timeoutCount = this.sameTimeoutRetryPosition(request)
+      ? (this.#timeoutRetryState?.timeoutCount ?? 0) + 1
+      : 1;
+    this.#timeoutRetryState = Object.freeze({
+      matchId: request.matchId,
+      positionRevision: request.positionRevision,
+      positionFingerprint: request.positionFingerprint,
+      sideToMove: request.sideToMove,
+      timeoutCount,
+    });
+    return timeoutCount <= MAX_AUTOMATIC_TIMEOUT_RETRIES_PER_POSITION;
+  }
+
+  private resetTimeoutRetryBudgetForDifferentPosition(request: OpponentRequestV1): void {
+    if (this.#timeoutRetryState && !this.sameTimeoutRetryPosition(request)) {
+      this.#timeoutRetryState = null;
+    }
+  }
+
+  private sameTimeoutRetryPosition(request: OpponentRequestV1): boolean {
+    const state = this.#timeoutRetryState;
+    return state !== null
+      && state.matchId === request.matchId
+      && state.positionRevision === request.positionRevision
+      && state.positionFingerprint === request.positionFingerprint
+      && state.sideToMove === request.sideToMove;
   }
 
   private async fallbackOrFail(

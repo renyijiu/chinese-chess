@@ -267,6 +267,85 @@ describe("OpponentCoordinator", () => {
     }
   });
 
+  it("allows one cooperative timeout retry for a position and then fails stably", async () => {
+    vi.useFakeTimers();
+    try {
+      const provider = new FakeProvider();
+      const { coordinator } = createHarness({ providers: [provider] });
+      await activateAndSearch(coordinator);
+
+      await vi.advanceTimersByTimeAsync(111);
+      expect(coordinator.getSnapshot()).toMatchObject({
+        phase: "ready",
+        failure: { code: "timeout" },
+      });
+      await expect(coordinator.requestTurn(turn())).resolves.toBe(true);
+      expect(provider.searches).toHaveLength(2);
+
+      await vi.advanceTimersByTimeAsync(111);
+      expect(coordinator.getSnapshot()).toMatchObject({
+        phase: "failed",
+        failure: { code: "timeout" },
+        turn: null,
+      });
+      await expect(coordinator.requestTurn(turn())).resolves.toBe(false);
+      expect(provider.searches).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("resets the cooperative timeout retry budget when the position changes", async () => {
+    vi.useFakeTimers();
+    try {
+      const provider = new FakeProvider();
+      const { coordinator } = createHarness({ providers: [provider] });
+      await activateAndSearch(coordinator);
+
+      await vi.advanceTimersByTimeAsync(111);
+      await expect(coordinator.requestTurn(turn({ positionRevision: 1 }))).resolves.toBe(true);
+      await vi.advanceTimersByTimeAsync(111);
+      expect(coordinator.getSnapshot()).toMatchObject({ phase: "ready" });
+
+      await expect(coordinator.requestTurn(turn({ positionRevision: 1 }))).resolves.toBe(true);
+      await vi.advanceTimersByTimeAsync(111);
+      expect(coordinator.getSnapshot()).toMatchObject({
+        phase: "failed",
+        failure: { code: "timeout" },
+      });
+      expect(provider.searches).toHaveLength(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("resets the cooperative timeout retry budget when the match is explicitly reactivated", async () => {
+    vi.useFakeTimers();
+    try {
+      const first = new FakeProvider();
+      const second = new FakeProvider();
+      const { coordinator } = createHarness({ providers: [first, second] });
+      await activateAndSearch(coordinator);
+
+      await vi.advanceTimersByTimeAsync(111);
+      await coordinator.requestTurn(turn());
+      await vi.advanceTimersByTimeAsync(111);
+      expect(coordinator.getSnapshot().phase).toBe("failed");
+
+      await coordinator.activateMatch({
+        matchId: "match-a",
+        seed: "replacement-seed",
+        tier: "lightweight-normal",
+      });
+      await expect(coordinator.requestTurn(turn())).resolves.toBe(true);
+      await vi.advanceTimersByTimeAsync(111);
+      expect(coordinator.getSnapshot()).toMatchObject({ phase: "ready" });
+      expect(second.searches).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("falls back from any failed Master provider to Hard through the injected seam", async () => {
     const hard = new FakeProvider();
     const fallback = vi.fn();
