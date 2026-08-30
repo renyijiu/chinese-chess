@@ -1,18 +1,20 @@
 import { createHash } from "node:crypto";
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createInitialGame, serializeGame, type Square } from "../../../lib/xiangqi/index";
 import type { OpponentRequestV1 } from "../../../lib/xiangqi/ai/index";
 import {
   MasterEngineAdapter,
   assessMasterCapabilities,
+  createMasterEngineProvider,
   gameToXiangqiFen,
   squareFromUci,
   squareToUci,
   type MasterEngineAdapterOptions,
   type MasterHostWorkerLike,
 } from "../../../components/xiangqi/ai/MasterEngineAdapter";
+import { OpponentCoordinator } from "../../../components/xiangqi/ai/OpponentCoordinator";
 
 class FakeMasterWorker implements MasterHostWorkerLike {
   readonly posted: unknown[] = [];
@@ -116,8 +118,35 @@ async function initialize(
   return adapter;
 }
 
+function stubSupportedBrowserCapabilities(): void {
+  vi.stubGlobal("isSecureContext", true);
+  vi.stubGlobal("crossOriginIsolated", true);
+  vi.stubGlobal("caches", {});
+}
+
+async function finishFreshSearch(
+  worker: FakeMasterWorker,
+  outcome: Promise<unknown>,
+): Promise<void> {
+  await vi.waitFor(() => expect(worker.posted.at(-1)).toMatchObject({ type: "boot" }));
+  worker.emit({ type: "booted" });
+  await vi.waitFor(() => expect(worker.posted.at(-1)).toEqual({ type: "command", line: "uci" }));
+  worker.emit({ type: "line", line: "option name UCI_Variant type combo var xiangqi" });
+  worker.emit({ type: "line", line: "option name EvalFile type string" });
+  worker.emit({ type: "line", line: "uciok" });
+  await vi.waitFor(() => expect(worker.posted.at(-1)).toEqual({ type: "command", line: "isready" }));
+  worker.emit({ type: "line", line: "readyok" });
+  await vi.waitFor(() => expect(worker.posted).toContainEqual({ type: "command", line: "ucinewgame" }));
+  await vi.waitFor(() => expect(worker.posted.at(-1)).toEqual({ type: "command", line: "isready" }));
+  worker.emit({ type: "line", line: "readyok" });
+  await vi.waitFor(() => expect(worker.posted.at(-1)).toMatchObject({ line: expect.stringMatching(/^go /) }));
+  worker.emit({ type: "line", line: "bestmove b1c3" });
+  await expect(outcome).resolves.toMatchObject({ ok: true });
+}
+
 describe("Master UCI adapter", () => {
   beforeEach(() => vi.useRealTimers());
+  afterEach(() => vi.unstubAllGlobals());
 
   it("round-trips every square, maps red to UCI white, and serializes the standard position", () => {
     for (let file = 0; file < 9; file += 1) {
@@ -246,6 +275,126 @@ describe("Master UCI adapter", () => {
 
     await expect(pending).resolves.toMatchObject({ ok: false, failure: { code: "cancelled" } });
     expect(worker.posted).toEqual([]);
+  });
+
+  it("aborts a hung asset initialization when the starting request is stopped", async () => {
+    const worker = new FakeMasterWorker();
+    let receivedSignal: AbortSignal | undefined;
+    const adapter = new MasterEngineAdapter({
+      assetLoader: ({ signal } = {}) => {
+        receivedSignal = signal;
+        return new Promise<typeof emptyAssets>((_resolve, reject) => {
+          signal?.addEventListener("abort", () => reject(new Error("cancelled")), { once: true });
+        });
+      },
+      workerFactory: () => worker,
+    });
+    const pending = adapter.search({ ...request, requestId: "request-init-stop" });
+
+    await vi.waitFor(() => expect(receivedSignal).toBeDefined());
+    await adapter.stop({ ...request, requestId: "request-init-stop" });
+
+    await expect(pending).resolves.toMatchObject({ ok: false, failure: { code: "cancelled" } });
+    expect(receivedSignal?.aborted).toBe(true);
+    expect(worker.posted).toEqual([]);
+  });
+
+  it("aborts a hung asset initialization when the adapter is disposed", async () => {
+    const worker = new FakeMasterWorker();
+    let receivedSignal: AbortSignal | undefined;
+    const adapter = new MasterEngineAdapter({
+      assetLoader: ({ signal } = {}) => {
+        receivedSignal = signal;
+        return new Promise<typeof emptyAssets>((_resolve, reject) => {
+          signal?.addEventListener("abort", () => reject(new Error("cancelled")), { once: true });
+        });
+      },
+      workerFactory: () => worker,
+    });
+    const pending = adapter.search({ ...request, requestId: "request-init-dispose" });
+
+    await vi.waitFor(() => expect(receivedSignal).toBeDefined());
+    adapter.dispose();
+
+    await expect(pending).resolves.toMatchObject({ ok: false, failure: { code: "cancelled" } });
+    expect(receivedSignal?.aborted).toBe(true);
+    expect(worker.posted).toEqual([]);
+  });
+
+  it.each([
+    "Worker boot",
+    "UCI response",
+    "NNUE readiness",
+    "new-game readiness",
+  ] as const)("cancels during %s, terminates promptly, and permits a replacement search", async (stage) => {
+    const first = new FakeMasterWorker();
+    const second = new FakeMasterWorker();
+    const workers = [first, second];
+    const adapter = new MasterEngineAdapter({
+      assetLoader: async () => emptyAssets,
+      handshakeTimeoutMs: 5_000,
+      workerFactory: () => workers.shift()!,
+    });
+    const firstRequest = { ...request, requestId: `request-cancel-${stage}` };
+    const firstSearch = adapter.search(firstRequest);
+    await vi.waitFor(() => expect(first.posted.at(-1)).toMatchObject({ type: "boot" }));
+
+    if (stage !== "Worker boot") {
+      first.emit({ type: "booted" });
+      await vi.waitFor(() => expect(first.posted.at(-1)).toEqual({ type: "command", line: "uci" }));
+    }
+    if (stage === "NNUE readiness" || stage === "new-game readiness") {
+      first.emit({ type: "line", line: "option name UCI_Variant type combo var xiangqi" });
+      first.emit({ type: "line", line: "option name EvalFile type string" });
+      first.emit({ type: "line", line: "uciok" });
+      await vi.waitFor(() => expect(first.posted.at(-1)).toEqual({ type: "command", line: "isready" }));
+    }
+    if (stage === "new-game readiness") {
+      first.emit({ type: "line", line: "readyok" });
+      await vi.waitFor(() => expect(first.posted).toContainEqual({ type: "command", line: "ucinewgame" }));
+      await vi.waitFor(() => expect(first.posted.at(-1)).toEqual({ type: "command", line: "isready" }));
+    }
+
+    const stopped = adapter.stop(firstRequest);
+    expect(first.terminated).toBe(1);
+    await expect(stopped).resolves.toBeUndefined();
+    await expect(firstSearch).resolves.toMatchObject({ ok: false, failure: { code: "cancelled" } });
+
+    const replacement = adapter.search({ ...request, requestId: `request-replacement-${stage}` });
+    await finishFreshSearch(second, replacement);
+    adapter.dispose();
+  });
+
+  it("lets the coordinator own and cancel Master preparation before it becomes ready", async () => {
+    stubSupportedBrowserCapabilities();
+    const worker = new FakeMasterWorker();
+    let receivedSignal: AbortSignal | undefined;
+    const assetLoader: MasterEngineAdapterOptions["assetLoader"] = ({ signal } = {}) => {
+      receivedSignal = signal;
+      return new Promise<typeof emptyAssets>((_resolve, reject) => {
+        signal?.addEventListener("abort", () => reject(new Error("cancelled")), { once: true });
+      });
+    };
+    const coordinator = new OpponentCoordinator({
+      providerFactory: () => createMasterEngineProvider({ assetLoader, workerFactory: () => worker }),
+      digest: async () => request.positionFingerprint,
+      stopGraceMs: 100,
+    });
+
+    const activation = coordinator.activateMatch({
+      matchId: request.matchId,
+      seed: request.seed,
+      tier: "fairy-master",
+    });
+    await vi.waitFor(() => expect(receivedSignal).toBeDefined());
+    expect(coordinator.getSnapshot().phase).toBe("booting");
+
+    coordinator.setVisible(false);
+    await activation;
+    await vi.waitFor(() => expect(coordinator.getSnapshot().phase).toBe("hidden"));
+    expect(receivedSignal?.aborted).toBe(true);
+    expect(worker.posted).toEqual([]);
+    coordinator.dispose();
   });
 
   it("cooperatively stops once, then terminates and recreates after grace expiry", async () => {

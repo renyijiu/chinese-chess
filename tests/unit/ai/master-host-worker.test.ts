@@ -17,4 +17,17 @@ describe("project-authored classic Master host Worker", () => {
     expect(source).not.toMatch(/fetch\s*\(/);
     expect(source).not.toContain("/engines/fairy-stockfish-nnue/");
   });
+
+  it("keeps the release canary on the host Worker asset path", async () => {
+    const source = await readFile(
+      resolve(import.meta.dirname, "../../../scripts/canary-ai-engine-browser.mjs"),
+      "utf8",
+    );
+    expect(source).toContain('const MASTER_HOST_WORKER_PATH = "/workers/xiangqi-master-v1.worker.js";');
+    expect(source).toContain("new Worker(hostWorkerPath");
+    expect(source).toContain('type: "boot"');
+    expect(source).toContain("assets: { glue, wasm, pthread, network }");
+    expect(source).not.toContain("stockfishFactory");
+    expect(source).not.toContain('src="/engine/stockfish.js"');
+  });
 });

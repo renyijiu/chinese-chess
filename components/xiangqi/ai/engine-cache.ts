@@ -50,6 +50,7 @@ export type MasterEngineAssetLoaderOptions = Readonly<{
   fetcher?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
   digest?: (bytes: ArrayBuffer) => Promise<string>;
   fetchTimeoutMs?: number;
+  signal?: AbortSignal;
 }>;
 
 const inFlightLoads = new WeakMap<object, Map<string, Promise<VerifiedMasterAssets>>>();
@@ -141,27 +142,79 @@ function normalizedMime(value: string | null): string {
   return value?.trim().toLowerCase().replace(/\s*;\s*/g, "; ") ?? "";
 }
 
-async function fetchWithTimeout(
+function assetLoadingCancelled(): Error {
+  return new Error("Master engine asset loading was cancelled.");
+}
+
+function throwIfAssetLoadingCancelled(signal?: AbortSignal): void {
+  if (signal?.aborted) throw assetLoadingCancelled();
+}
+
+async function waitForCacheOperation<T>(
+  operation: () => Promise<T>,
+  label: string,
+  timeoutMs: number,
+  signal?: AbortSignal,
+): Promise<T> {
+  throwIfAssetLoadingCancelled(signal);
+  const pending = Promise.resolve().then(operation);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let detachAbort: (() => void) | undefined;
+  const timeout = new Promise<T>((_resolve, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error(`Master engine cache ${label} timed out after ${timeoutMs} ms.`));
+    }, timeoutMs);
+  });
+  const cancelled = new Promise<T>((_resolve, reject) => {
+    const abort = () => {
+      reject(assetLoadingCancelled());
+    };
+    signal?.addEventListener("abort", abort, { once: true });
+    detachAbort = () => signal?.removeEventListener("abort", abort);
+  });
+  try {
+    return await Promise.race([pending, timeout, cancelled]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+    detachAbort?.();
+  }
+}
+
+async function fetchWithTimeout<T>(
   fetcher: NonNullable<MasterEngineAssetLoaderOptions["fetcher"]>,
   input: RequestInfo | URL,
   init: RequestInit,
   timeoutMs: number,
-): Promise<Response> {
+  consume: (response: Response) => Promise<T>,
+  signal?: AbortSignal,
+): Promise<T> {
+  throwIfAssetLoadingCancelled(signal);
   const controller = new AbortController();
+  let detachAbort: (() => void) | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<Response>((_resolve, reject) => {
+  const timeout = new Promise<T>((_resolve, reject) => {
     timer = setTimeout(() => {
       controller.abort();
       reject(new Error(`Master engine asset request timed out after ${timeoutMs} ms.`));
     }, timeoutMs);
   });
+  const cancelled = new Promise<T>((_resolve, reject) => {
+    const abort = () => {
+      controller.abort();
+      reject(assetLoadingCancelled());
+    };
+    signal?.addEventListener("abort", abort, { once: true });
+    detachAbort = () => signal?.removeEventListener("abort", abort);
+  });
   try {
     return await Promise.race([
-      fetcher(input, { ...init, signal: controller.signal }),
+      fetcher(input, { ...init, signal: controller.signal }).then(consume),
       timeout,
+      cancelled,
     ]);
   } finally {
     if (timer !== undefined) clearTimeout(timer);
+    detachAbort?.();
   }
 }
 
@@ -199,11 +252,37 @@ function cacheKey(origin: string, manifest: MasterEngineManifest, manifestHash: 
 async function deleteEngineCaches(
   cacheStorage: MasterCacheStorageLike,
   keep: string | null,
+  timeoutMs: number,
+  signal?: AbortSignal,
 ): Promise<void> {
-  const cacheNames = await cacheStorage.keys();
+  const cacheNames = await waitForCacheOperation(
+    () => cacheStorage.keys(),
+    "listing",
+    timeoutMs,
+    signal,
+  );
   await Promise.all(cacheNames
     .filter((name) => name.startsWith(MASTER_ENGINE_CACHE_PREFIX) && name !== keep)
-    .map((name) => cacheStorage.delete(name)));
+    .map((name) => waitForCacheOperation(
+      () => cacheStorage.delete(name),
+      `deletion for ${name}`,
+      timeoutMs,
+      signal,
+    )));
+}
+
+function openEngineCache(
+  cacheStorage: MasterCacheStorageLike,
+  name: string,
+  timeoutMs: number,
+  signal?: AbortSignal,
+): Promise<MasterCacheLike> {
+  return waitForCacheOperation(
+    () => cacheStorage.open(name),
+    `open for ${name}`,
+    timeoutMs,
+    signal,
+  );
 }
 
 async function readCompleteCache(
@@ -211,20 +290,34 @@ async function readCompleteCache(
   origin: string,
   manifest: MasterEngineManifest,
   digest: (bytes: ArrayBuffer) => Promise<string>,
+  timeoutMs: number,
+  signal?: AbortSignal,
 ): Promise<Map<string, ArrayBuffer> | null> {
   const values = new Map<string, ArrayBuffer>();
   let present = 0;
   for (const record of manifest.runtimeFiles) {
     const url = new URL(record.name, new URL(manifest.runtimeBaseUrl, origin)).href;
-    const response = await cache.match(url);
+    const response = await waitForCacheOperation(
+      () => cache.match(url),
+      `match for ${record.name}`,
+      timeoutMs,
+      signal,
+    );
     if (!response) continue;
     present += 1;
-    try {
-      values.set(record.name, await verifyRuntimeResponse(response, record, digest));
-    } catch {
-      return null;
-    }
+    const verification = await waitForCacheOperation(
+      () => verifyRuntimeResponse(response, record, digest).then(
+        (bytes) => ({ ok: true as const, bytes }),
+        () => ({ ok: false as const }),
+      ),
+      `verification for ${record.name}`,
+      timeoutMs,
+      signal,
+    );
+    if (!verification.ok) return null;
+    values.set(record.name, verification.bytes);
   }
+  throwIfAssetLoadingCancelled(signal);
   return present === manifest.runtimeFiles.length ? values : null;
 }
 
@@ -249,16 +342,17 @@ async function loadVerifiedMasterAssetsUnshared(
   if (!cacheStorage) throw new Error("Cache Storage is unavailable for Master engine assets.");
 
   const manifestUrl = new URL(MASTER_ENGINE_MANIFEST_URL, origin).href;
-  const manifestResponse = await fetchWithTimeout(fetcher, manifestUrl, {
+  const manifestBytes = await fetchWithTimeout(fetcher, manifestUrl, {
     cache: "no-cache",
     credentials: "same-origin",
-  }, fetchTimeoutMs);
-  if (!manifestResponse.ok) throw new Error(`Master manifest returned HTTP ${manifestResponse.status}.`);
-  const manifestMime = normalizedMime(manifestResponse.headers.get("content-type"));
-  if (manifestMime !== "application/json; charset=utf-8" && manifestMime !== "application/json") {
-    throw new Error(`Master manifest MIME differs: ${manifestMime || "missing"}.`);
-  }
-  const manifestBytes = await manifestResponse.arrayBuffer();
+  }, fetchTimeoutMs, async (manifestResponse) => {
+    if (!manifestResponse.ok) throw new Error(`Master manifest returned HTTP ${manifestResponse.status}.`);
+    const manifestMime = normalizedMime(manifestResponse.headers.get("content-type"));
+    if (manifestMime !== "application/json; charset=utf-8" && manifestMime !== "application/json") {
+      throw new Error(`Master manifest MIME differs: ${manifestMime || "missing"}.`);
+    }
+    return manifestResponse.arrayBuffer();
+  }, options.signal);
   let manifestValue: unknown;
   try {
     manifestValue = JSON.parse(new TextDecoder().decode(manifestBytes));
@@ -266,47 +360,65 @@ async function loadVerifiedMasterAssetsUnshared(
     throw new Error("Master engine manifest is not valid JSON.");
   }
   const manifest = parseMasterEngineManifest(manifestValue);
-  const manifestHash = await digest(manifestBytes);
+  const manifestHash = await waitForCacheOperation(
+    () => digest(manifestBytes),
+    "manifest digest",
+    fetchTimeoutMs,
+    options.signal,
+  );
   if (manifestHash !== MASTER_ENGINE_MANIFEST_SHA256) {
     throw new Error("Master engine manifest SHA-256 differs from the audited release.");
   }
   const name = cacheKey(origin, manifest, manifestHash);
-  await deleteEngineCaches(cacheStorage, name);
+  await deleteEngineCaches(cacheStorage, name, fetchTimeoutMs, options.signal);
 
-  const existingCache = await cacheStorage.open(name);
-  const cached = await readCompleteCache(existingCache, origin, manifest, digest);
+  const existingCache = await openEngineCache(cacheStorage, name, fetchTimeoutMs, options.signal);
+  const cached = await readCompleteCache(
+    existingCache,
+    origin,
+    manifest,
+    digest,
+    fetchTimeoutMs,
+    options.signal,
+  );
   if (cached) {
+    throwIfAssetLoadingCancelled(options.signal);
     return Object.freeze({ cacheName: name, manifest, files: pickRequiredFiles(cached) });
   }
 
-  // Any partial or corrupt generation is removed in full. Source responses are
-  // verified in memory before a new cache is opened, so failures cannot leave a
-  // cache that looks complete on the next activation.
-  await cacheStorage.delete(name);
+  // Runtime responses are verified in memory before being written. A partial
+  // generation is harmless because readCompleteCache never accepts it, and a
+  // later activation deterministically overwrites every required entry. Do not
+  // delete this shared content-addressed cache on cancellation: another adapter
+  // may already be filling or using the same audited generation.
   const fetched = new Map<string, ArrayBuffer>();
-  try {
-    for (const record of manifest.runtimeFiles) {
-      const url = new URL(record.name, new URL(manifest.runtimeBaseUrl, origin)).href;
-      const response = await fetchWithTimeout(
-        fetcher,
-        url,
-        { cache: "no-cache", credentials: "same-origin" },
-        fetchTimeoutMs,
-      );
-      fetched.set(record.name, await verifyRuntimeResponse(response, record, digest));
-    }
-    const cache = await cacheStorage.open(name);
-    for (const record of manifest.runtimeFiles) {
-      const url = new URL(record.name, new URL(manifest.runtimeBaseUrl, origin)).href;
-      const bytes = fetched.get(record.name)!;
-      await cache.put(url, new Response(bytes.slice(0), {
-        headers: { "content-type": record.mimeType },
-      }));
-    }
-  } catch (error) {
-    await cacheStorage.delete(name);
-    throw error;
+  for (const record of manifest.runtimeFiles) {
+    const url = new URL(record.name, new URL(manifest.runtimeBaseUrl, origin)).href;
+    const bytes = await fetchWithTimeout(
+      fetcher,
+      url,
+      { cache: "no-cache", credentials: "same-origin" },
+      fetchTimeoutMs,
+      (response) => verifyRuntimeResponse(response, record, digest),
+      options.signal,
+    );
+    fetched.set(record.name, bytes);
   }
+  const cache = await openEngineCache(cacheStorage, name, fetchTimeoutMs, options.signal);
+  for (const record of manifest.runtimeFiles) {
+    throwIfAssetLoadingCancelled(options.signal);
+    const url = new URL(record.name, new URL(manifest.runtimeBaseUrl, origin)).href;
+    const bytes = fetched.get(record.name)!;
+    await waitForCacheOperation(
+      () => cache.put(url, new Response(bytes.slice(0), {
+        headers: { "content-type": record.mimeType },
+      })),
+      `write for ${record.name}`,
+      fetchTimeoutMs,
+      options.signal,
+    );
+  }
+  throwIfAssetLoadingCancelled(options.signal);
   return Object.freeze({ cacheName: name, manifest, files: pickRequiredFiles(fetched) });
 }
 
@@ -325,6 +437,11 @@ export async function loadVerifiedMasterAssets(
 ): Promise<VerifiedMasterAssets> {
   const cacheStorage = options.cacheStorage ?? globalThis.caches;
   if (!cacheStorage) throw new Error("Cache Storage is unavailable for Master engine assets.");
+  // A caller-bound AbortSignal must never cancel another adapter's shared
+  // activation. Run it independently so stop/dispose owns its full lifecycle.
+  if (options.signal) {
+    return cloneVerifiedAssets(await loadVerifiedMasterAssetsUnshared({ ...options, cacheStorage }));
+  }
   const key = `${resolveBaseUrl(options.baseUrl)}|${MASTER_ENGINE_MANIFEST_URL}`;
   let loads = inFlightLoads.get(cacheStorage as object);
   if (!loads) {

@@ -82,6 +82,7 @@ export type OpponentProviderOutcome =
   | Readonly<{ ok: false; failure: OpponentProviderFailure }>;
 
 export interface OpponentProvider {
+  prepare?(): Promise<void>;
   search(request: OpponentRequestV1): Promise<OpponentProviderOutcome>;
   stop(identity: OpponentIdentityV1): Promise<void>;
   dispose(): void;

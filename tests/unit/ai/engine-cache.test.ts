@@ -61,6 +61,26 @@ async function runtimeFetch(input: RequestInfo | URL): Promise<Response> {
   });
 }
 
+function neverSettles<T>(): Promise<T> {
+  return new Promise<T>(() => undefined);
+}
+
+async function abortAndExpectPromptRejection(
+  loading: Promise<unknown>,
+  controller: AbortController,
+): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const settlementDeadline = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => reject(new Error("Cache operation did not settle promptly after abort.")), 250);
+  });
+  controller.abort();
+  try {
+    await expect(Promise.race([loading, settlementDeadline])).rejects.toThrow(/cancelled/i);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
 describe("verified Master engine cache", () => {
   it("revalidates the manifest, verifies every runtime byte, and reuses a complete cache", async () => {
     const cacheStorage = new MemoryCacheStorage();
@@ -105,7 +125,7 @@ describe("verified Master engine cache", () => {
     expect(secondGlue.byteLength).toBeGreaterThan(0);
   });
 
-  it("deletes partial, corrupt, and older cache generations before rebuilding atomically", async () => {
+  it("rebuilds partial or corrupt current caches without deleting a shared generation", async () => {
     const cacheStorage = new MemoryCacheStorage();
     cacheStorage.caches.set("xiangqi-master:old", new MemoryCache());
     const first = await loadVerifiedMasterAssets({
@@ -122,10 +142,11 @@ describe("verified Master engine cache", () => {
       fetcher: runtimeFetch,
     });
     expect(cacheStorage.deleted).toContain("xiangqi-master:old");
-    expect(cacheStorage.deleted).toContain(first.cacheName);
+    expect(cacheStorage.deleted).not.toContain(first.cacheName);
+    expect(cache.values.size).toBe(first.manifest.runtimeFiles.length);
   });
 
-  it("rejects 404, HTML fallthrough, wrong MIME, and hash corruption without retaining a cache", async () => {
+  it("rejects 404, HTML fallthrough, wrong MIME, and hash corruption without caching runtime bytes", async () => {
     for (const response of [
       new Response("missing", { status: 404 }),
       new Response("<!doctype html>", { headers: { "content-type": "text/html" } }),
@@ -142,7 +163,7 @@ describe("verified Master engine cache", () => {
         cacheStorage,
         fetcher,
       })).rejects.toThrow(/stockfish\.wasm|MIME|HTML|SHA-256|HTTP 404/i);
-      expect(cacheStorage.caches.size).toBe(0);
+      expect([...cacheStorage.caches.values()].every((cache) => cache.values.size === 0)).toBe(true);
     }
   });
 
@@ -150,8 +171,12 @@ describe("verified Master engine cache", () => {
     const cacheStorage = new MemoryCacheStorage();
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = new URL(String(input), "https://game.test");
-      if (url.pathname === MASTER_ENGINE_MANIFEST_URL) return runtimeFetch(input);
-      return new Promise<Response>(() => undefined);
+      if (url.pathname === MASTER_ENGINE_MANIFEST_URL) {
+        const response = await runtimeFetch(input);
+        vi.spyOn(response, "arrayBuffer").mockImplementation(() => new Promise<ArrayBuffer>(() => undefined));
+        return response;
+      }
+      return runtimeFetch(input);
     });
 
     await expect(loadVerifiedMasterAssets({
@@ -161,5 +186,231 @@ describe("verified Master engine cache", () => {
       fetchTimeoutMs: 5,
     })).rejects.toThrow(/timed out after 5 ms/i);
     expect(cacheStorage.caches.size).toBe(0);
+  });
+
+  it("aborts a stalled asset request when its owning adapter is cancelled", async () => {
+    const cacheStorage = new MemoryCacheStorage();
+    const controller = new AbortController();
+    let requestSignal: AbortSignal | undefined;
+    const fetcher = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      requestSignal = init?.signal ?? undefined;
+      return new Promise<Response>(() => undefined);
+    });
+    const loading = loadVerifiedMasterAssets({
+      baseUrl: "https://game.test",
+      cacheStorage,
+      fetcher,
+      signal: controller.signal,
+    });
+
+    await vi.waitFor(() => expect(requestSignal).toBeDefined());
+    controller.abort();
+
+    await expect(loading).rejects.toThrow(/cancelled/i);
+    expect(requestSignal?.aborted).toBe(true);
+    expect(cacheStorage.caches.size).toBe(0);
+  });
+
+  it("promptly aborts a never-settling CacheStorage keys operation", async () => {
+    let reachedKeys = false;
+    const cacheStorage: MasterCacheStorageLike = {
+      keys: () => {
+        reachedKeys = true;
+        return neverSettles();
+      },
+      delete: async () => false,
+      open: async () => new MemoryCache(),
+    };
+    const controller = new AbortController();
+    const loading = loadVerifiedMasterAssets({
+      baseUrl: "https://game.test",
+      cacheStorage,
+      fetcher: runtimeFetch,
+      signal: controller.signal,
+    });
+
+    await vi.waitFor(() => expect(reachedKeys).toBe(true));
+    await abortAndExpectPromptRejection(loading, controller);
+  });
+
+  it("bounds a never-settling CacheStorage operation without an owner abort", async () => {
+    const cacheStorage: MasterCacheStorageLike = {
+      keys: () => neverSettles(),
+      delete: async () => false,
+      open: async () => new MemoryCache(),
+    };
+
+    await expect(loadVerifiedMasterAssets({
+      baseUrl: "https://game.test",
+      cacheStorage,
+      fetcher: runtimeFetch,
+      fetchTimeoutMs: 5,
+    })).rejects.toThrow(/cache listing timed out after 5 ms/i);
+  });
+
+  it("promptly aborts a never-settling CacheStorage open operation", async () => {
+    let reachedOpen = false;
+    const cacheStorage: MasterCacheStorageLike = {
+      keys: async () => [],
+      delete: async () => false,
+      open: () => {
+        reachedOpen = true;
+        return neverSettles();
+      },
+    };
+    const controller = new AbortController();
+    const loading = loadVerifiedMasterAssets({
+      baseUrl: "https://game.test",
+      cacheStorage,
+      fetcher: runtimeFetch,
+      signal: controller.signal,
+    });
+
+    await vi.waitFor(() => expect(reachedOpen).toBe(true));
+    await abortAndExpectPromptRejection(loading, controller);
+  });
+
+  it("promptly aborts a never-settling cache match operation", async () => {
+    let reachedMatch = false;
+    const cache: MasterCacheLike = {
+      match: () => {
+        reachedMatch = true;
+        return neverSettles();
+      },
+      put: async () => undefined,
+    };
+    const cacheStorage: MasterCacheStorageLike = {
+      keys: async () => [],
+      delete: async () => false,
+      open: async () => cache,
+    };
+    const controller = new AbortController();
+    const loading = loadVerifiedMasterAssets({
+      baseUrl: "https://game.test",
+      cacheStorage,
+      fetcher: runtimeFetch,
+      signal: controller.signal,
+    });
+
+    await vi.waitFor(() => expect(reachedMatch).toBe(true));
+    await abortAndExpectPromptRejection(loading, controller);
+  });
+
+  it("promptly aborts a never-settling cache put operation", async () => {
+    let reachedPut = false;
+    let deleteCalls = 0;
+    const cache: MasterCacheLike = {
+      match: async () => undefined,
+      put: () => {
+        reachedPut = true;
+        return neverSettles();
+      },
+    };
+    const cacheStorage: MasterCacheStorageLike = {
+      keys: async () => [],
+      delete: async () => {
+        deleteCalls += 1;
+        return true;
+      },
+      open: async () => cache,
+    };
+    const controller = new AbortController();
+    const loading = loadVerifiedMasterAssets({
+      baseUrl: "https://game.test",
+      cacheStorage,
+      fetcher: runtimeFetch,
+      signal: controller.signal,
+    });
+
+    await vi.waitFor(() => expect(reachedPut).toBe(true));
+    await abortAndExpectPromptRejection(loading, controller);
+    expect(deleteCalls).toBe(0);
+  });
+
+  it("promptly aborts a never-settling manifest digest", async () => {
+    let reachedDigest = false;
+    const controller = new AbortController();
+    const loading = loadVerifiedMasterAssets({
+      baseUrl: "https://game.test",
+      cacheStorage: new MemoryCacheStorage(),
+      digest: () => {
+        reachedDigest = true;
+        return neverSettles();
+      },
+      fetcher: runtimeFetch,
+      signal: controller.signal,
+    });
+
+    await vi.waitFor(() => expect(reachedDigest).toBe(true));
+    await abortAndExpectPromptRejection(loading, controller);
+  });
+
+  it("promptly aborts a never-settling cached response body read", async () => {
+    const cacheStorage = new MemoryCacheStorage();
+    const primed = await loadVerifiedMasterAssets({
+      baseUrl: "https://game.test",
+      cacheStorage,
+      fetcher: runtimeFetch,
+    });
+    const currentCache = cacheStorage.caches.get(primed.cacheName)!;
+    let reachedBodyRead = false;
+    const originalMatch = currentCache.match.bind(currentCache);
+    vi.spyOn(currentCache, "match").mockImplementation(async (request) => {
+      const response = await originalMatch(request);
+      if (response && !reachedBodyRead) {
+        reachedBodyRead = true;
+        vi.spyOn(response, "arrayBuffer").mockImplementation(() => neverSettles());
+      }
+      return response;
+    });
+    const controller = new AbortController();
+    const loading = loadVerifiedMasterAssets({
+      baseUrl: "https://game.test",
+      cacheStorage,
+      fetcher: runtimeFetch,
+      signal: controller.signal,
+    });
+
+    await vi.waitFor(() => expect(reachedBodyRead).toBe(true));
+    await abortAndExpectPromptRejection(loading, controller);
+  });
+
+  it("does not let an abandoned late cache open delete a newer successful generation", async () => {
+    const cacheStorage = new MemoryCacheStorage();
+    const lateCache = new MemoryCache();
+    let resolveFirstOpen: ((cache: MemoryCache) => void) | undefined;
+    let openCalls = 0;
+    vi.spyOn(cacheStorage, "open").mockImplementation(async (name) => {
+      openCalls += 1;
+      if (openCalls === 1) {
+        return new Promise<MemoryCache>((resolveOpen) => {
+          resolveFirstOpen = resolveOpen;
+        });
+      }
+      const cache = cacheStorage.caches.get(name) ?? new MemoryCache();
+      cacheStorage.caches.set(name, cache);
+      return cache;
+    });
+    const controller = new AbortController();
+    const abandoned = loadVerifiedMasterAssets({
+      baseUrl: "https://game.test",
+      cacheStorage,
+      fetcher: runtimeFetch,
+      signal: controller.signal,
+    });
+
+    await vi.waitFor(() => expect(resolveFirstOpen).toBeDefined());
+    await abortAndExpectPromptRejection(abandoned, controller);
+    const current = await loadVerifiedMasterAssets({
+      baseUrl: "https://game.test",
+      cacheStorage,
+      fetcher: runtimeFetch,
+      signal: new AbortController().signal,
+    });
+    resolveFirstOpen?.(lateCache);
+    await Promise.resolve();
+
+    expect(cacheStorage.deleted).not.toContain(current.cacheName);
+    expect(cacheStorage.caches.get(current.cacheName)?.values.size).toBe(current.manifest.runtimeFiles.length);
   });
 });

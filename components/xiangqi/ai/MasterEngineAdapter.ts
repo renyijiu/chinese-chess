@@ -15,7 +15,6 @@ import { validateOpponentRequestPosition } from "../../../lib/xiangqi/ai/index";
 import {
   loadVerifiedMasterAssets,
   type MasterCacheStorageLike,
-  type VerifiedMasterAssets,
 } from "./engine-cache";
 
 export const MASTER_SEARCH_LIMITS = Object.freeze({
@@ -173,7 +172,7 @@ export interface MasterEngineTimers {
 }
 
 export type MasterEngineAdapterOptions = Readonly<{
-  assetLoader?: () => Promise<VerifiedMasterAssets>;
+  assetLoader?: typeof loadVerifiedMasterAssets;
   handshakeTimeoutMs?: number;
   stopGraceMs?: number;
   timers?: MasterEngineTimers;
@@ -270,19 +269,21 @@ function parseHostMessage(value: unknown):
 }
 
 export class MasterEngineAdapter implements OpponentProvider {
-  readonly #assetLoader: () => Promise<VerifiedMasterAssets>;
+  readonly #assetLoader: typeof loadVerifiedMasterAssets;
   readonly #handshakeTimeoutMs: number;
   readonly #stopGraceMs: number;
   readonly #timers: MasterEngineTimers;
   readonly #workerFactory: MasterHostWorkerFactory;
   #worker: MasterHostWorkerLike | null = null;
   #initialization: Promise<void> | null = null;
+  #initializationAbort: AbortController | null = null;
   #initialized = false;
   #disposed = false;
   #bootWaiter: BootWaiter | null = null;
   #lineWaiter: LineWaiter | null = null;
   #activeSearch: ActiveSearch | null = null;
   #startingRequest: OpponentRequestV1 | null = null;
+  #startingSearch: Promise<OpponentProviderOutcome> | null = null;
   #cancelledStartingRequest: OpponentRequestV1 | null = null;
   #currentMatchId: string | null = null;
   #advertisesVariant = false;
@@ -300,23 +301,43 @@ export class MasterEngineAdapter implements OpponentProvider {
     if (this.#disposed) return Promise.reject(new Error("Master engine adapter is disposed."));
     if (this.#initialized) return Promise.resolve();
     if (this.#initialization) return this.#initialization;
-    this.#initialization = this.boot().catch((error) => {
+    const abort = new AbortController();
+    this.#initializationAbort = abort;
+    const initialization = this.boot(abort.signal).catch((error) => {
       this.destroyWorker();
       throw error;
     }).finally(() => {
-      if (!this.#initialized) this.#initialization = null;
+      if (this.#initialization === initialization) this.#initialization = null;
+      if (this.#initializationAbort === abort) this.#initializationAbort = null;
     });
-    return this.#initialization;
+    this.#initialization = initialization;
+    return initialization;
   }
 
-  async search(request: OpponentRequestV1): Promise<OpponentProviderOutcome> {
-    if (this.#disposed) return failure("failed", "The Master engine adapter is disposed.");
+  prepare(): Promise<void> {
+    return this.initialize();
+  }
+
+  search(request: OpponentRequestV1): Promise<OpponentProviderOutcome> {
+    if (this.#disposed) return Promise.resolve(failure("failed", "The Master engine adapter is disposed."));
     if (this.#activeSearch || this.#startingRequest) {
-      return failure("invalid-request", "Only one Master search may run at a time.");
+      return Promise.resolve(failure("invalid-request", "Only one Master search may run at a time."));
     }
-    if (request.tier !== "fairy-master") return failure("invalid-request", "Master received a non-Master request.");
+    if (request.tier !== "fairy-master") {
+      return Promise.resolve(failure("invalid-request", "Master received a non-Master request."));
+    }
 
     this.#startingRequest = request;
+    const trackedSearch = this.runSearch(request).finally(() => {
+      if (this.#startingRequest === request) this.#startingRequest = null;
+      if (this.#startingSearch === trackedSearch) this.#startingSearch = null;
+      if (this.#cancelledStartingRequest === request) this.#cancelledStartingRequest = null;
+    });
+    this.#startingSearch = trackedSearch;
+    return trackedSearch;
+  }
+
+  private async runSearch(request: OpponentRequestV1): Promise<OpponentProviderOutcome> {
     try {
       const validated = await validateOpponentRequestPosition(request, sha256);
       if (this.#disposed) return failure("cancelled", "The Master engine adapter was disposed.");
@@ -364,10 +385,10 @@ export class MasterEngineAdapter implements OpponentProvider {
         this.command(`go depth ${request.depthCeiling} nodes ${request.nodeBudget}`);
       });
     } catch (error) {
+      if (this.#disposed || (this.#cancelledStartingRequest && sameIdentity(this.#cancelledStartingRequest, request))) {
+        return failure("cancelled", "The Master search was stopped before it began.");
+      }
       return failure("unavailable", error instanceof Error ? error.message : "Master initialization failed.");
-    } finally {
-      if (this.#startingRequest === request) this.#startingRequest = null;
-      if (this.#cancelledStartingRequest === request) this.#cancelledStartingRequest = null;
     }
   }
 
@@ -382,6 +403,12 @@ export class MasterEngineAdapter implements OpponentProvider {
     }
     if (this.#startingRequest && sameIdentity(this.#startingRequest, identity)) {
       this.#cancelledStartingRequest = this.#startingRequest;
+      this.#initializationAbort?.abort();
+      if (this.#bootWaiter || this.#lineWaiter || this.#initialization) {
+        this.rejectWaiters(new Error("Master engine initialization was cancelled."));
+        this.destroyWorker();
+      }
+      return this.#startingSearch?.then(() => undefined, () => undefined) ?? Promise.resolve();
     }
     return Promise.resolve();
   }
@@ -389,6 +416,7 @@ export class MasterEngineAdapter implements OpponentProvider {
   dispose(): void {
     if (this.#disposed) return;
     this.#disposed = true;
+    this.#initializationAbort?.abort();
     this.rejectWaiters(new Error("Master engine adapter is disposed."));
     this.settleSearch(failure("cancelled", "The Master engine adapter was disposed."));
     if (this.#worker) {
@@ -400,35 +428,51 @@ export class MasterEngineAdapter implements OpponentProvider {
     }
   }
 
-  private async boot(): Promise<void> {
-    const assets = await this.#assetLoader();
-    if (this.#disposed) throw new Error("Master engine adapter is disposed.");
-    const worker = this.#workerFactory();
-    this.#worker = worker;
-    worker.addEventListener("message", this.handleMessage);
-    worker.addEventListener("error", this.handleError);
-    const booted = this.waitForBoot();
-    const glue = assets.files["stockfish.js"];
-    const wasm = assets.files["stockfish.wasm"];
-    const pthread = assets.files["stockfish.worker.js"];
-    const network = assets.files["xiangqi-c07e94a5c7cb.nnue"];
-    worker.postMessage({
-      type: "boot",
-      networkPath: NETWORK_PATH,
-      assets: { glue, wasm, pthread, network },
-    }, [glue, wasm, pthread, network]);
-    await booted;
+  private async boot(signal: AbortSignal): Promise<void> {
+    const cancellationError = () => new Error(this.#disposed
+      ? "Master engine adapter is disposed."
+      : "Master engine initialization was cancelled.");
+    const abortBoot = () => {
+      this.rejectWaiters(cancellationError());
+      this.destroyWorker();
+    };
+    signal.addEventListener("abort", abortBoot, { once: true });
+    try {
+      const assets = await this.#assetLoader({ signal });
+      if (signal.aborted) throw cancellationError();
+      if (this.#disposed) throw new Error("Master engine adapter is disposed.");
+      const worker = this.#workerFactory();
+      this.#worker = worker;
+      worker.addEventListener("message", this.handleMessage);
+      worker.addEventListener("error", this.handleError);
+      const booted = this.waitForBoot();
+      const glue = assets.files["stockfish.js"];
+      const wasm = assets.files["stockfish.wasm"];
+      const pthread = assets.files["stockfish.worker.js"];
+      const network = assets.files["xiangqi-c07e94a5c7cb.nnue"];
+      worker.postMessage({
+        type: "boot",
+        networkPath: NETWORK_PATH,
+        assets: { glue, wasm, pthread, network },
+      }, [glue, wasm, pthread, network]);
+      await booted;
+      if (signal.aborted) throw cancellationError();
 
-    this.#advertisesVariant = false;
-    this.#advertisesEvalFile = false;
-    await this.commandAndWait("uci", (line) => line === "uciok", "uciok");
-    if (!this.#advertisesVariant || !this.#advertisesEvalFile) {
-      throw new Error("Master UCI options do not advertise Xiangqi and EvalFile.");
+      this.#advertisesVariant = false;
+      this.#advertisesEvalFile = false;
+      await this.commandAndWait("uci", (line) => line === "uciok", "uciok");
+      if (signal.aborted) throw cancellationError();
+      if (!this.#advertisesVariant || !this.#advertisesEvalFile) {
+        throw new Error("Master UCI options do not advertise Xiangqi and EvalFile.");
+      }
+      this.command("setoption name UCI_Variant value xiangqi");
+      this.command(`setoption name EvalFile value ${NETWORK_PATH}`);
+      await this.commandAndWait("isready", (line) => line === "readyok", "readyok after NNUE load");
+      if (signal.aborted) throw cancellationError();
+      this.#initialized = true;
+    } finally {
+      signal.removeEventListener("abort", abortBoot);
     }
-    this.command("setoption name UCI_Variant value xiangqi");
-    this.command(`setoption name EvalFile value ${NETWORK_PATH}`);
-    await this.commandAndWait("isready", (line) => line === "readyok", "readyok after NNUE load");
-    this.#initialized = true;
   }
 
   private command(line: string): void {
@@ -442,7 +486,11 @@ export class MasterEngineAdapter implements OpponentProvider {
     label: string,
   ): Promise<void> {
     const pending = this.waitForLine(predicate, label);
-    this.command(command);
+    try {
+      this.command(command);
+    } catch (error) {
+      this.rejectWaiters(error instanceof Error ? error : new Error(`Failed to send ${command}.`));
+    }
     return pending;
   }
 
@@ -627,15 +675,10 @@ export class MasterEngineAdapter implements OpponentProvider {
   }
 }
 
-export async function createMasterEngineProvider(): Promise<MasterEngineAdapter> {
+export async function createMasterEngineProvider(
+  options: MasterEngineAdapterOptions = {},
+): Promise<MasterEngineAdapter> {
   const capabilities = assessMasterCapabilities();
   if (!capabilities.supported) throw new MasterCapabilityError(capabilities.missing);
-  const provider = new MasterEngineAdapter();
-  try {
-    await provider.initialize();
-    return provider;
-  } catch (error) {
-    provider.dispose();
-    throw error;
-  }
+  return new MasterEngineAdapter(options);
 }

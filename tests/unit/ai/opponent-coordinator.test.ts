@@ -267,6 +267,49 @@ describe("OpponentCoordinator", () => {
     }
   });
 
+  it("exhausts the timeout retry after two non-cooperative providers without creating another replacement", async () => {
+    vi.useFakeTimers();
+    try {
+      const first = new FakeProvider();
+      first.stopResult = new Promise(() => undefined);
+      const second = new FakeProvider();
+      second.stopResult = new Promise(() => undefined);
+      const { coordinator, factoryCalls } = createHarness({ providers: [first, second] });
+      await activateAndSearch(coordinator);
+
+      await vi.advanceTimersByTimeAsync(111);
+      expect(coordinator.getSnapshot().phase).toBe("stopping");
+      expect(first.stops).toHaveLength(1);
+      expect(factoryCalls()).toBe(1);
+
+      await vi.advanceTimersByTimeAsync(25);
+      await flush();
+      expect(first.disposed).toBe(1);
+      expect(factoryCalls()).toBe(2);
+      expect(coordinator.getSnapshot().phase).toBe("ready");
+
+      await expect(coordinator.requestTurn(turn())).resolves.toBe(true);
+      expect(second.searches).toHaveLength(1);
+      await vi.advanceTimersByTimeAsync(111);
+      expect(coordinator.getSnapshot().phase).toBe("stopping");
+      expect(second.stops).toHaveLength(1);
+
+      await vi.advanceTimersByTimeAsync(25);
+      await flush();
+      expect(second.disposed).toBe(1);
+      expect(factoryCalls()).toBe(2);
+      expect(coordinator.getSnapshot()).toMatchObject({
+        phase: "failed",
+        failure: { code: "timeout" },
+        turn: null,
+      });
+      await expect(coordinator.requestTurn(turn())).resolves.toBe(false);
+      expect(factoryCalls()).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("allows one cooperative timeout retry for a position and then fails stably", async () => {
     vi.useFakeTimers();
     try {

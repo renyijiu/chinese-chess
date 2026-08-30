@@ -381,7 +381,12 @@ export class OpponentCoordinator {
     }
     const identity = this.#activeRequest;
     const provider = this.#provider;
+    const bootingProvider = !identity && this.#phase === "booting" ? provider : null;
     this.invalidateSynchronously();
+    if (bootingProvider) {
+      bootingProvider.dispose();
+      if (this.#provider === bootingProvider) this.#provider = null;
+    }
     const generation = this.#generation;
     this.#phase = identity && provider ? "stopping" : "hidden";
     this.emit();
@@ -404,7 +409,12 @@ export class OpponentCoordinator {
     this.#terminal = true;
     const identity = this.#activeRequest;
     const provider = this.#provider;
+    const bootingProvider = !identity && this.#phase === "booting" ? provider : null;
     this.invalidateSynchronously();
+    if (bootingProvider) {
+      bootingProvider.dispose();
+      if (this.#provider === bootingProvider) this.#provider = null;
+    }
     const generation = this.#generation;
     this.#phase = identity && provider ? "stopping" : "terminal";
     this.emit();
@@ -426,7 +436,12 @@ export class OpponentCoordinator {
     if (this.#disposed) return;
     const identity = this.#activeRequest;
     const provider = this.#provider;
+    const bootingProvider = !identity && this.#phase === "booting" ? provider : null;
     this.invalidateSynchronously();
+    if (bootingProvider) {
+      bootingProvider.dispose();
+      if (this.#provider === bootingProvider) this.#provider = null;
+    }
     this.#timeoutRetryState = null;
     const generation = this.#generation;
     this.#phase = identity && provider ? "stopping" : this.restingPhase();
@@ -471,17 +486,26 @@ export class OpponentCoordinator {
     if (!matchId || !this.isCurrent(generation, matchId)) return;
     this.#phase = "booting";
     this.emit();
+    let provider: OpponentProvider | null = null;
     try {
-      const provider = await this.#providerFactory(tier);
+      provider = await this.#providerFactory(tier);
       if (!this.isCurrent(generation, matchId)) {
         provider.dispose();
         return;
       }
       this.#provider = provider;
+      await provider.prepare?.();
+      if (!this.isCurrent(generation, matchId) || this.#provider !== provider) {
+        provider.dispose();
+        return;
+      }
       this.#failure = null;
       this.#phase = this.restingPhase();
       this.emit();
     } catch {
+      provider?.dispose();
+      if (this.#provider === provider) this.#provider = null;
+      if (!this.isCurrent(generation, matchId)) return;
       await this.fallbackOrFail(
         tier,
         providerFailure("unavailable", `The ${tier} opponent provider is unavailable.`),
