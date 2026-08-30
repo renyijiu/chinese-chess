@@ -45,14 +45,14 @@ const metrics = {
   first_playable_bytes: evidence.firstPlayableBytes,
   frame_gate_executed: evidence.authoritativeFrameGate ? 1 : 0,
   geometries: evidence.geometries,
-  max_frame_interval_ms: evidence.maxFrameIntervalMs,
+  max_frame_interval_ms: evidence.maximumFrameIntervalMs,
   p90_frame_interval_ms: evidence.p90FrameIntervalMs,
   p95_frame_interval_ms: evidence.p95FrameIntervalMs,
   peak_draw_calls: evidence.peakDrawCalls,
   raf_p95_ms: evidence.rafCadence?.p95 ?? null,
   sample_count: evidence.sampleCount,
   textures: evidence.textures,
-  triangles: evidence.triangles,
+  triangles: evidence.currentTriangles,
 };
 
 for (const [name, value] of Object.entries(metrics)) {
