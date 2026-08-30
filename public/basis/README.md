@@ -43,3 +43,15 @@ ktx2Loader.load( 'diffuse.ktx2', function ( texture ) {
 ## License
 
 [Apache License 2.0](https://github.com/BinomialLLC/basis_universal/blob/master/LICENSE)
+
+## Vendored provenance
+
+These two files are vendored byte-for-byte from `three@0.185.1`
+(`three.js` tag `r185`, commit `2431a09f46f34c560bc8e44b33be0e567723d5b9`):
+
+- `basis_transcoder.js` SHA-256:
+  `8478b5b6d6b74e7d3082b89f6417321d8d1dc0307f2b30d4484bb11b441696a1`
+- `basis_transcoder.wasm` SHA-256:
+  `6cf17dc889352c42e9acf8897107978d127005fe3386c36a0e3845e27967630a`
+
+Upstream source: https://github.com/mrdoob/three.js/tree/r185/examples/jsm/libs/basis

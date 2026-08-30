@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
-import type { GameState, Side } from "../../../lib/xiangqi/index";
+import type { CapturedPiece, GameState, MoveRecord, Role, Side } from "../../../lib/xiangqi/index";
 import type { OpponentCoordinatorSnapshot } from "../ai/OpponentCoordinator";
 import type { OnlineMatchCoordinatorSnapshot } from "../online/OnlineMatchCoordinator";
 import type {
@@ -15,6 +15,26 @@ import type { GameSettings } from "../game/storage";
 import { ComputerMatchSetup, DIFFICULTY_LABELS } from "./ComputerMatchSetup";
 
 const SIDE_LABELS: Record<Side, string> = { red: "红方", black: "黑方" };
+const PIECE_GLYPHS: Record<Side, Record<Role, string>> = {
+  red: {
+    general: "帅",
+    advisor: "仕",
+    elephant: "相",
+    chariot: "俥",
+    horse: "傌",
+    cannon: "炮",
+    soldier: "兵",
+  },
+  black: {
+    general: "将",
+    advisor: "士",
+    elephant: "象",
+    chariot: "車",
+    horse: "馬",
+    cannon: "砲",
+    soldier: "卒",
+  },
+};
 const QUALITY_LABELS = { high: "高", medium: "中", low: "低" } as const;
 const VOLUME_CONTROLS = [
   ["masterVolume", "主音量"],
@@ -37,6 +57,57 @@ const TIER_LABELS: Record<OpponentTier, string> = {
   "lightweight-hard": "困难",
   "fairy-master": "大师",
 };
+
+type CapturedPieceLedgerEntry = Readonly<{
+  count: number;
+  glyph: string;
+  role: Role;
+}>;
+
+export function formatCaptureDetail(captured: CapturedPiece): string {
+  const side = captured.side === "red" ? "红" : "黑";
+  return `吃${side}${PIECE_GLYPHS[captured.side][captured.role]}`;
+}
+
+export function deriveCapturedPieceLedger(history: readonly MoveRecord[]): Readonly<
+  Record<Side, readonly CapturedPieceLedgerEntry[]>
+> {
+  const grouped: Record<Side, Map<Role, number>> = {
+    red: new Map<Role, number>(),
+    black: new Map<Role, number>(),
+  };
+  for (const move of history) {
+    if (!move.captured) continue;
+    const losses = grouped[move.captured.side];
+    losses.set(move.captured.role, (losses.get(move.captured.role) ?? 0) + 1);
+  }
+  return {
+    red: [...grouped.red].map(([role, count]) => ({ count, glyph: PIECE_GLYPHS.red[role], role })),
+    black: [...grouped.black].map(([role, count]) => ({ count, glyph: PIECE_GLYPHS.black[role], role })),
+  };
+}
+
+export function deriveVisibleMoveHistory(
+  history: readonly MoveRecord[],
+  expanded: boolean,
+): readonly MoveRecord[] {
+  return history.slice(expanded ? 0 : -8).reverse();
+}
+
+const CapturedPieceLedger = memo(function CapturedPieceLedger({ history }: {
+  history: readonly MoveRecord[];
+}) {
+  const ledger = useMemo(() => deriveCapturedPieceLedger(history), [history]);
+  const format = (entries: readonly CapturedPieceLedgerEntry[]) => entries.length === 0
+    ? "—"
+    : entries.map((entry) => `${entry.glyph}${entry.count > 1 ? `×${entry.count}` : ""}`).join(" ");
+  return (
+    <div className="game-capture-ledger" aria-label="被吃棋子">
+      <span className="red"><small>红方损失</small><strong>{format(ledger.red)}</strong></span>
+      <span className="black"><small>黑方损失</small><strong>{format(ledger.black)}</strong></span>
+    </div>
+  );
+});
 
 export type OpponentHudState = Readonly<{
   config: ComputerMatchConfig;
@@ -322,6 +393,7 @@ export function GameHud({
   settings: GameSettings;
   warning?: string;
 }) {
+  const [historyExpanded, setHistoryExpanded] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const ended = game.status.kind === "ended";
   const check = game.status.kind === "playing" ? game.status.check : null;
@@ -330,6 +402,16 @@ export function GameHud({
     : ended ? "棋局结束"
       : opponent ? opponent.computerOwnsTurn ? "电脑回合" : "你的回合"
         : "当前行动";
+  const toggleHistory = () => {
+    const expanded = !historyExpanded;
+    setHistoryExpanded(expanded);
+    if (expanded) setSettingsOpen(false);
+  };
+  const toggleSettings = () => {
+    const open = !settingsOpen;
+    setSettingsOpen(open);
+    if (open) setHistoryExpanded(false);
+  };
 
   return (
     <div className="game-hud" aria-label="对局控制台">
@@ -363,20 +445,38 @@ export function GameHud({
 
       {onlineStatus}
 
-      <aside className="game-history" aria-label="着法历史">
-        <div>
+      <aside
+        className="game-history"
+        aria-label="着法历史"
+        data-expanded={historyExpanded ? "true" : "false"}
+      >
+        <div className="game-history-heading">
           <span>着法历史</span>
           <strong>{game.history.length}</strong>
+          <button
+            aria-controls="game-history-moves"
+            aria-expanded={historyExpanded}
+            aria-label={historyExpanded ? "收起着法历史" : "展开完整着法历史"}
+            type="button"
+            onClick={toggleHistory}
+          >
+            {historyExpanded ? "收起" : "展开"}
+          </button>
         </div>
+        <CapturedPieceLedger history={game.history} />
         {game.history.length === 0 ? (
           <p>尚未落子</p>
         ) : (
-          <ol>
-            {game.history.slice(-8).reverse().map((move) => (
-              <li key={move.revision}>
+          <ol id="game-history-moves">
+            {deriveVisibleMoveHistory(game.history, historyExpanded).map((move, index) => (
+              <li
+                data-capture={move.captured ? "true" : undefined}
+                data-last-move={index === 0 ? "true" : undefined}
+                key={move.revision}
+              >
                 <span>{move.revision}</span>
                 <span>{move.notation}</span>
-                {move.captured ? <em>吃</em> : null}
+                {move.captured ? <em>{formatCaptureDetail(move.captured)}</em> : null}
               </li>
             ))}
           </ol>
@@ -390,7 +490,7 @@ export function GameHud({
         {permissions.showUndo ? <button disabled={!permissions.canUndo} type="button" onClick={onUndo}>悔棋</button> : null}
         <button disabled={!permissions.canResign || ended} type="button" onClick={onResign}>认输</button>
         <button type="button" onClick={onRestart}>{restartLabel}</button>
-        <button aria-expanded={settingsOpen} type="button" onClick={() => setSettingsOpen((open) => !open)}>设置</button>
+        <button aria-expanded={settingsOpen} type="button" onClick={toggleSettings}>设置</button>
       </nav>
 
       {settingsOpen ? (

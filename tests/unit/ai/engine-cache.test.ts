@@ -145,4 +145,21 @@ describe("verified Master engine cache", () => {
       expect(cacheStorage.caches.size).toBe(0);
     }
   });
+
+  it("bounds a stalled asset request and clears the partial cache generation", async () => {
+    const cacheStorage = new MemoryCacheStorage();
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(String(input), "https://game.test");
+      if (url.pathname === MASTER_ENGINE_MANIFEST_URL) return runtimeFetch(input);
+      return new Promise<Response>(() => undefined);
+    });
+
+    await expect(loadVerifiedMasterAssets({
+      baseUrl: "https://game.test",
+      cacheStorage,
+      fetcher,
+      fetchTimeoutMs: 5,
+    })).rejects.toThrow(/timed out after 5 ms/i);
+    expect(cacheStorage.caches.size).toBe(0);
+  });
 });

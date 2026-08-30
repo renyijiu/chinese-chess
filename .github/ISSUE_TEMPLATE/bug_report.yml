@@ -1,0 +1,45 @@
+name: Bug report
+description: Report a reproducible gameplay, rendering, audio, persistence, or engine defect.
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: Do not disclose security vulnerabilities here. Use the private channel in SECURITY.md.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+      placeholder: "1. Start a local match\n2. ..."
+    validations:
+      required: true
+  - type: input
+    id: commit
+    attributes:
+      label: Commit or deployment URL
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Browser, OS, device, and GPU
+      placeholder: Chrome 140, macOS, M1 Max
+    validations:
+      required: true
+  - type: dropdown
+    id: quality
+    attributes:
+      label: Quality tier
+      options: [High, Medium, Low, Unknown]
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs, screenshots, or save-state details
+      description: Remove secrets and personal information before posting.

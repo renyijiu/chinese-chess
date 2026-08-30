@@ -1,5 +1,9 @@
 # Qin Diorama Audio QA
 
+> Historical snapshot: this document records the audio QA state at the time it
+> was captured. The root Worker HTTP 500 described below was fixed afterward;
+> current release evidence and remaining blockers live in [`../validation.md`](../validation.md).
+
 Status date: 2026-08-26 (Asia/Singapore)
 
 This pack is Qin-inspired visual fantasy. It is not a historical reconstruction and makes no claim of acoustic authenticity. Automated browser playback proves delivery and lifecycle behavior only; it does not prove audible quality from the browser automation audio output.

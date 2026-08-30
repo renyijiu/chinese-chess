@@ -24,8 +24,11 @@ ROLE_DATA = {
     },
     "chariot": {
         "title": "Chariot", "glyph": "车", "parts": (35, 200), "triangles": (12_000, 240_000),
-        "zmax": (2.20, 2.55),
-        "required_parts": ("Chariot compact cart floor", "Chariot curved front shield", "Chariot driver topknot"),
+        "zmax": (2.45, 2.65),
+        "required_parts": (
+            "Chariot compact cart floor", "Chariot curved front shield", "Chariot driver topknot",
+            "Chariot left command standard", "Chariot forward yoke left",
+        ),
     },
     "horse": {
         "title": "Horse", "glyph": "马", "parts": (45, 230), "triangles": (15_000, 260_000),
@@ -35,7 +38,11 @@ ROLE_DATA = {
     "cannon": {
         "title": "Cannon", "glyph": "炮", "parts": (40, 220), "triangles": (12_000, 250_000),
         "zmax": (2.15, 2.50),
-        "required_parts": ("Cannon torsion machine bed", "Cannon top torsion crossbeam", "Cannon side winding axle"),
+        "required_parts": (
+            "Cannon torsion machine bed", "Cannon top torsion crossbeam", "Cannon side winding axle",
+            "Cannon heavy bronze bolt shaft", "Cannon left fixed outrigger", "Cannon left bow limb outer",
+        ),
+        "forbidden_part_prefixes": ("Cannon carriage",),
     },
     "soldier": {
         "title": "Soldier", "glyph": "兵", "parts": (40, 190), "triangles": (12_000, 230_000),
@@ -163,6 +170,10 @@ editable_part_names = {obj.name for obj in editable_parts}
 missing_required_parts = set(spec["required_parts"]) - editable_part_names
 if missing_required_parts:
     raise RuntimeError(f"{role}: missing role-specific editable parts: {sorted(missing_required_parts)}")
+for prefix in spec.get("forbidden_part_prefixes", ()):
+    forbidden_parts = sorted(name for name in editable_part_names if name.startswith(prefix))
+    if forbidden_parts:
+        raise RuntimeError(f"{role}: forbidden silhouette parts remain: {forbidden_parts}")
 glyph_parts = [obj for obj in editable_parts if obj.get("glyph_source_kind") == "cjk_font_outline"]
 if len(glyph_parts) != 1:
     raise RuntimeError(f"{role}: expected one CJK font-outline glyph mesh, found {len(glyph_parts)}")

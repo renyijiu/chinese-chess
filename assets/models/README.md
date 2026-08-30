@@ -14,10 +14,9 @@ not loaded by the game.
 ## Provenance
 
 - Source commit: `96cadeb`
-- Imported from: `/Users/renyijiu/.codex/worktrees/44eb/chinese-chess`
+- Imported from the repository state identified by the source commit above.
 
-The absolute path is retained only as an import record. Builds and runtime code
-must not depend on that worktree.
+Builds and runtime code must not depend on a maintainer workstation path.
 
 ## Runtime boundary
 

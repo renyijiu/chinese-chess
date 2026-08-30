@@ -4,7 +4,11 @@
 
 import type { ReactNode } from "react";
 
-import { squareToWorld, type BoardSquare } from "../runtime/board-coordinates";
+import {
+  squareToWorld,
+  type BoardSquare,
+  type WorldPosition,
+} from "../runtime/board-coordinates";
 
 export type ScenePieceSlot<T = unknown> = Readonly<{
   data: T;
@@ -15,9 +19,11 @@ export type ScenePieceSlot<T = unknown> = Readonly<{
 
 export function PieceLayer<T>({
   renderPiece,
+  resolveWorldPosition,
   slots,
 }: {
   renderPiece: (slot: ScenePieceSlot<T>) => ReactNode;
+  resolveWorldPosition?: (slot: ScenePieceSlot<T>) => WorldPosition | undefined;
   slots: readonly ScenePieceSlot<T>[];
 }) {
   return (
@@ -26,10 +32,14 @@ export function PieceLayer<T>({
         <group
           key={slot.id}
           name={`piece-slot:${slot.id}`}
-          position={squareToWorld(slot.square)}
-          rotation={[0, slot.rotationY ?? 0, 0]}
+          position={resolveWorldPosition?.(slot) ?? squareToWorld(slot.square)}
         >
-          {renderPiece(slot)}
+          <group
+            name={`piece-facing:${slot.id}`}
+            rotation={[0, slot.rotationY ?? 0, 0]}
+          >
+            {renderPiece(slot)}
+          </group>
         </group>
       ))}
     </group>

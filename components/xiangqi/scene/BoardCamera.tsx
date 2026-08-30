@@ -8,7 +8,11 @@ import * as THREE from "three";
 export type BoardView = "battle" | "overhead";
 export type BoardViewSide = "red" | "black";
 
-function CameraRig({ side, view }: { side: BoardViewSide; view: BoardView }) {
+function CameraRig({ reducedMotion, side, view }: {
+  reducedMotion: boolean;
+  side: BoardViewSide;
+  view: BoardView;
+}) {
   const { camera, invalidate, size } = useThree();
   const moving = useRef(true);
   const destination = useMemo(() => {
@@ -25,14 +29,20 @@ function CameraRig({ side, view }: { side: BoardViewSide; view: BoardView }) {
   }, [side, size.height, size.width, view]);
 
   useEffect(() => {
-    moving.current = true;
     camera.up.set(
       0,
       view === "overhead" ? 0 : 1,
       view === "overhead" ? (side === "red" ? -1 : 1) : 0,
     );
+    if (reducedMotion) {
+      camera.position.copy(destination);
+      camera.lookAt(0, 0.45, 0);
+      moving.current = false;
+    } else {
+      moving.current = true;
+    }
     invalidate();
-  }, [camera, destination, invalidate, side, view]);
+  }, [camera, destination, invalidate, reducedMotion, side, view]);
 
   useFrame((_, delta) => {
     if (!moving.current) return;
@@ -45,10 +55,15 @@ function CameraRig({ side, view }: { side: BoardViewSide; view: BoardView }) {
   return null;
 }
 
-export function BoardCamera({ autoTour, side, view }: { autoTour: boolean; side: BoardViewSide; view: BoardView }) {
+export function BoardCamera({ autoTour, reducedMotion, side, view }: {
+  autoTour: boolean;
+  reducedMotion: boolean;
+  side: BoardViewSide;
+  view: BoardView;
+}) {
   return (
     <>
-      <CameraRig side={side} view={view} />
+      <CameraRig reducedMotion={reducedMotion} side={side} view={view} />
       <OrbitControls
         autoRotate={autoTour && view === "battle"}
         autoRotateSpeed={0.35}

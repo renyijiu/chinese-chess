@@ -316,14 +316,18 @@ export class MasterEngineAdapter implements OpponentProvider {
     }
     if (request.tier !== "fairy-master") return failure("invalid-request", "Master received a non-Master request.");
 
-    const validated = await validateOpponentRequestPosition(request, sha256);
-    if (!validated.ok || validated.game.status.kind !== "playing") {
-      return failure("invalid-request", "Master request identity does not match its canonical position.");
-    }
-    const game = validated.game;
-
     this.#startingRequest = request;
     try {
+      const validated = await validateOpponentRequestPosition(request, sha256);
+      if (this.#disposed) return failure("cancelled", "The Master engine adapter was disposed.");
+      if (this.#cancelledStartingRequest && sameIdentity(this.#cancelledStartingRequest, request)) {
+        return failure("cancelled", "The Master search was stopped before it began.");
+      }
+      if (!validated.ok || validated.game.status.kind !== "playing") {
+        return failure("invalid-request", "Master request identity does not match its canonical position.");
+      }
+      const game = validated.game;
+
       await this.initialize();
       if (this.#disposed) return failure("cancelled", "The Master engine adapter was disposed.");
       if (this.#cancelledStartingRequest && sameIdentity(this.#cancelledStartingRequest, request)) {

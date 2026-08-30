@@ -49,6 +49,7 @@ export type MasterEngineAssetLoaderOptions = Readonly<{
   cacheStorage?: MasterCacheStorageLike;
   fetcher?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
   digest?: (bytes: ArrayBuffer) => Promise<string>;
+  fetchTimeoutMs?: number;
 }>;
 
 const inFlightLoads = new WeakMap<object, Map<string, Promise<VerifiedMasterAssets>>>();
@@ -140,6 +141,30 @@ function normalizedMime(value: string | null): string {
   return value?.trim().toLowerCase().replace(/\s*;\s*/g, "; ") ?? "";
 }
 
+async function fetchWithTimeout(
+  fetcher: NonNullable<MasterEngineAssetLoaderOptions["fetcher"]>,
+  input: RequestInfo | URL,
+  init: RequestInit,
+  timeoutMs: number,
+): Promise<Response> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<Response>((_resolve, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new Error(`Master engine asset request timed out after ${timeoutMs} ms.`));
+    }, timeoutMs);
+  });
+  try {
+    return await Promise.race([
+      fetcher(input, { ...init, signal: controller.signal }),
+      timeout,
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
 async function verifyRuntimeResponse(
   response: Response,
   record: MasterRuntimeFile,
@@ -219,14 +244,15 @@ async function loadVerifiedMasterAssetsUnshared(
   const fetcher = options.fetcher ?? globalThis.fetch?.bind(globalThis);
   const cacheStorage = options.cacheStorage ?? globalThis.caches;
   const digest = options.digest ?? defaultDigest;
+  const fetchTimeoutMs = Math.max(1, options.fetchTimeoutMs ?? 20_000);
   if (!fetcher) throw new Error("Fetch is unavailable for Master engine assets.");
   if (!cacheStorage) throw new Error("Cache Storage is unavailable for Master engine assets.");
 
   const manifestUrl = new URL(MASTER_ENGINE_MANIFEST_URL, origin).href;
-  const manifestResponse = await fetcher(manifestUrl, {
+  const manifestResponse = await fetchWithTimeout(fetcher, manifestUrl, {
     cache: "no-cache",
     credentials: "same-origin",
-  });
+  }, fetchTimeoutMs);
   if (!manifestResponse.ok) throw new Error(`Master manifest returned HTTP ${manifestResponse.status}.`);
   const manifestMime = normalizedMime(manifestResponse.headers.get("content-type"));
   if (manifestMime !== "application/json; charset=utf-8" && manifestMime !== "application/json") {
@@ -261,7 +287,12 @@ async function loadVerifiedMasterAssetsUnshared(
   try {
     for (const record of manifest.runtimeFiles) {
       const url = new URL(record.name, new URL(manifest.runtimeBaseUrl, origin)).href;
-      const response = await fetcher(url, { cache: "no-cache", credentials: "same-origin" });
+      const response = await fetchWithTimeout(
+        fetcher,
+        url,
+        { cache: "no-cache", credentials: "same-origin" },
+        fetchTimeoutMs,
+      );
       fetched.set(record.name, await verifyRuntimeResponse(response, record, digest));
     }
     const cache = await cacheStorage.open(name);

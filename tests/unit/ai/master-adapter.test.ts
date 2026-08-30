@@ -234,6 +234,20 @@ describe("Master UCI adapter", () => {
     expect(worker.terminated).toBe(1);
   });
 
+  it("cancels a request before asynchronous position validation completes", async () => {
+    const worker = new FakeMasterWorker();
+    const adapter = new MasterEngineAdapter({
+      assetLoader: async () => emptyAssets,
+      workerFactory: () => worker,
+    });
+    const pending = adapter.search({ ...request, requestId: "request-pre-validation-stop" });
+
+    await adapter.stop({ ...request, requestId: "request-pre-validation-stop" });
+
+    await expect(pending).resolves.toMatchObject({ ok: false, failure: { code: "cancelled" } });
+    expect(worker.posted).toEqual([]);
+  });
+
   it("cooperatively stops once, then terminates and recreates after grace expiry", async () => {
     const first = new FakeMasterWorker();
     const second = new FakeMasterWorker();

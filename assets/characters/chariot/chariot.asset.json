@@ -12,14 +12,23 @@
   },
   "authoritativeVisualSource": {
     "path": "assets/models/red-chariot-terracotta-cartoon-v1.glb",
-    "sha256": "dcdc24adff351ac0032636980c838b5b0e9c939ce38fd9a28b7b66b09afe6eaa",
+    "sha256": "ca849e1b744d148fdbe429c04957ddabf9ee66bb1e5fee8d7c9f10dee451c44c",
     "editableMaster": "assets/models/red-chariot-terracotta-cartoon-v1.blend",
-    "editableMasterSha256": "705020bbc3334cf87bb8247efcdf1c28b4efea5bd09e0518c777287682b44c02"
+    "editableMasterSha256": "3eb37712c26f47416d2f1ceb0bc3b6d4b117e594e2645c76652b3998f449263e"
   },
   "derivedRawLods": {
-    "lod0": { "path": "assets/characters/chariot/exports/chariot-lod0-raw.glb", "sha256": "6e5009f4425502d2ed0f17a246ef6667eb09f89d6a7e5435053edff345f2544c" },
-    "lod1": { "path": "assets/characters/chariot/exports/chariot-lod1-raw.glb", "sha256": "f29a8efeecb03061a595311d45865f3ddb3fc19779f9f713b472c48a8113a0d7" },
-    "lod2": { "path": "assets/characters/chariot/exports/chariot-lod2-raw.glb", "sha256": "a5c7e36401335478416d765ec4fecac7db9756d17db55ff7f16c87180f3aea4e" }
+    "lod0": {
+      "path": "assets/characters/chariot/exports/chariot-lod0-raw.glb",
+      "sha256": "6713af2aae9fad50da081a1d78da49252933729c1a0935f082b887e907ecc79c"
+    },
+    "lod1": {
+      "path": "assets/characters/chariot/exports/chariot-lod1-raw.glb",
+      "sha256": "f1468afc3ec94fc3f0554200470869f6f753fa95783c996c6a7947b8eaf3cc8e"
+    },
+    "lod2": {
+      "path": "assets/characters/chariot/exports/chariot-lod2-raw.glb",
+      "sha256": "3443818f2dbe220e1e36faa8a2c37fc83e71e83cea8c7f1e602cf0e8b5bd334f"
+    }
   },
   "sourceCommit": "96cadeb",
   "derivationMode": "authoritative-import",

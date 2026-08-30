@@ -8,7 +8,13 @@ import * as THREE from "three";
 
 import type { Role, Side, Square } from "../../../lib/xiangqi/index";
 import type { QualityProfile } from "../runtime/quality";
-import { squareToWorld } from "../runtime/board-coordinates";
+import {
+  COMBAT_VFX_GROUND_CLEARANCE,
+  COMBAT_VFX_RING_INNER_RADIUS,
+  COMBAT_VFX_RING_OUTER_RADIUS,
+  elevatedSquareToWorld,
+  resolveCombatPayloadWorldPosition,
+} from "./combat-vfx-layout";
 import { getPieceVfxProfile, type VfxPayload } from "./piece-vfx-profiles";
 
 function StableSelect({ children, enabled }: { children: ReactNode; enabled: boolean }) {
@@ -61,8 +67,8 @@ function EffectParticles({ color, count, strength, target }: {
     for (let index = 0; index < 16; index += 1) {
       const enabled = index < count;
       const angle = index * 2.399;
-      const radius = 0.1 + (index % 5) * 0.055;
-      transform.position.set(Math.cos(angle) * radius, 0.05 + (index % 4) * 0.055, Math.sin(angle) * radius);
+      const radius = 0.32 + (index % 5) * 0.04;
+      transform.position.set(Math.cos(angle) * radius, 0.05 + (index % 4) * 0.07, Math.sin(angle) * radius);
       transform.rotation.set(angle * 0.4, angle, angle * 0.7);
       transform.scale.setScalar(enabled ? 0.65 + (index % 3) * 0.16 : 0);
       transform.updateMatrix();
@@ -72,10 +78,10 @@ function EffectParticles({ color, count, strength, target }: {
   }, [count]);
 
   return (
-    <group position={target} scale={0.5 + strength * 0.55} visible={strength > 0 && strength < 1}>
-      <instancedMesh ref={mesh} args={[undefined, undefined, 16]} raycast={() => null}>
+    <group position={target} scale={0.82 + strength * 0.18} visible={strength > 0 && strength < 1}>
+      <instancedMesh ref={mesh} args={[undefined, undefined, 16]} raycast={() => null} renderOrder={14}>
         <tetrahedronGeometry args={[0.055, 0]} />
-        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.12} metalness={0.02} opacity={1 - strength} roughness={0.94} transparent />
+        <meshStandardMaterial blending={THREE.AdditiveBlending} color={color} depthTest={false} depthWrite={false} emissive={color} emissiveIntensity={0.7} metalness={0.02} opacity={1 - strength * 0.72} roughness={0.74} transparent />
       </instancedMesh>
     </group>
   );
@@ -104,11 +110,18 @@ export function PieceCombatVfx({
   to: Square;
 }) {
   const profile = getPieceVfxProfile(role, side);
-  const fromWorld = useMemo(() => new THREE.Vector3(...squareToWorld(from)), [from]);
-  const toWorld = useMemo(() => new THREE.Vector3(...squareToWorld(to)), [to]);
+  const fromWorld = useMemo(
+    () => new THREE.Vector3(...elevatedSquareToWorld(from, COMBAT_VFX_GROUND_CLEARANCE)),
+    [from],
+  );
+  const toWorld = useMemo(
+    () => new THREE.Vector3(...elevatedSquareToWorld(to, COMBAT_VFX_GROUND_CLEARANCE)),
+    [to],
+  );
   const payloadProgress = clampedRange(progress, 0.15, capture ? 0.51 : 0.76);
   const payloadPosition = useMemo(() => new THREE.Vector3(), []);
-  payloadPosition.copy(fromWorld).lerp(toWorld, payloadProgress);
+  payloadPosition.fromArray(resolveCombatPayloadWorldPosition(from, to, payloadProgress));
+  const particleTarget = useMemo(() => toWorld.clone().add(new THREE.Vector3(0, 0.28, 0)), [toWorld]);
   const direction = useMemo(() => toWorld.clone().sub(fromWorld), [fromWorld, toWorld]);
   const payloadQuaternion = useMemo(() => new THREE.Quaternion().setFromUnitVectors(
     new THREE.Vector3(0, 1, 0),
@@ -120,19 +133,20 @@ export function PieceCombatVfx({
     ? clampedRange(progress, 0.47, 0.54) * (1 - clampedRange(progress, 0.68, 0.82))
     : clampedRange(progress, 0.72, 0.8) * (1 - clampedRange(progress, 0.87, 1));
   const fracture = capture ? clampedRange(progress, 0.6, 0.95) : 0;
+  const burst = Math.min(0.98, Math.max(impact * 0.9, fracture * 0.82));
   const particleCount = reducedMotion ? 0 : Math.max(3, Math.round(profile.particleCount * quality.particleScale));
-  const intensity = reducedMotion ? 0.34 : 1;
+  const intensity = reducedMotion ? 0.52 : capture ? 1 : 0.68;
   const angular = profile.pattern === "verdigris-angle";
 
   return (
     <StableSelect enabled={active}>
       <group name={`piece-combat-vfx:${profile.motif}`} visible={active}>
       <group position={fromWorld} visible={telegraph > 0}>
-        <mesh rotation={[-Math.PI / 2, 0, progress * Math.PI * (angular ? -1 : 1)]} scale={0.72 + telegraph * 0.18} raycast={() => null}>
-          <ringGeometry args={[0.28, 0.39, angular ? 6 : role === "advisor" ? 8 : 24]} />
-          <meshBasicMaterial color={profile.colors.bright} depthWrite={false} opacity={telegraph * 0.64 * intensity} transparent />
+        <mesh renderOrder={12} rotation={[-Math.PI / 2, 0, progress * Math.PI * (angular ? -1 : 1)]} scale={0.94 + telegraph * 0.06} raycast={() => null}>
+          <ringGeometry args={[COMBAT_VFX_RING_INNER_RADIUS, COMBAT_VFX_RING_OUTER_RADIUS, angular ? 6 : role === "advisor" ? 8 : 32]} />
+          <meshBasicMaterial blending={THREE.AdditiveBlending} color={profile.colors.bright} depthTest={false} depthWrite={false} opacity={telegraph * 0.92 * intensity} transparent />
         </mesh>
-        <mesh position={[0, 0.018, 0]} rotation={[-Math.PI / 2, 0, -progress * 2.2]} raycast={() => null}>
+        <mesh position={[0, 0.34, 0]} rotation={[-Math.PI / 2, 0, -progress * 2.2]} raycast={() => null}>
           {role === "advisor"
             ? <torusKnotGeometry args={[0.16, 0.01, 48, 5, 2, 3]} />
             : role === "chariot"
@@ -142,10 +156,10 @@ export function PieceCombatVfx({
         </mesh>
       </group>
 
-      <group position={payloadPosition} quaternion={payloadQuaternion} visible={!reducedMotion && release > 0}>
-        <mesh scale={role === "elephant" ? [1.5, 1, 1.5] : role === "soldier" ? [1, 1.25, 1] : 1} raycast={() => null}>
+      <group position={payloadPosition} quaternion={payloadQuaternion} visible={release > 0}>
+        <mesh renderOrder={13} scale={reducedMotion ? 0.72 : role === "elephant" ? [1.5, 1, 1.5] : role === "soldier" ? [1, 1.25, 1] : 1} raycast={() => null}>
           <PayloadGeometry payload={profile.payload} />
-          <meshBasicMaterial color={profile.colors.bright} depthWrite={false} opacity={release * 0.78} transparent />
+          <meshBasicMaterial blending={THREE.AdditiveBlending} color={profile.colors.bright} depthTest={false} depthWrite={false} opacity={release * intensity} transparent />
         </mesh>
         {role === "cannon" ? (
           <mesh position={[0, 0.36, 0]} raycast={() => null}>
@@ -162,20 +176,30 @@ export function PieceCombatVfx({
       </group>
 
       <group position={toWorld} visible={impact > 0}>
-        <mesh rotation={[-Math.PI / 2, 0, angular ? Math.PI / 4 : 0]} scale={0.48 + impact * profile.impactRadius} raycast={() => null}>
-          <ringGeometry args={[0.16, role === "elephant" ? 0.33 : 0.27, angular ? 6 : 28]} />
-          <meshBasicMaterial color={profile.colors.bright} depthWrite={false} opacity={impact * 0.68 * intensity} transparent />
+        <mesh renderOrder={12} rotation={[-Math.PI / 2, 0, angular ? Math.PI / 4 : 0]} scale={0.9 + impact * 0.1} raycast={() => null}>
+          <ringGeometry args={[COMBAT_VFX_RING_INNER_RADIUS, COMBAT_VFX_RING_OUTER_RADIUS, angular ? 6 : 32]} />
+          <meshBasicMaterial blending={THREE.AdditiveBlending} color={profile.colors.bright} depthTest={false} depthWrite={false} opacity={impact * intensity} transparent />
         </mesh>
-        <mesh position={[0, role === "elephant" ? 0.05 : 0.16, 0]} scale={0.09 + impact * 0.18} raycast={() => null}>
+        <group position={[0, 0.5, 0]} scale={0.78 + impact * 0.22}>
+          <mesh renderOrder={13} raycast={() => null}>
+            <torusGeometry args={[0.42, 0.028, 8, 32]} />
+            <meshBasicMaterial blending={THREE.AdditiveBlending} color={profile.colors.bright} depthTest={false} depthWrite={false} opacity={impact * 0.86 * intensity} transparent />
+          </mesh>
+          <mesh renderOrder={13} rotation={[0, Math.PI / 2, 0]} raycast={() => null}>
+            <torusGeometry args={[0.42, 0.028, 8, 32]} />
+            <meshBasicMaterial blending={THREE.AdditiveBlending} color={profile.colors.core} depthTest={false} depthWrite={false} opacity={impact * 0.72 * intensity} transparent />
+          </mesh>
+        </group>
+        <mesh position={[0, role === "elephant" ? 0.38 : 0.48, 0]} renderOrder={14} scale={0.14 + impact * profile.impactRadius * 0.38} raycast={() => null}>
           {role === "elephant" ? <octahedronGeometry args={[1, 0]} /> : role === "cannon" ? <icosahedronGeometry args={[1, 1]} /> : <dodecahedronGeometry args={[1, 0]} />}
-          <meshBasicMaterial color={profile.colors.core} depthWrite={false} opacity={impact * 0.42 * intensity} transparent />
+          <meshBasicMaterial blending={THREE.AdditiveBlending} color={profile.colors.core} depthTest={false} depthWrite={false} opacity={impact * 0.9 * intensity} transparent />
         </mesh>
         {quality.dynamicEffectLights && !reducedMotion ? (
-          <pointLight color={profile.colors.bright} distance={1.65} intensity={impact * 1.25} />
+          <pointLight color={profile.colors.bright} distance={1.65} intensity={impact * 1.45} position={[0, 0.42, 0]} />
         ) : null}
       </group>
 
-        <EffectParticles color={profile.colors.smoke} count={particleCount} strength={fracture} target={toWorld} />
+        <EffectParticles color={profile.colors.bright} count={particleCount} strength={burst} target={particleTarget} />
       </group>
     </StableSelect>
   );
