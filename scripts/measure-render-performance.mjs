@@ -49,7 +49,7 @@ const metrics = {
   p90_frame_interval_ms: evidence.p90FrameIntervalMs,
   p95_frame_interval_ms: evidence.p95FrameIntervalMs,
   peak_draw_calls: evidence.peakDrawCalls,
-  raf_p95_ms: evidence.rafCadence?.p95 ?? null,
+  raf_p95_ms: evidence.rafCadence?.p95FrameIntervalMs ?? null,
   sample_count: evidence.sampleCount,
   textures: evidence.textures,
   triangles: evidence.currentTriangles,
