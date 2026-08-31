@@ -6,7 +6,15 @@ import {
   type Role,
   type Square,
 } from "../../../lib/xiangqi/index";
-import { formatGameOutcome } from "../hud/GameHud";
+
+const SIDE_LABELS = { red: "红方", black: "黑方" } as const;
+const END_REASON_LABELS = {
+  checkmate: "将死",
+  stalemate: "困毙",
+  repetition: "三次重复局面",
+  "no-capture": "连续 100 手无吃子",
+  resignation: "认输",
+} as const;
 
 const ERROR_MESSAGES: Readonly<Record<CommandErrorCode, string>> = Object.freeze({
   "stale-revision": "这次操作已过期，请重新选择棋子。",
@@ -28,23 +36,16 @@ const ROLE_LABELS: Readonly<Record<Role, string>> = Object.freeze({
   soldier: "兵卒",
 });
 
-const BOARD_NAVIGATION_KEYS = new Set([
-  "arrowdown",
-  "arrowleft",
-  "arrowright",
-  "arrowup",
-  "a",
-  "d",
-  "s",
-  "w",
-]);
-
 export function commandErrorMessage(code: CommandErrorCode): string {
   return ERROR_MESSAGES[code];
 }
 
-export function isBoardNavigationKey(key: string): boolean {
-  return BOARD_NAVIGATION_KEYS.has(key.toLowerCase());
+export function formatGameOutcome(game: GameState): string {
+  if (game.status.kind !== "ended") return "棋局进行中";
+  const reason = END_REASON_LABELS[game.status.reason];
+  return game.status.winner
+    ? `${SIDE_LABELS[game.status.winner]}胜 · ${reason}`
+    : `和棋 · ${reason}`;
 }
 
 export function eventAnnouncement(events: readonly DomainEvent[], game: GameState): string {

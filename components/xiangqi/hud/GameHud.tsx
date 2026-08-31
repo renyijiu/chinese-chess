@@ -5,6 +5,7 @@ import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from "reac
 import type { CapturedPiece, GameState, MoveRecord, Role, Side } from "../../../lib/xiangqi/index";
 import type { OpponentCoordinatorSnapshot } from "../ai/OpponentCoordinator";
 import type { OnlineMatchCoordinatorSnapshot } from "../online/OnlineMatchCoordinator";
+import { formatGameOutcome } from "../game/announcements";
 import type {
   ComputerDifficulty,
   ComputerMatchConfig,
@@ -44,13 +45,6 @@ const VOLUME_CONTROLS = [
   ["sfxVolume", "战斗音效"],
   ["uiVolume", "界面音效"],
 ] as const satisfies readonly (readonly [keyof GameSettings, string])[];
-const END_REASON_LABELS = {
-  checkmate: "将死",
-  stalemate: "困毙",
-  repetition: "三次重复局面",
-  "no-capture": "连续 100 手无吃子",
-  resignation: "认输",
-} as const;
 const TIER_LABELS: Record<OpponentTier, string> = {
   "lightweight-easy": "简单",
   "lightweight-normal": "标准",
@@ -170,14 +164,6 @@ export function describeOpponentStatus(opponent: OpponentHudState): string {
     && opponent.config.effectiveTier === "lightweight-hard"
     ? `大师引擎不可用，已保存并回退至困难；${activity}`
     : activity;
-}
-
-export function formatGameOutcome(game: GameState) {
-  if (game.status.kind !== "ended") return "棋局进行中";
-  const reason = END_REASON_LABELS[game.status.reason];
-  return game.status.winner
-    ? `${SIDE_LABELS[game.status.winner]}胜 · ${reason}`
-    : `和棋 · ${reason}`;
 }
 
 export function GameMenu({

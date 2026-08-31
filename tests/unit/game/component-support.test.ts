@@ -9,8 +9,9 @@ import {
   commandErrorMessage,
   describeKeyboardSquare,
   eventAnnouncement,
-  isBoardNavigationKey,
+  formatGameOutcome,
 } from "../../../components/xiangqi/game/announcements";
+import { isKeyboardNavigationKey } from "../../../components/xiangqi/game/controller";
 import { createLocalMatch } from "../../../components/xiangqi/game/match";
 
 describe("XiangqiGame component support", () => {
@@ -38,9 +39,9 @@ describe("XiangqiGame component support", () => {
 
     expect(describeKeyboardSquare(game, { file: 0, rank: 3 })).toBe("红方兵卒");
     expect(describeKeyboardSquare(game, { file: 0, rank: 4 })).toBe("空交叉点");
-    expect(isBoardNavigationKey("ArrowLeft")).toBe(true);
-    expect(isBoardNavigationKey("W")).toBe(true);
-    expect(isBoardNavigationKey("Tab")).toBe(false);
+    expect(isKeyboardNavigationKey("ArrowLeft")).toBe(true);
+    expect(isKeyboardNavigationKey("W")).toBe(true);
+    expect(isKeyboardNavigationKey("Tab")).toBe(false);
   });
 
   it("turns command and domain outcomes into stable announcements", () => {
@@ -58,5 +59,6 @@ describe("XiangqiGame component support", () => {
       committed?.type === "MoveCommitted" ? committed.move.notation : "",
     );
     expect(commandErrorMessage("stale-revision")).toBe("这次操作已过期，请重新选择棋子。");
+    expect(formatGameOutcome(result.state)).toBe("棋局进行中");
   });
 });

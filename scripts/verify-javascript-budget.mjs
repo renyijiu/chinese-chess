@@ -64,20 +64,34 @@ export function evaluateBudget(actual, budget) {
   return failures;
 }
 
-async function measureChunks(manifest, keys) {
-  let rawBytes = 0;
-  let gzipBytes = 0;
-  for (const key of keys) {
-    const entry = getEntry(manifest, key);
-    const filePath = resolve(CLIENT_ROOT, entry.file);
-    if (!filePath.startsWith(`${CLIENT_ROOT}${sep}`)) {
-      throw new Error(`Manifest asset escapes the client output directory: ${entry.file}`);
-    }
-    const contents = await readFile(filePath);
-    rawBytes += contents.byteLength;
-    gzipBytes += gzipSync(contents).byteLength;
-  }
-  return { rawBytes, gzipBytes };
+function createChunkMeasurer(manifest) {
+  const measurements = new Map();
+  const measureChunk = (key) => {
+    const cached = measurements.get(key);
+    if (cached) return cached;
+    const pending = (async () => {
+      const entry = getEntry(manifest, key);
+      const filePath = resolve(CLIENT_ROOT, entry.file);
+      if (!filePath.startsWith(`${CLIENT_ROOT}${sep}`)) {
+        throw new Error(`Manifest asset escapes the client output directory: ${entry.file}`);
+      }
+      const contents = await readFile(filePath);
+      return {
+        rawBytes: contents.byteLength,
+        gzipBytes: gzipSync(contents).byteLength,
+      };
+    })();
+    measurements.set(key, pending);
+    return pending;
+  };
+
+  return async (keys) => {
+    const chunks = await Promise.all([...keys].map(measureChunk));
+    return chunks.reduce((total, chunk) => ({
+      rawBytes: total.rawBytes + chunk.rawBytes,
+      gzipBytes: total.gzipBytes + chunk.gzipBytes,
+    }), { rawBytes: 0, gzipBytes: 0 });
+  };
 }
 
 function formatKiB(bytes) {
@@ -88,8 +102,11 @@ async function main() {
   const manifest = JSON.parse(await readFile(MANIFEST_PATH, "utf8"));
   assertOptionalChunksAreDynamic(manifest, GAME_ENTRY, OPTIONAL_ENTRIES);
 
-  const primary = await measureChunks(manifest, [GAME_ENTRY]);
-  const initial = await measureChunks(manifest, collectStaticChunkKeys(manifest, GAME_ENTRY));
+  const measureChunks = createChunkMeasurer(manifest);
+  const [primary, initial] = await Promise.all([
+    measureChunks([GAME_ENTRY]),
+    measureChunks(collectStaticChunkKeys(manifest, GAME_ENTRY)),
+  ]);
   const failures = [
     ...evaluateBudget(primary, PRIMARY_CHUNK_BUDGET).map((message) => `Primary game chunk ${message}.`),
     ...evaluateBudget(initial, INITIAL_GAME_BUDGET).map((message) => `Initial game closure ${message}.`),

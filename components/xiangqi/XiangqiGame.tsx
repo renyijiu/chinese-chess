@@ -38,7 +38,7 @@ import {
   commandErrorMessage,
   describeKeyboardSquare,
   eventAnnouncement,
-  isBoardNavigationKey,
+  formatGameOutcome,
 } from "./game/announcements";
 import { AnimationRegistry } from "./animation/AnimationRegistry";
 import { AudioEngine } from "./audio/AudioEngine";
@@ -52,6 +52,7 @@ import {
 import { AuthoritativeInstallLedger } from "./game/authoritative-install-ledger";
 import {
   deriveSelection,
+  isKeyboardNavigationKey,
   moveKeyboardCursor,
   resolveBoardClick,
 } from "./game/controller";
@@ -91,7 +92,6 @@ import {
 import {
   ConfirmDialog,
   deriveGameHudPermissions,
-  formatGameOutcome,
   GameHud,
   GameMenu,
   GameOverPanel,
@@ -574,8 +574,8 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
 
   const replaceOnlineSession = useCallback((next: OnlineMatchSession | null) => {
     const previous = onlineSessionRef.current;
-    if (previous === next) return;
     if (!next) onlineSessionGeneration.current += 1;
+    if (previous === next) return;
     onlineSessionRef.current = next;
     if (previous) {
       commandGate.invalidate();
@@ -1122,7 +1122,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
   };
 
   const handleKeyboardBoardKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
-    if (isBoardNavigationKey(event.key)) {
+    if (isKeyboardNavigationKey(event.key)) {
       event.preventDefault();
       const nextSquare = moveKeyboardCursor(keyboardSquare, event.key);
       setKeyboardSquare(nextSquare);
