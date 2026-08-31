@@ -172,7 +172,7 @@ Playwright 使用 Chromium 验证了：
 | 三档全景合计 | 215,722 bytes / 0.21 MiB | 记录项 | 通过 |
 | LOD1 + 活动 high 全景 | 2,115,460 bytes / 2.02 MiB | ≤12 MiB | 通过 |
 
-2026-08-31 的生产构建另由 `npm run test:bundle` 检查 JavaScript：主棋局 chunk 为 1,333,561 bytes raw / 369,944 bytes gzip，连同静态依赖的初始棋局闭包为 1,659,568 bytes raw / 470,069 bytes gzip，低于 1,700,000 / 490,000 bytes 门槛。Master、轻量 AI Provider 与在线会话均由 manifest 证明为动态 chunk；该检查在 CI 的生产构建后执行。
+2026-08-31 的生产构建另由 `npm run test:bundle` 检查 JavaScript：主棋局 chunk 为 1,333,716 bytes raw / 370,009 bytes gzip，连同静态依赖的初始棋局闭包为 1,659,723 bytes raw / 470,132 bytes gzip，低于 1,700,000 / 490,000 bytes 门槛。Master、轻量 AI Provider 与在线会话均由 manifest 证明为动态 chunk；该检查在 CI 的生产构建后执行。
 
 生产性能测试从导航开始累计浏览器实际读取的同源响应体，并要求七个 LOD1 GLB 与 high 全景都成功返回；medium/low 全景在首玩记录停止前必须没有请求。最新实际响应体为 `3,836,260` bytes（3.66 MiB），低于 12 MiB。
 

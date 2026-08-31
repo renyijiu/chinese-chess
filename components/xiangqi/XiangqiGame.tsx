@@ -738,15 +738,24 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
           localSide: onlineSideForRematch(0, role),
         };
     let session: OnlineMatchSession | null = null;
+    let generation = onlineSessionGeneration.current;
     try {
-      session = await createBrowserOnlineSession(identity, resumeMatch);
+      const pendingSession = createBrowserOnlineSession(identity, resumeMatch);
+      generation = onlineSessionGeneration.current;
+      session = await pendingSession;
       replaceOnlineSession(session);
       await session.createOffer();
-      if (onlineSessionRef.current !== session) return;
+      if (
+        onlineSessionGeneration.current !== generation
+        || onlineSessionRef.current !== session
+      ) return;
       setOnlineSetup((current) => current ? { ...current, busy: false, error: undefined } : current);
       setNotice("完整 Offer 已生成，请发送给好友并等待 Answer。");
     } catch {
-      if (session && onlineSessionRef.current !== session) return;
+      if (
+        onlineSessionGeneration.current !== generation
+        || (session && onlineSessionRef.current !== session)
+      ) return;
       setOnlineSetup((current) => current ? { ...current, busy: false, error: "无法生成邀请，请关闭后重试。" } : current);
     }
   }, [createBrowserOnlineSession, replaceOnlineSession]);
@@ -756,6 +765,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     if (!setup || setup.busy) return false;
     setOnlineSetup({ ...setup, busy: true, error: undefined });
     let session = onlineSessionRef.current;
+    let generation = onlineSessionGeneration.current;
     try {
       if (setup.role === "guest" && !session) {
         const decoded = decodeSignalingMessageV1(signal, "offer");
@@ -783,7 +793,9 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
           localSide: resumedConfig?.localSide ?? onlineSideForRematch(0, "guest"),
           rematchIndex: resumedConfig?.rematchIndex ?? 0,
         };
-        session = await createBrowserOnlineSession(identity, setup.resumeMatch);
+        const pendingSession = createBrowserOnlineSession(identity, setup.resumeMatch);
+        generation = onlineSessionGeneration.current;
+        session = await pendingSession;
         replaceOnlineSession(session);
       }
       if (!session) throw new Error("session-missing");
@@ -799,7 +811,10 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
       setOnlineSetup((current) => current ? { ...current, busy: false, error: undefined } : current);
       return true;
     } catch {
-      if (session && onlineSessionRef.current !== session) return false;
+      if (
+        onlineSessionGeneration.current !== generation
+        || (session && onlineSessionRef.current !== session)
+      ) return false;
       setOnlineSetup((current) => current ? {
         ...current,
         busy: false,
