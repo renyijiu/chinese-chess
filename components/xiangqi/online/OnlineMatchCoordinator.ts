@@ -159,9 +159,9 @@ export interface OnlineMatchCoordinatorOptions {
   readonly digest: (canonicalSerializedGame: string) => string | Promise<string>;
   readonly createId: () => string;
   readonly timers: OnlineMatchCoordinatorTimers;
-  readonly ackTimeoutMs?: number;
-  readonly heartbeatIntervalMs?: number;
-  readonly pongTimeoutMs?: number;
+  readonly ackTimeoutMs?: number | undefined;
+  readonly heartbeatIntervalMs?: number | undefined;
+  readonly pongTimeoutMs?: number | undefined;
 }
 
 export type OnlineCoordinatorActionFailureReason =
@@ -224,7 +224,7 @@ interface AckExpectation {
   readonly afterHash: string;
   readonly proposalId: string | null;
   readonly resigningSide: Side | null;
-  timer: unknown | null;
+  timer: unknown;
   timedOut: boolean;
 }
 
@@ -234,7 +234,7 @@ interface LocalResignProposal {
   readonly resigningSide: Side;
   readonly knownRevision: number;
   readonly knownHash: string;
-  timer: unknown | null;
+  timer: unknown;
   timedOut: boolean;
 }
 
@@ -243,7 +243,7 @@ interface OutstandingPing {
   readonly purpose: OnlineLivenessPurposeV1;
   readonly revision: number;
   readonly hash: string;
-  timer: unknown | null;
+  timer: unknown;
   timedOut: boolean;
 }
 
@@ -325,7 +325,7 @@ export class OnlineMatchCoordinator {
   #fingerprintCache: GameFingerprint | null = null;
   #localResign: LocalResignProposal | null = null;
   #activeRematch: ActiveRematchProposal | null = null;
-  #heartbeatTimer: unknown | null = null;
+  #heartbeatTimer: unknown = null;
   #outstandingPing: OutstandingPing | null = null;
   #transportAvailable = true;
   #visible = true;
@@ -821,7 +821,7 @@ export class OnlineMatchCoordinator {
         afterHash: null,
       });
     } else {
-      const expectation = this.#pendingAcks.values().next().value as AckExpectation | undefined;
+      const expectation = this.#pendingAcks.values().next().value;
       if (expectation?.kind === "move") {
         pending = Object.freeze({
           kind: "move",
@@ -908,6 +908,7 @@ export class OnlineMatchCoordinator {
     if (!this.#isCurrent(generation) || !this.#canSend()) return false;
     while (this.#authoritativeOutbox.length > 0) {
       const prepared = this.#authoritativeOutbox[0];
+      if (!prepared) break;
       try {
         const result = this.#send(prepared.frame);
         if (!result.ok) {
@@ -1198,7 +1199,7 @@ export class OnlineMatchCoordinator {
       ackFrame,
     });
     if (this.#receipts.size <= MAX_CACHED_RECEIPTS) return;
-    const oldest = this.#receipts.keys().next().value as string | undefined;
+    const oldest = this.#receipts.keys().next().value;
     if (oldest) this.#receipts.delete(oldest);
   }
 

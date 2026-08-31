@@ -181,7 +181,9 @@ describe("AuthoritativeCommandGate", () => {
     });
 
     expect(harness.commits).toHaveLength(3);
-    expect(harness.commits[2].events.filter((event) => event.type === "PieceCaptured"))
+    const captureCommit = harness.commits[2];
+    if (!captureCommit) throw new Error("Expected the third commit to capture a piece");
+    expect(captureCommit.events.filter((event) => event.type === "PieceCaptured"))
       .toHaveLength(1);
   });
 });

@@ -7,6 +7,13 @@ import reactHooks from "eslint-plugin-react-hooks";
 import globals from "globals";
 import tseslint from "typescript-eslint";
 
+const typedSourceFiles = [
+  "app/**/*.{ts,tsx}",
+  "components/**/*.{ts,tsx}",
+  "lib/**/*.ts",
+  "worker/**/*.ts",
+];
+
 const eslintConfig = defineConfig([
   globalIgnores([
     ".next/**",
@@ -19,6 +26,10 @@ const eslintConfig = defineConfig([
   ]),
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
+  ...tseslint.configs.recommendedTypeChecked.map((config) => ({
+    ...config,
+    files: typedSourceFiles,
+  })),
   react.configs.flat.recommended,
   react.configs.flat["jsx-runtime"],
   reactHooks.configs.flat["recommended-latest"],
@@ -36,6 +47,20 @@ const eslintConfig = defineConfig([
       react: {
         version: "detect",
       },
+    },
+  },
+  {
+    files: typedSourceFiles,
+    languageOptions: {
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+    rules: {
+      // Protocol adapters intentionally implement Promise-returning interfaces
+      // even when a specific branch can resolve synchronously.
+      "@typescript-eslint/require-await": "off",
     },
   },
 ]);

@@ -176,12 +176,10 @@ describe("game HUD policy", () => {
       role: "horse" as const,
       square: { file: 1, rank: 0 },
     };
-    const blackCannons = [0, 1].map((ordinal) => ({
-      id: `black:cannon:${ordinal}`,
-      side: "black" as const,
-      role: "cannon" as const,
-      square: { file: ordinal ? 7 : 1, rank: 7 },
-    }));
+    const blackCannons = [
+      { id: "black:cannon:0", side: "black", role: "cannon", square: { file: 1, rank: 7 } },
+      { id: "black:cannon:1", side: "black", role: "cannon", square: { file: 7, rank: 7 } },
+    ] as const;
     const history = [
       captureMove(1, "black", "cannon", redHorse),
       captureMove(2, "red", "chariot", blackCannons[0]),

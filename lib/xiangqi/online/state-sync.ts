@@ -65,7 +65,11 @@ export function compareCommandLogs(
   }
   if (remote.length < local.length) return { status: "conflict" };
   for (let index = 0; index < local.length; index += 1) {
-    if (!commandsEqual(local[index], remote[index])) return { status: "conflict" };
+    const localCommand = local[index];
+    const remoteCommand = remote[index];
+    if (!localCommand || !remoteCommand || !commandsEqual(localCommand, remoteCommand)) {
+      return { status: "conflict" };
+    }
   }
   if (remote.length === local.length) return { status: "equal" };
   return { status: "fast-forward", missingCommands: remote.slice(local.length) };

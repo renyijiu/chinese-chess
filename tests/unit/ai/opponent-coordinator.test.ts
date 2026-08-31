@@ -47,8 +47,11 @@ class FakeProvider implements OpponentProvider {
   }
 
   resolveResult(index = 0, overrides: Partial<OpponentRequestV1> = {}): void {
-    const request = { ...this.searches[index], ...overrides };
-    this.outcomes[index].resolve({
+    const search = this.searches[index];
+    const outcome = this.outcomes[index];
+    if (!search || !outcome) throw new Error(`Missing fake provider search ${index}`);
+    const request = { ...search, ...overrides };
+    outcome.resolve({
       ok: true,
       result: {
         protocolVersion: 1,
@@ -111,7 +114,10 @@ function createHarness(options: {
   const coordinator = new OpponentCoordinator({
     providerFactory: async (tier) => {
       factoryCalls += 1;
-      return options.factory?.(tier) ?? providers[Math.min(factoryCalls - 1, providers.length - 1)];
+      const provider = options.factory?.(tier)
+        ?? providers[Math.min(factoryCalls - 1, providers.length - 1)];
+      if (!provider) throw new Error("Opponent provider fixture is empty");
+      return provider;
     },
     digest: async () => fingerprint,
     stopGraceMs: 25,

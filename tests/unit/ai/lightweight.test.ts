@@ -323,6 +323,7 @@ describe("lightweight Xiangqi search", () => {
       });
       random = (Math.imul(random, 1_664_525) + 1_013_904_223) >>> 0;
       const selected = legal[random % legal.length];
+      if (!selected) throw new Error("fixture position unexpectedly has no legal move");
       state = commit(
         state,
         [selected.from.file, selected.from.rank],

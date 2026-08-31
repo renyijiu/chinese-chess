@@ -5,7 +5,6 @@ import {
   type GameCommand,
   type GameState,
   type ReplayCommand,
-  type Side,
 } from "./types";
 
 interface SerializedGameV1 {
@@ -63,7 +62,7 @@ function parseReplayCommand(value: unknown, index: number): ReplayCommand {
     if (value.side !== "red" && value.side !== "black") {
       throw new XiangqiSerializationError(`Command ${index} contains an invalid resigning side.`);
     }
-    return { type: "resign", side: value.side as Side };
+    return { type: "resign", side: value.side };
   }
   if (value.type !== "move" || !isRecord(value.from) || !isRecord(value.to)) {
     throw new XiangqiSerializationError(`Command ${index} is not a valid replay command.`);

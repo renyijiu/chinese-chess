@@ -202,7 +202,7 @@ export class SemanticAudioDirector {
   private rememberCompleted(actionId: string) {
     this.completedIds.add(actionId);
     if (this.completedIds.size <= MAX_COMPLETED_ACTIONS) return;
-    const oldest = this.completedIds.values().next().value as string | undefined;
+    const oldest = this.completedIds.values().next().value;
     if (oldest) this.completedIds.delete(oldest);
   }
 

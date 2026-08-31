@@ -66,7 +66,9 @@ export function FrameScheduler({
 
   const register = useCallback<RegisterFrame>(
     (task, onError) => {
-      const registration = { onError, task };
+      const registration: ScheduledFrameRegistration = onError
+        ? { onError, task }
+        : { task };
       tasks.current.add(registration);
       invalidate();
       requestNextFrame.current();

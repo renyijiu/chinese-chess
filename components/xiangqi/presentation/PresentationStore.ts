@@ -155,7 +155,7 @@ export class PresentationStore {
       if (!this.disposed) {
         this.completedIds.add(transition.actionId);
         if (this.completedIds.size > 256) {
-          const oldest = this.completedIds.values().next().value as string | undefined;
+          const oldest = this.completedIds.values().next().value;
           if (oldest) this.completedIds.delete(oldest);
         }
       }

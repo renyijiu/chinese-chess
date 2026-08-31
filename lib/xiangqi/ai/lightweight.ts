@@ -204,10 +204,12 @@ function chooseCompletedMove(
   if (scores.length === 0) return null;
   const ordered = [...scores].sort((left, right) =>
     right.score - left.score || compareCandidates(left.candidate, right.candidate));
-  if (tier !== "lightweight-easy") return ordered[0];
-  const best = ordered[0].score;
+  const strongest = ordered[0];
+  if (!strongest) return null;
+  if (tier !== "lightweight-easy") return strongest;
+  const best = strongest.score;
   const choices = ordered.filter(({ score }) => score >= best - 80).slice(0, 3);
-  return choices[hashSeed(`${seed}:${depth}`) % choices.length];
+  return choices[hashSeed(`${seed}:${depth}`) % choices.length] ?? strongest;
 }
 
 function createFrame(
@@ -303,6 +305,7 @@ export class ResumableLightweightSearch {
       }
       const transition = frame.moves[frame.moveIndex];
       frame.moveIndex += 1;
+      if (!transition) continue;
       const childAlpha = frame.ply === 0 ? NEGATIVE_INFINITY : -frame.beta;
       const childBeta = frame.ply === 0 ? POSITIVE_INFINITY : -frame.alpha;
       this.#stack.push(createFrame(

@@ -108,7 +108,7 @@ type OnlineSetup = Readonly<{
   intent: "new" | "resume";
   resumeMatch: SavedMatch | null;
   busy: boolean;
-  error?: string;
+  error: string | undefined;
 }>;
 
 type Confirmation =
@@ -623,14 +623,15 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
       },
     });
 
-    if (!holder.installed) {
+    const installed = holder.installed;
+    if (!installed) {
       const receipt = await gateReceipt;
       return { status: receipt.status === "committed" ? "committed" : receipt.status };
     }
 
     return new Promise((resolve) => {
       let resolved = false;
-      holder.installed?.then(() => {
+      void installed.then(() => {
         if (resolved) return;
         resolved = true;
         resolve({ status: "committed" });
@@ -828,7 +829,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
   ) => {
     if (!ONLINE_RUNTIME_CONFIG.enabled) return;
     replaceOnlineSession(null);
-    setOnlineSetup({ role, intent, resumeMatch, busy: role === "host" });
+    setOnlineSetup({ role, intent, resumeMatch, busy: role === "host", error: undefined });
 
     if (role === "guest") {
       setNotice(intent === "resume"
@@ -1387,7 +1388,10 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     >
       <div inert={confirmation ? true : undefined} aria-hidden={confirmation ? true : undefined}>
         {loading ? (
-          <GameInitializationShell onContinue={handleContinue} onStart={handleStart} />
+          <GameInitializationShell
+            onContinue={() => { void handleContinue(); }}
+            onStart={() => { void handleStart(); }}
+          />
         ) : (
           <BoardViewer
             animations={animations}
@@ -1408,12 +1412,12 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
                 hasSave={Boolean(resumableMatch)}
                 key={preparedComputerMatch?.matchId ?? "new-match-menu"}
                 loading={false}
-                onConfirmComputer={handleConfirmComputer}
-                onContinue={handleContinue}
+                onConfirmComputer={() => { void handleConfirmComputer(); }}
+                onContinue={() => { void handleContinue(); }}
                 onCreateOnline={() => { void handleStartOnline("host"); }}
                 onJoinOnline={() => { void handleStartOnline("guest"); }}
-                onRollComputer={handleRollComputer}
-                onStart={handleStart}
+                onRollComputer={(difficulty) => { void handleRollComputer(difficulty); }}
+                onStart={() => { void handleStart(); }}
                 onlineEnabled={ONLINE_RUNTIME_CONFIG.enabled}
                 preparedComputerMatch={preparedComputerMatch}
                 reducedMotion={settings.reducedMotion}

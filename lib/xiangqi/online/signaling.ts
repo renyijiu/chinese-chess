@@ -36,7 +36,10 @@ function failure<T>(code: WireCodecErrorCode): WireCodecResult<T> {
 function hasOneApplicationMediaSection(sdp: unknown): sdp is string {
   if (typeof sdp !== "string" || sdp.length === 0) return false;
   const mediaLines = sdp.split(/\r\n|\n|\r/).filter((line) => line.startsWith("m="));
-  return mediaLines.length === 1 && /^m=application(?:\s|$)/.test(mediaLines[0]);
+  const mediaLine = mediaLines[0];
+  return mediaLines.length === 1
+    && mediaLine !== undefined
+    && /^m=application(?:\s|$)/.test(mediaLine);
 }
 
 function hasValidDescription(value: unknown, kind: SignalingKind): boolean {

@@ -196,20 +196,20 @@ export function GameMenu({
   resumeMode,
   warning,
 }: {
-  animateMatchId?: string | null;
+  animateMatchId?: string | null | undefined;
   hasSave: boolean;
   loading: boolean;
-  onConfirmComputer?: () => void;
+  onConfirmComputer?: (() => void) | undefined;
   onContinue: () => void;
-  onRollComputer?: (difficulty: ComputerDifficulty) => void;
-  onCreateOnline?: () => void;
-  onJoinOnline?: () => void;
+  onRollComputer?: ((difficulty: ComputerDifficulty) => void) | undefined;
+  onCreateOnline?: (() => void) | undefined;
+  onJoinOnline?: (() => void) | undefined;
   onStart: () => void;
   onlineEnabled?: boolean;
-  preparedComputerMatch?: ComputerMatchConfig | null;
+  preparedComputerMatch?: ComputerMatchConfig | null | undefined;
   reducedMotion?: boolean;
-  resumeMode?: SavedMatch["config"]["mode"];
-  warning?: string;
+  resumeMode?: SavedMatch["config"]["mode"] | undefined;
+  warning?: string | undefined;
 }) {
   const [mode, setMode] = useState<"local" | "computer" | "online">(
     preparedComputerMatch ? "computer" : "local",
@@ -313,7 +313,7 @@ export function GameOverPanel({
 }: {
   canUndo: boolean;
   game: GameState;
-  onRestart?: () => void;
+  onRestart?: (() => void) | undefined;
   onUndo: () => void;
   onlineRematch?: Readonly<{
     supported: boolean;
@@ -324,7 +324,7 @@ export function GameOverPanel({
     onDecline: () => void;
     onCancel: () => void;
     onReconnect: () => void;
-  }>;
+  }> | undefined;
 }) {
   return (
     <section className="game-over-panel game-overlay-panel" aria-labelledby="game-over-title">
@@ -379,8 +379,8 @@ export function GameHud({
   warning,
 }: {
   game: GameState;
-  onlineStatus?: ReactNode;
-  opponent?: OpponentHudState;
+  onlineStatus?: ReactNode | undefined;
+  opponent?: OpponentHudState | undefined;
   onResign: () => void;
   onRestart: () => void;
   onSettingsChange: (settings: GameSettings) => void;
@@ -391,7 +391,7 @@ export function GameHud({
   restartLabel?: string;
   selectedMoveCount: number;
   settings: GameSettings;
-  warning?: string;
+  warning?: string | undefined;
 }) {
   const [historyExpanded, setHistoryExpanded] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);

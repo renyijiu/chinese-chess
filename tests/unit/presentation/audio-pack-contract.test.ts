@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   AUDIO_PACK_BUDGETS,
   QIN_AUDIO_ASSET_IDS,
+  type QinAudioAssetV1,
   type QinAudioPackManifestV1,
   type QinSynthFallbackId,
 } from "../../../components/xiangqi/audio/qin-audio-pack-contract";
@@ -42,7 +43,7 @@ function makeFixture() {
     ["system.draw", "result-draw-v1.wav", "transient", "deferred", "sfx", "audio/wav", "pcm_s16le", 2, 1, 48_000],
   ] as const;
 
-  const assets = definitions.map((definition, order) => {
+  const assets = definitions.map<QinAudioAssetV1>((definition, order) => {
     const [id, filename, kind, group, bus, mimeType, codec, durationSeconds, channels, sampleRate] = definition;
     const bytes = Buffer.from(`fixture:${id}`);
     const runtimePath = join(rootDir, "public/audio/qin-diorama/v1", filename);
@@ -160,7 +161,7 @@ describe("Qin audio pack contract", () => {
 
   it("rejects runtime loop and numeric duration metadata before media fetch", () => {
     const missingLoop = structuredClone(makeFixture().manifest);
-    missingLoop.assets[0]!.loop = undefined;
+    delete missingLoop.assets[0]!.loop;
     expect(() => validateQinAudioPackManifest(missingLoop)).toThrow(/loop/i);
 
     const reversedLoop = structuredClone(makeFixture().manifest);
@@ -185,39 +186,40 @@ describe("Qin audio pack contract", () => {
 
   it("rejects duplicate IDs, missing fallbacks, and unknown buses with the asset identified", async () => {
     await expectFailure(({ manifest }) => {
-      manifest.assets[1] = { ...manifest.assets[1], id: manifest.assets[0].id };
+      manifest.assets[1] = { ...manifest.assets[1]!, id: manifest.assets[0]!.id };
     }, /duplicate asset id.*music\.qin-procession/i);
     await expectFailure(({ manifest }) => {
       manifest.assets[2] = {
-        ...manifest.assets[2],
+        ...manifest.assets[2]!,
         synthFallbackId: "" as unknown as QinSynthFallbackId,
       };
     }, /system\.check.*synth fallback/i);
     await expectFailure(({ manifest }) => {
-      manifest.assets[3] = { ...manifest.assets[3], bus: "voice" as "sfx" };
+      manifest.assets[3] = { ...manifest.assets[3]!, bus: "voice" as "sfx" };
     }, /system\.victory.*unknown bus.*voice/i);
   });
 
   it("rejects a media hash mismatch", async () => {
     await expectFailure(({ assets, manifest, rootDir }) => {
       const asset = assets[1];
+      if (!asset) throw new Error("Missing capture audio fixture");
       writeFileSync(join(rootDir, "public", asset.url), "changed-media");
-      manifest.assets[1] = { ...manifest.assets[1], bytes: Buffer.byteLength("changed-media") };
+      manifest.assets[1] = { ...manifest.assets[1]!, bytes: Buffer.byteLength("changed-media") };
     }, /accent\.capture-clay.*sha-256/i);
   });
 
   it("allows loop ranges only for background music and rejects out-of-range markers", async () => {
     await expectFailure(({ manifest }) => {
-      manifest.assets[0] = { ...manifest.assets[0], loop: { startSeconds: 68, endSeconds: 73 } };
+      manifest.assets[0] = { ...manifest.assets[0]!, loop: { startSeconds: 68, endSeconds: 73 } };
     }, /music\.qin-procession.*loop/i);
     await expectFailure(({ manifest }) => {
-      manifest.assets[0] = { ...manifest.assets[0], loop: { startSeconds: 40, endSeconds: 20 } };
+      manifest.assets[0] = { ...manifest.assets[0]!, loop: { startSeconds: 40, endSeconds: 20 } };
     }, /music\.qin-procession.*loop/i);
     await expectFailure(({ manifest }) => {
-      manifest.assets[0] = { ...manifest.assets[0], loop: undefined };
+      delete manifest.assets[0]!.loop;
     }, /music\.qin-procession.*loop/i);
     await expectFailure(({ manifest }) => {
-      manifest.assets[1] = { ...manifest.assets[1], loop: { startSeconds: 0.1, endSeconds: 0.2 } };
+      manifest.assets[1] = { ...manifest.assets[1]!, loop: { startSeconds: 0.1, endSeconds: 0.2 } };
     }, /accent\.capture-clay.*transient.*loop/i);
   });
 
@@ -243,16 +245,16 @@ describe("Qin audio pack contract", () => {
 
   it("rejects incomplete source records and missing Qin-inspired claim boundaries", async () => {
     await expectFailure(({ manifest }) => {
-      manifest.sourceRecords[1] = { ...manifest.sourceRecords[1], author: "" };
+      manifest.sourceRecords[1] = { ...manifest.sourceRecords[1]!, author: "" };
     }, /source\.1.*author/i);
     await expectFailure(({ manifest }) => {
-      manifest.sourceRecords[2] = { ...manifest.sourceRecords[2], authorization: "" };
+      manifest.sourceRecords[2] = { ...manifest.sourceRecords[2]!, authorization: "" };
     }, /source\.2.*authorization/i);
     await expectFailure(({ manifest }) => {
-      manifest.sourceRecords[3] = { ...manifest.sourceRecords[3], sourcePaths: [] };
+      manifest.sourceRecords[3] = { ...manifest.sourceRecords[3]!, sourcePaths: [] };
     }, /source\.3.*source path/i);
     await expectFailure(({ manifest }) => {
-      manifest.sourceRecords[4] = { ...manifest.sourceRecords[4], claimBoundary: "" };
+      manifest.sourceRecords[4] = { ...manifest.sourceRecords[4]!, claimBoundary: "" };
     }, /source\.4.*claim boundary/i);
   });
 

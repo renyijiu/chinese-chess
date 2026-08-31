@@ -32,7 +32,7 @@ export type QualityProfile = Readonly<{
 }>;
 
 function dpr(minimum: number, maximum: number): readonly [minimum: number, maximum: number] {
-  return Object.freeze([minimum, maximum]) as readonly [number, number];
+  return Object.freeze([minimum, maximum]);
 }
 
 function motion(value: EnvironmentMotionPolicy): EnvironmentMotionPolicy {

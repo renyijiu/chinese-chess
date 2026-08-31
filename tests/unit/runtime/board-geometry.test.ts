@@ -57,17 +57,17 @@ describe("Qin board geometry", () => {
       if (index === 0 || index === BOARD_FILE_POSITIONS.length - 1) {
         expect(segments.some((segment) => segmentMatches(segment, [file, rankMin], [file, rankMax]))).toBe(true);
       } else {
-        expect(segments.some((segment) => segmentMatches(segment, [file, rankMin], [file, ascendingRanks[4]]))).toBe(true);
-        expect(segments.some((segment) => segmentMatches(segment, [file, ascendingRanks[5]], [file, rankMax]))).toBe(true);
+        expect(segments.some((segment) => segmentMatches(segment, [file, rankMin], [file, ascendingRanks[4]!]))).toBe(true);
+        expect(segments.some((segment) => segmentMatches(segment, [file, ascendingRanks[5]!], [file, rankMax]))).toBe(true);
         expect(segments.some((segment) => segmentMatches(segment, [file, rankMin], [file, rankMax]))).toBe(false);
       }
     }
 
     const palaceDiagonals = [
-      [[-BOARD_SPACING, rankMin], [BOARD_SPACING, ascendingRanks[2]]],
-      [[BOARD_SPACING, rankMin], [-BOARD_SPACING, ascendingRanks[2]]],
-      [[-BOARD_SPACING, ascendingRanks[7]], [BOARD_SPACING, rankMax]],
-      [[BOARD_SPACING, ascendingRanks[7]], [-BOARD_SPACING, rankMax]],
+      [[-BOARD_SPACING, rankMin], [BOARD_SPACING, ascendingRanks[2]!]],
+      [[BOARD_SPACING, rankMin], [-BOARD_SPACING, ascendingRanks[2]!]],
+      [[-BOARD_SPACING, ascendingRanks[7]!], [BOARD_SPACING, rankMax]],
+      [[BOARD_SPACING, ascendingRanks[7]!], [-BOARD_SPACING, rankMax]],
     ] as const;
     for (const [start, end] of palaceDiagonals) {
       expect(segments.some((segment) => segmentMatches(segment, start, end))).toBe(true);

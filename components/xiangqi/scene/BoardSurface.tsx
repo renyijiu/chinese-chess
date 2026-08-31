@@ -230,7 +230,8 @@ function GlazedRiver({
   }, []);
 
   const updateRiver = useCallback((elapsed: number) => {
-    if (materialRef.current) materialRef.current.uniforms.uTime.value = elapsed;
+    const timeUniform = materialRef.current?.uniforms.uTime;
+    if (timeUniform) timeUniform.value = elapsed;
   }, []);
   const reportAnimationFailure = useCallback(() => onStatus("degraded"), [onStatus]);
   useScheduledFrame(updateRiver, animate, reportAnimationFailure);
