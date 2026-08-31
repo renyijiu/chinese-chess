@@ -165,8 +165,8 @@ export class PeerSession {
   private inboundRateLimitedUntil = 0;
   private generation = 1;
   private resourcesReleased = false;
-  private connectTimer: unknown | null = null;
-  private disconnectTimer: unknown | null = null;
+  private connectTimer: unknown = null;
+  private disconnectTimer: unknown = null;
   private snapshot: PeerSessionSnapshot = {
     phase: "idle",
     connectionState: null,
@@ -535,10 +535,9 @@ export class PeerSession {
     this.inboundRateLimitedUntil = 0;
 
     const oldestAllowed = now - this.inboundRateLimit.windowMs;
-    while (
-      this.inboundFrameHead < this.inboundFrameTimes.length
-      && this.inboundFrameTimes[this.inboundFrameHead] <= oldestAllowed
-    ) {
+    while (this.inboundFrameHead < this.inboundFrameTimes.length) {
+      const frameTime = this.inboundFrameTimes[this.inboundFrameHead];
+      if (frameTime === undefined || frameTime > oldestAllowed) break;
       this.inboundFrameHead += 1;
     }
     if (
@@ -700,7 +699,7 @@ export class PeerSession {
     return handle;
   }
 
-  private clearTimer(handle: unknown | null): void {
+  private clearTimer(handle: unknown): void {
     if (handle === null || !this.timerHandles.delete(handle)) return;
     this.timers.clearTimeout(handle);
   }

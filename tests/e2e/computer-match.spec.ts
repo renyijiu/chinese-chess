@@ -545,7 +545,8 @@ test("keeps one Worker and stable lifecycle resources across 100 computer openin
   expect(settled!.activeTimers).toBeLessThanOrEqual((baseline as { activeTimers: number }).activeTimers + 2);
   expect(await page.evaluate(() => caches.keys())).toEqual(cacheKeys);
   heapSamples.push(await sampleHeap(100));
-  const heapBaseline = heapSamples[0].jsHeapUsedBytes;
+  const heapBaseline = heapSamples[0]?.jsHeapUsedBytes;
+  if (heapBaseline === undefined) throw new Error("AI lifecycle heap baseline was not captured");
   const heapFinal = heapSamples.at(-1)!.jsHeapUsedBytes;
   expect(heapFinal).toBeLessThanOrEqual(heapBaseline + 32 * 1024 * 1024);
   await testInfo.attach("ai-lifecycle.json", {

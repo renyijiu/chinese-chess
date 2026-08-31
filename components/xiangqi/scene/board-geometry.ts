@@ -41,6 +41,10 @@ const FILE_MAX = Math.max(...BOARD_FILE_POSITIONS);
 const RANK_MIN = Math.min(...BOARD_RANK_POSITIONS);
 const RANK_MAX = Math.max(...BOARD_RANK_POSITIONS);
 const ASCENDING_RANKS = [...BOARD_RANK_POSITIONS].sort((a, b) => a - b);
+const SOUTH_RIVER_BANK = ASCENDING_RANKS[4] ?? -BOARD_SPACING / 2;
+const NORTH_RIVER_BANK = ASCENDING_RANKS[5] ?? BOARD_SPACING / 2;
+const SOUTH_PALACE_RANK = ASCENDING_RANKS[2] ?? RANK_MIN + (2 * BOARD_SPACING);
+const NORTH_PALACE_RANK = ASCENDING_RANKS[7] ?? RANK_MAX - (2 * BOARD_SPACING);
 
 function addCornerMark(
   segments: BoardSegment[],
@@ -66,14 +70,14 @@ export function makeBoardSegments(): BoardSegment[] {
       segments.push([[x, RANK_MIN], [x, RANK_MAX]]);
       return;
     }
-    segments.push([[x, RANK_MIN], [x, ASCENDING_RANKS[4]]]);
-    segments.push([[x, ASCENDING_RANKS[5]], [x, RANK_MAX]]);
+    segments.push([[x, RANK_MIN], [x, SOUTH_RIVER_BANK]]);
+    segments.push([[x, NORTH_RIVER_BANK], [x, RANK_MAX]]);
   });
   segments.push(
-    [[-BOARD_SPACING, RANK_MIN], [BOARD_SPACING, ASCENDING_RANKS[2]]],
-    [[BOARD_SPACING, RANK_MIN], [-BOARD_SPACING, ASCENDING_RANKS[2]]],
-    [[-BOARD_SPACING, ASCENDING_RANKS[7]], [BOARD_SPACING, RANK_MAX]],
-    [[BOARD_SPACING, ASCENDING_RANKS[7]], [-BOARD_SPACING, RANK_MAX]],
+    [[-BOARD_SPACING, RANK_MIN], [BOARD_SPACING, SOUTH_PALACE_RANK]],
+    [[BOARD_SPACING, RANK_MIN], [-BOARD_SPACING, SOUTH_PALACE_RANK]],
+    [[-BOARD_SPACING, NORTH_PALACE_RANK], [BOARD_SPACING, RANK_MAX]],
+    [[BOARD_SPACING, NORTH_PALACE_RANK], [-BOARD_SPACING, RANK_MAX]],
   );
 
   const markedIntersections = [

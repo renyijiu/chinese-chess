@@ -326,10 +326,10 @@ export async function loadVerifiedMasterAssets(
   const cacheStorage = options.cacheStorage ?? globalThis.caches;
   if (!cacheStorage) throw new Error("Cache Storage is unavailable for Master engine assets.");
   const key = `${resolveBaseUrl(options.baseUrl)}|${MASTER_ENGINE_MANIFEST_URL}`;
-  let loads = inFlightLoads.get(cacheStorage as object);
+  let loads = inFlightLoads.get(cacheStorage);
   if (!loads) {
     loads = new Map();
-    inFlightLoads.set(cacheStorage as object, loads);
+    inFlightLoads.set(cacheStorage, loads);
   }
   let pending = loads.get(key);
   if (!pending) {

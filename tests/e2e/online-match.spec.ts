@@ -83,6 +83,7 @@ test("@online two browsers can pair, play, resign off-turn, and rematch with swa
 }) => {
   test.setTimeout(180_000);
   expect(baseURL, "the Playwright baseURL must be configured").toBeTruthy();
+  if (!baseURL) throw new Error("the Playwright baseURL must be configured");
 
   let hostContext: BrowserContext | undefined;
   let guestContext: BrowserContext | undefined;

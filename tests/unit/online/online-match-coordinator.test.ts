@@ -62,13 +62,13 @@ interface EndpointOptions {
   readonly side: "red" | "black";
   readonly peerId: string;
   readonly remotePeerId: string;
-  readonly game?: GameState;
-  readonly intent?: "new" | "resume";
-  readonly digest?: (serialized: string) => string | Promise<string>;
-  readonly timers?: OnlineMatchCoordinatorOptions["timers"];
-  readonly ackTimeoutMs?: number;
-  readonly heartbeatIntervalMs?: number;
-  readonly pongTimeoutMs?: number;
+  readonly game?: GameState | undefined;
+  readonly intent?: "new" | "resume" | undefined;
+  readonly digest?: ((serialized: string) => string | Promise<string>) | undefined;
+  readonly timers?: OnlineMatchCoordinatorOptions["timers"] | undefined;
+  readonly ackTimeoutMs?: number | undefined;
+  readonly heartbeatIntervalMs?: number | undefined;
+  readonly pongTimeoutMs?: number | undefined;
 }
 
 class ManualTimers implements OnlineMatchCoordinatorTimers {
@@ -248,6 +248,7 @@ function encode(message: OnlineMessageV1): string {
 
 function remoteIdentity(endpoint: Endpoint, seq: number) {
   const first = messages(endpoint.sent)[0];
+  if (!first) throw new Error("Expected a handshake message");
   return {
     v: ONLINE_PROTOCOL_VERSION,
     pairingId: first.pairingId,

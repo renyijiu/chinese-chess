@@ -158,7 +158,7 @@ describe("online protocol v1", () => {
     });
 
     const command = messages[2];
-    if (command.type !== "command") throw new Error("bad fixture");
+    if (!command || command.type !== "command") throw new Error("bad fixture");
     expect(decodeOnlineMessageV1(JSON.stringify({
       ...command,
       command: { ...command.command, promotion: "general" },
@@ -220,7 +220,7 @@ describe("online protocol v1", () => {
     }
 
     const command = messages[2];
-    if (command.type !== "command") throw new Error("bad fixture");
+    if (!command || command.type !== "command") throw new Error("bad fixture");
     expect(decodeOnlineMessageV1(JSON.stringify({
       ...command,
       command: { ...command.command, from: { file: 9, rank: 0 } },

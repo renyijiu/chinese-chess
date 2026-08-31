@@ -136,9 +136,9 @@ export function BoardScene({
           <AmbientScene
             animate={ambientMotion}
             key={`${quality.environment.panorama}:${quality.environment.detailLevel}`}
-            onEnvironmentStatusChange={onEnvironmentStatusChange}
             presentation={presentation}
             quality={quality}
+            {...(onEnvironmentStatusChange ? { onEnvironmentStatusChange } : {})}
           />
           <Suspense fallback={null}>{pieceLayer ?? <PrototypePieceLayer />}</Suspense>
           <BoardCamera autoTour={autoTour} reducedMotion={reducedMotion} side={viewSide} view={view} />

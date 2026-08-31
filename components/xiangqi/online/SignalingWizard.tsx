@@ -23,10 +23,10 @@ export function SignalingWizard({
   role: "host" | "guest";
   snapshot: OnlineMatchSessionSnapshot | null;
   busy: boolean;
-  error?: string;
+  error: string | undefined;
   onCancel: () => void;
-  onReady: () => void | Promise<void>;
-  onSubmitSignal: (signal: string) => boolean | Promise<boolean>;
+  onReady: () => Promise<void>;
+  onSubmitSignal: (signal: string) => Promise<boolean>;
 }) {
   const [input, setInput] = useState("");
   const [qrBusySignal, setQrBusySignal] = useState<string>();

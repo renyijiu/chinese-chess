@@ -554,7 +554,7 @@ function dispatchMove(state: GameState, command: Extract<GameCommand, { type: "m
   let status: GameStatus;
   if (!hasMove) {
     status = endedStatus(state.sideToMove, inCheck ? "checkmate" : "stalemate");
-  } else if (nextRepetitionCounts[positionKey] >= 3) {
+  } else if ((nextRepetitionCounts[positionKey] ?? 0) >= 3) {
     status = endedStatus(null, "repetition");
   } else if (nextNoCapturePlies >= 100) {
     status = endedStatus(null, "no-capture");

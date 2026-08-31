@@ -166,7 +166,7 @@ function fillLoop(buffer: AudioBuffer, cue: "music.fortress" | "ambient.fortress
       const time = sample / sampleRate;
       if (cue === "music.fortress") {
         const phrase = Math.floor(time * 1.5) % 8;
-        const pentatonic = [0, 3, 5, 7, 10, 7, 5, 3]![phrase]!;
+        const pentatonic = [0, 3, 5, 7, 10, 7, 5, 3][phrase]!;
         const frequency = 82.41 * 2 ** (pentatonic / 12);
         const breath = 0.58 + 0.42 * Math.sin(Math.PI * ((time * 1.5) % 1));
         data[sample] = (
@@ -201,7 +201,7 @@ function fillCue(buffer: AudioBuffer, cue: AudioCueId) {
   const random = seededNoise(cueHash(cue));
   const roleIndex = ["marshal", "advisor", "elephant", "chariot", "horse", "cannon", "soldier"]
     .findIndex((role) => cue.startsWith(role));
-  const base = roleIndex < 0 ? 220 : [150, 330, 72, 105, 205, 235, 180]![roleIndex]!;
+  const base = roleIndex < 0 ? 220 : [150, 330, 72, 105, 205, 235, 180][roleIndex]!;
   const kind = cue.split(".")[1]!;
   for (let sample = 0; sample < data.length; sample += 1) {
     const time = sample / buffer.sampleRate;
@@ -405,7 +405,7 @@ export class AudioEngine {
       cue,
       kind: "authored-transient",
       loop: false,
-      position: options.position,
+      ...(options.position ? { position: options.position } : {}),
     });
     if (authored) return true;
     const fallbackPlayed = this.playInternal(cue, false, options.position);
@@ -664,7 +664,7 @@ export class AudioEngine {
       cue,
       kind,
       loop,
-      position,
+      ...(position ? { position } : {}),
     }));
   }
 

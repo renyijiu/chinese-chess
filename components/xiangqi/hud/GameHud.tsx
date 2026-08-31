@@ -5,6 +5,7 @@ import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from "reac
 import type { CapturedPiece, GameState, MoveRecord, Role, Side } from "../../../lib/xiangqi/index";
 import type { OpponentCoordinatorSnapshot } from "../ai/OpponentCoordinator";
 import type { OnlineMatchCoordinatorSnapshot } from "../online/OnlineMatchCoordinator";
+import { formatGameOutcome } from "../game/announcements";
 import type {
   ComputerDifficulty,
   ComputerMatchConfig,
@@ -44,13 +45,6 @@ const VOLUME_CONTROLS = [
   ["sfxVolume", "战斗音效"],
   ["uiVolume", "界面音效"],
 ] as const satisfies readonly (readonly [keyof GameSettings, string])[];
-const END_REASON_LABELS = {
-  checkmate: "将死",
-  stalemate: "困毙",
-  repetition: "三次重复局面",
-  "no-capture": "连续 100 手无吃子",
-  resignation: "认输",
-} as const;
 const TIER_LABELS: Record<OpponentTier, string> = {
   "lightweight-easy": "简单",
   "lightweight-normal": "标准",
@@ -172,14 +166,6 @@ export function describeOpponentStatus(opponent: OpponentHudState): string {
     : activity;
 }
 
-export function formatGameOutcome(game: GameState) {
-  if (game.status.kind !== "ended") return "棋局进行中";
-  const reason = END_REASON_LABELS[game.status.reason];
-  return game.status.winner
-    ? `${SIDE_LABELS[game.status.winner]}胜 · ${reason}`
-    : `和棋 · ${reason}`;
-}
-
 export function GameMenu({
   animateMatchId = null,
   hasSave,
@@ -196,20 +182,20 @@ export function GameMenu({
   resumeMode,
   warning,
 }: {
-  animateMatchId?: string | null;
+  animateMatchId?: string | null | undefined;
   hasSave: boolean;
   loading: boolean;
-  onConfirmComputer?: () => void;
+  onConfirmComputer?: (() => void) | undefined;
   onContinue: () => void;
-  onRollComputer?: (difficulty: ComputerDifficulty) => void;
-  onCreateOnline?: () => void;
-  onJoinOnline?: () => void;
+  onRollComputer?: ((difficulty: ComputerDifficulty) => void) | undefined;
+  onCreateOnline?: (() => void) | undefined;
+  onJoinOnline?: (() => void) | undefined;
   onStart: () => void;
   onlineEnabled?: boolean;
-  preparedComputerMatch?: ComputerMatchConfig | null;
+  preparedComputerMatch?: ComputerMatchConfig | null | undefined;
   reducedMotion?: boolean;
-  resumeMode?: SavedMatch["config"]["mode"];
-  warning?: string;
+  resumeMode?: SavedMatch["config"]["mode"] | undefined;
+  warning?: string | undefined;
 }) {
   const [mode, setMode] = useState<"local" | "computer" | "online">(
     preparedComputerMatch ? "computer" : "local",
@@ -313,7 +299,7 @@ export function GameOverPanel({
 }: {
   canUndo: boolean;
   game: GameState;
-  onRestart?: () => void;
+  onRestart?: (() => void) | undefined;
   onUndo: () => void;
   onlineRematch?: Readonly<{
     supported: boolean;
@@ -324,7 +310,7 @@ export function GameOverPanel({
     onDecline: () => void;
     onCancel: () => void;
     onReconnect: () => void;
-  }>;
+  }> | undefined;
 }) {
   return (
     <section className="game-over-panel game-overlay-panel" aria-labelledby="game-over-title">
@@ -379,8 +365,8 @@ export function GameHud({
   warning,
 }: {
   game: GameState;
-  onlineStatus?: ReactNode;
-  opponent?: OpponentHudState;
+  onlineStatus?: ReactNode | undefined;
+  opponent?: OpponentHudState | undefined;
   onResign: () => void;
   onRestart: () => void;
   onSettingsChange: (settings: GameSettings) => void;
@@ -391,7 +377,7 @@ export function GameHud({
   restartLabel?: string;
   selectedMoveCount: number;
   settings: GameSettings;
-  warning?: string;
+  warning?: string | undefined;
 }) {
   const [historyExpanded, setHistoryExpanded] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);

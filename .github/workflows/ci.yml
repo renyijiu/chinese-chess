@@ -38,8 +38,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes ffmpeg
 
-      - name: Audit production dependencies
-        run: npm audit --omit=dev --audit-level=high
+      - name: Audit dependency lockfile
+        run: npm audit --audit-level=high
 
       - name: Static and deterministic checks
         run: |
@@ -50,13 +50,18 @@ jobs:
           npm run test:budget
 
       - name: Production build and rendered HTML smoke
-        run: npm test
+        run: |
+          npm test
+          npm run test:bundle
 
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
       - name: Production browser smoke
         run: npm run test:e2e:release
+
+      - name: Online pairing browser flow
+        run: npm run test:online:e2e
 
       - name: Upload browser failure artifacts
         if: failure()

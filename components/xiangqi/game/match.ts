@@ -152,8 +152,10 @@ export function rollFairDie(entropy: EntropySource = systemEntropy): DieResult {
   const sample = new Uint8Array(1);
   for (;;) {
     entropy(sample);
+    const value = sample[0];
+    if (value === undefined) throw new MatchConfigError("Entropy source did not fill the sample byte.");
     // 252 is the largest multiple of six that fits in one byte's 256 outcomes.
-    if (sample[0] < 252) return ((sample[0] % 6) + 1) as DieResult;
+    if (value < 252) return ((value % 6) + 1) as DieResult;
   }
 }
 

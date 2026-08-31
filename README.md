@@ -1,5 +1,9 @@
 # 网页 3D 中国象棋
 
+[![CI](https://github.com/renyijiu/chinese-chess/actions/workflows/ci.yml/badge.svg)](https://github.com/renyijiu/chinese-chess/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/renyijiu/chinese-chess/actions/workflows/codeql.yml/badge.svg)](https://github.com/renyijiu/chinese-chess/actions/workflows/codeql.yml)
+[![License: GPL-3.0-only](https://img.shields.io/badge/license-GPL--3.0--only-blue.svg)](LICENSE)
+
 <p align="center">
   <img alt="秦兵马俑中国象棋阵容" src="assets/characters/reviews/roster-contact-sheet-qin-terracotta.png" width="900">
 </p>
@@ -124,6 +128,7 @@ npm run assets:pieces:report
 | 每帧绘制调用 | 100 以内 | 160 以内 |
 | 单角色纹理 | 1K KTX2 | 2K KTX2；只给近景英雄角色 |
 | 首屏 3D 下载 | 12 MB 以内 | 25 MB 以内，按需加载 |
+| 初始棋局 JavaScript（gzip） | 490 KB 以内 | AI 与在线协议继续按需加载 |
 
 同类棋子必须复用几何、骨骼和材质，优先使用实例化；红黑双方通过矿物残彩、甲片、符节和徽记变化区分。LOD 切换、阴影分级、DPR 上限和纹理分辨率都要随画质档位调整。禁止把 4K 未压缩贴图、雕刻高模或未合并的大量零件直接放入网页运行时 GLB。
 
@@ -154,6 +159,7 @@ npm run assets:ai:validate
 npm test
 npm run assets:pieces:validate
 npm run test:budget
+npm run test:bundle
 npm run test:e2e
 npm run test:online:e2e
 npm run test:visual
@@ -162,7 +168,7 @@ npm run test:performance
 npm run test:performance:headed
 ```
 
-`npm test` 会先执行 Vinext 生产构建，再验证服务端输出、浏览器专属棋局边界、R3F 棋盘接线、九纵十横结构和 WebGL2 回退逻辑。Playwright 另覆盖音频用户手势、键盘完整走子、真实 Canvas 指针/触摸、红黑双方连续八手、吃子、将军、终局、精确存档恢复、骰子与阵营恢复、四档人机、Master 启动/降级、Worker 超时/畸形输出、后台暂停、可选全景失败、画质往返、确认框焦点隔离和 WebGL context loss/恢复；好友直连测试使用两个相互隔离的浏览器上下文交换真实 Offer/Answer。视觉比较在环境状态显式进入 `ready` 或 `degraded` 后才截图。
+`npm test` 会先执行 Vinext 生产构建，再验证服务端输出、浏览器专属棋局边界、R3F 棋盘接线、九纵十横结构和 WebGL2 回退逻辑。构建后运行 `npm run test:bundle`，会限制主棋局 chunk 与静态依赖闭包的 raw/gzip 体积，并确认 Master、轻量 AI Provider 和在线会话仍是动态 chunk。Playwright 另覆盖音频用户手势、键盘完整走子、真实 Canvas 指针/触摸、红黑双方连续八手、吃子、将军、终局、精确存档恢复、骰子与阵营恢复、四档人机、Master 启动/降级、Worker 超时/畸形输出、后台暂停、可选全景失败、画质往返、确认框焦点隔离和 WebGL context loss/恢复；好友直连测试使用两个相互隔离的浏览器上下文交换真实 Offer/Answer。视觉比较在环境状态显式进入 `ready` 或 `degraded` 后才截图。
 
 `npm run test:e2e` 使用开发服务器运行包含故障注入的完整浏览器套件；`npm run test:e2e:release` 会先构建，再针对生产 Worker 验证正常对局和真实 Master 路径。测试已部署地址时设置 `PLAYWRIGHT_BASE_URL` 与 `PLAYWRIGHT_SKIP_WEB_SERVER=1`。
 
@@ -181,5 +187,6 @@ npm run test:performance:headed
 
 - 报告可复现缺陷：使用 GitHub 的结构化 Bug 表单。
 - 提交功能或资产改动：先阅读 [`CONTRIBUTING.md`](CONTRIBUTING.md) 和 [`ASSET_ATTRIBUTION.md`](ASSET_ATTRIBUTION.md)。
+- 代码边界与发布维护：见 [`docs/architecture.md`](docs/architecture.md)、[`docs/releasing.md`](docs/releasing.md) 和 [`CHANGELOG.md`](CHANGELOG.md)。
 - 第三方代码与运行时来源：见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
 - 当前质量证据与已知限制：见 [`docs/validation.md`](docs/validation.md)。

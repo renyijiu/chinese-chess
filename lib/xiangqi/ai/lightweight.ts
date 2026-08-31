@@ -1,5 +1,6 @@
 import { dispatch, getLegalMoves, getPieceAt, isInCheck } from "../engine";
 import type { GameState, Role, Side, Square } from "../types";
+import { LIGHTWEIGHT_TIER_LIMITS } from "./search-limits";
 import type { CandidateMove, LightweightTier } from "./types";
 
 const MATE_SCORE = 1_000_000;
@@ -14,16 +15,6 @@ const MATERIAL: Readonly<Record<Role, number>> = {
   horse: 420,
   cannon: 450,
   soldier: 100,
-};
-
-export const LIGHTWEIGHT_TIER_LIMITS: Readonly<Record<LightweightTier, Readonly<{
-  nodeBudget: number;
-  depthCeiling: number;
-  safetyDeadlineMs: number;
-}>>> = {
-  "lightweight-easy": { nodeBudget: 2_000, depthCeiling: 3, safetyDeadlineMs: 250 },
-  "lightweight-normal": { nodeBudget: 10_000, depthCeiling: 5, safetyDeadlineMs: 750 },
-  "lightweight-hard": { nodeBudget: 50_000, depthCeiling: 7, safetyDeadlineMs: 2_000 },
 };
 
 export const LIGHTWEIGHT_BATCH_NODES = 128;
@@ -204,10 +195,12 @@ function chooseCompletedMove(
   if (scores.length === 0) return null;
   const ordered = [...scores].sort((left, right) =>
     right.score - left.score || compareCandidates(left.candidate, right.candidate));
-  if (tier !== "lightweight-easy") return ordered[0];
-  const best = ordered[0].score;
+  const strongest = ordered[0];
+  if (!strongest) return null;
+  if (tier !== "lightweight-easy") return strongest;
+  const best = strongest.score;
   const choices = ordered.filter(({ score }) => score >= best - 80).slice(0, 3);
-  return choices[hashSeed(`${seed}:${depth}`) % choices.length];
+  return choices[hashSeed(`${seed}:${depth}`) % choices.length] ?? strongest;
 }
 
 function createFrame(
@@ -303,6 +296,7 @@ export class ResumableLightweightSearch {
       }
       const transition = frame.moves[frame.moveIndex];
       frame.moveIndex += 1;
+      if (!transition) continue;
       const childAlpha = frame.ply === 0 ? NEGATIVE_INFINITY : -frame.beta;
       const childBeta = frame.ply === 0 ? POSITIVE_INFINITY : -frame.alpha;
       this.#stack.push(createFrame(

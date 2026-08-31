@@ -58,7 +58,7 @@ test("serves Master assets with exact MIME, isolation, and version-aware cache p
   assert.deepEqual(generatedWrangler.assets.run_worker_first, [
     "/engines/fairy-stockfish-nnue/1.1.12/*",
     "/workers/xiangqi-master-v1.worker.js",
-    "/_next/static/lightweight.worker-*.js",
+    "/_next/static/workers/lightweight.worker-*.js",
   ]);
 
   const wasm = await render(
@@ -88,7 +88,7 @@ test("serves Master assets with exact MIME, isolation, and version-aware cache p
   assert.equal(hostWorker.headers.get("cache-control"), "public, max-age=31536000, immutable");
 
   const lightweightWorker = await render(
-    "/_next/static/lightweight.worker-AbC_123.js",
+    "/_next/static/workers/lightweight.worker-AbC_123.js",
     new Response("self.onmessage = () => {};", { headers: { "content-type": "text/plain" } }),
   );
   assert.equal(lightweightWorker.status, 200);
@@ -198,7 +198,15 @@ test("keeps the rule-correct board and modular R3F runtime wired", async () => {
   assert.match(game, /BoardViewer/);
   assert.match(game, /createLocalMatch/);
   assert.match(game, /AuthoritativeCommandGate/);
-  assert.match(game, /LightweightWorkerProvider/);
+  assert.match(game, /import\("\.\/ai\/LightweightWorkerProvider"\)/);
+  assert.match(game, /import\("\.\/ai\/MasterEngineAdapter"\)/);
+  assert.match(game, /import\("\.\/online\/OnlineMatchSession"\)/);
+  assert.doesNotMatch(game, /import \{ LightweightWorkerProvider \}/);
+  assert.doesNotMatch(game, /import \{\s*OnlineMatchSession,/);
+  assert.match(
+    game,
+    /if \(!next\) onlineSessionGeneration\.current \+= 1;\s+if \(previous === next\) return;/,
+  );
   assert.match(game, /GameBoardLayer/);
   assert.match(gameController, /getLegalMoves/);
   assert.match(gameStorage, /GAME_SAVE_BACKUP_KEY/);

@@ -5,26 +5,19 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent a
 import { BoardViewer } from "../../app/BoardViewer";
 import {
   LIGHTWEIGHT_TIER_LIMITS,
-} from "../../lib/xiangqi/ai/index";
+  MASTER_SEARCH_LIMITS,
+} from "../../lib/xiangqi/ai/search-limits";
 import {
   fingerprintGame,
   formatSquareCoordinate,
-  getPieceAt,
   serializeGame,
   sha256Hex,
-  type CommandErrorCode,
-  type DomainEvent,
   type GameCommand,
   type GameState,
   type Side,
   type Square,
 } from "../../lib/xiangqi/index";
 import { decodeSignalingMessageV1 } from "../../lib/xiangqi/online";
-import { LightweightWorkerProvider } from "./ai/LightweightWorkerProvider";
-import {
-  createMasterEngineProvider,
-  MASTER_SEARCH_LIMITS,
-} from "./ai/MasterEngineAdapter";
 import {
   OpponentCoordinator,
   type OpponentCandidateRelease,
@@ -40,6 +33,13 @@ import {
   type GameActionTransition,
   type GamePhase,
 } from "./game/actions";
+import { ControllerRuntime } from "./game/ControllerRuntime";
+import {
+  commandErrorMessage,
+  describeKeyboardSquare,
+  eventAnnouncement,
+  formatGameOutcome,
+} from "./game/announcements";
 import { AnimationRegistry } from "./animation/AnimationRegistry";
 import { AudioEngine } from "./audio/AudioEngine";
 import { handlePresentationAudioCue } from "./audio/presentation-audio";
@@ -52,6 +52,7 @@ import {
 import { AuthoritativeInstallLedger } from "./game/authoritative-install-ledger";
 import {
   deriveSelection,
+  isKeyboardNavigationKey,
   moveKeyboardCursor,
   resolveBoardClick,
 } from "./game/controller";
@@ -66,11 +67,11 @@ import {
   type ComputerDifficulty,
   type SavedMatch,
 } from "./game/match";
-import {
+import type {
+  BoundOnlineMatchIdentity,
   OnlineMatchSession,
-  type BoundOnlineMatchIdentity,
-  type OnlineMatchSessionIdentity,
-  type OnlineMatchSessionSnapshot,
+  OnlineMatchSessionIdentity,
+  OnlineMatchSessionSnapshot,
 } from "./online/OnlineMatchSession";
 import type { OnlineCommitContext } from "./online/OnlineMatchCoordinator";
 import { OnlineStatusCard } from "./online/OnlineStatusCard";
@@ -91,11 +92,11 @@ import {
 import {
   ConfirmDialog,
   deriveGameHudPermissions,
-  formatGameOutcome,
   GameHud,
   GameMenu,
   GameOverPanel,
 } from "./hud/GameHud";
+import { GameInitializationShell } from "./hud/GameInitializationShell";
 import { KeyboardBoardControl } from "./hud/KeyboardBoardControl";
 
 type NewGameTarget =
@@ -108,7 +109,7 @@ type OnlineSetup = Readonly<{
   intent: "new" | "resume";
   resumeMatch: SavedMatch | null;
   busy: boolean;
-  error?: string;
+  error: string | undefined;
 }>;
 
 type Confirmation =
@@ -116,80 +117,6 @@ type Confirmation =
   | Readonly<{ kind: "restart" }>
   | Readonly<{ kind: "resign"; revision: number; side: GameState["sideToMove"] }>
   | null;
-
-class ControllerRuntime {
-  #match: SavedMatch;
-  #mounted = true;
-  #commit: (commit: CommandCommit) => Promise<void> = async () => undefined;
-  #fallback: (matchId: string, toTier: "lightweight-hard") => Promise<void> = async () => undefined;
-
-  constructor(match: SavedMatch) {
-    this.#match = match;
-  }
-
-  get currentMatch(): SavedMatch {
-    return this.#match;
-  }
-
-  get isMounted(): boolean {
-    return this.#mounted;
-  }
-
-  synchronize(match: SavedMatch): void {
-    this.#match = match;
-  }
-
-  setMounted(mounted: boolean): void {
-    this.#mounted = mounted;
-  }
-
-  setHandlers(
-    commit: (value: CommandCommit) => Promise<void>,
-    fallback: (matchId: string, toTier: "lightweight-hard") => Promise<void>,
-  ): void {
-    this.#commit = commit;
-    this.#fallback = fallback;
-  }
-
-  commit(value: CommandCommit): Promise<void> {
-    return this.#commit(value);
-  }
-
-  fallback(matchId: string, toTier: "lightweight-hard"): Promise<void> {
-    return this.#fallback(matchId, toTier);
-  }
-}
-
-const ERROR_MESSAGES: Record<CommandErrorCode, string> = {
-  "stale-revision": "这次操作已过期，请重新选择棋子。",
-  "game-over": "棋局已经结束。",
-  "invalid-square": "该交叉点不在棋盘范围内。",
-  "no-piece": "起点没有棋子。",
-  "not-your-turn": "现在轮到另一方行动。",
-  "illegal-move": "该落点不符合当前局面的规则。",
-  "cannot-undo": "当前不能再次悔棋。",
-};
-
-const ROLE_LABELS = {
-  advisor: "仕士",
-  cannon: "炮",
-  chariot: "车",
-  elephant: "相象",
-  general: "帅将",
-  horse: "马",
-  soldier: "兵卒",
-} as const;
-
-const BOARD_NAVIGATION_KEYS = new Set([
-  "arrowdown",
-  "arrowleft",
-  "arrowright",
-  "arrowup",
-  "a",
-  "d",
-  "s",
-  "w",
-]);
 
 const ONLINE_RUNTIME_CONFIG = resolveOnlineRuntimeConfig(
   process.env.NEXT_PUBLIC_XIANGQI_ONLINE_ENABLED,
@@ -202,72 +129,12 @@ function randomOnlineId(prefix: string): string {
   return `${prefix}-${Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("")}`;
 }
 
-function eventAnnouncement(events: readonly DomainEvent[], game: GameState) {
-  const ended = events.find((event) => event.type === "GameEnded");
-  if (ended) return formatGameOutcome(game);
-  const undone = events.find((event) => event.type === "MoveUndone");
-  if (undone?.type === "MoveUndone") return `已撤回 ${undone.move.notation}`;
-  const move = events.find((event) => event.type === "MoveCommitted");
-  const captured = events.some((event) => event.type === "PieceCaptured");
-  const check = events.find((event) => event.type === "CheckDeclared");
-  if (move?.type === "MoveCommitted") {
-    const suffix = check?.type === "CheckDeclared" ? "，将军" : captured ? "，完成吃子" : "";
-    return `${move.move.notation}${suffix}`;
-  }
-  return "棋局状态已更新。";
-}
-
 function browserStorage(): StorageLike | null {
   try {
     return window.localStorage;
   } catch {
     return null;
   }
-}
-
-function describeKeyboardSquare(game: GameState, square: Square) {
-  const piece = getPieceAt(game, square);
-  if (!piece) return "空交叉点";
-  return `${piece.side === "red" ? "红方" : "黑方"}${ROLE_LABELS[piece.role]}`;
-}
-
-function GameInitializationShell({
-  onContinue,
-  onStart,
-}: {
-  onContinue: () => void;
-  onStart: () => void;
-}) {
-  return (
-    <section
-      aria-busy="true"
-      aria-label="Q 版秦俑沙盘中国象棋棋盘三维预览"
-      className="viewer-shell board-viewer"
-      data-environment-status="loading"
-    >
-      <div aria-hidden="true" className="viewer-canvas viewer-canvas--initializing" />
-      <div className="viewer-corner-label" aria-hidden="true">
-        <span>QIN DIORAMA</span>
-        <strong>秦俑沙盘 · 01</strong>
-      </div>
-      <div className="viewer-hud" aria-hidden="true">
-        <div className="viewer-controls">
-          <button className="viewer-control" disabled type="button">俯视棋盘</button>
-          <button className="viewer-control" disabled type="button">自动巡游</button>
-          <button className="viewer-control" disabled type="button">换边视角 · 红</button>
-        </div>
-      </div>
-      <div className="game-overlay">
-        <GameMenu
-          hasSave={false}
-          loading
-          onContinue={onContinue}
-          onStart={onStart}
-        />
-      </div>
-      <p className="sr-only" role="status">正在读取本地棋局与画质设置。</p>
-    </section>
-  );
 }
 
 export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
@@ -310,7 +177,11 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
   const [installLedger] = useState(() => new AuthoritativeInstallLedger());
   const [opponent] = useState(() => new OpponentCoordinator({
     providerFactory: async (tier) => {
-      if (tier === "fairy-master") return createMasterEngineProvider();
+      if (tier === "fairy-master") {
+        const { createMasterEngineProvider } = await import("./ai/MasterEngineAdapter");
+        return createMasterEngineProvider();
+      }
+      const { LightweightWorkerProvider } = await import("./ai/LightweightWorkerProvider");
       return new LightweightWorkerProvider();
     },
     onFallback: ({ matchId, toTier }) => {
@@ -593,7 +464,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     });
     if (receipt.status === "rejected") {
       audio.play("ui.invalid");
-      if (mounted.current) setNotice(ERROR_MESSAGES[receipt.error.code]);
+      if (mounted.current) setNotice(commandErrorMessage(receipt.error.code));
     } else if (receipt.status === "superseded" && receipt.reason === "busy" && source === "human") {
       if (mounted.current) setNotice("当前动作仍在结算，请稍候。");
     }
@@ -623,14 +494,15 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
       },
     });
 
-    if (!holder.installed) {
+    const installed = holder.installed;
+    if (!installed) {
       const receipt = await gateReceipt;
       return { status: receipt.status === "committed" ? "committed" : receipt.status };
     }
 
     return new Promise((resolve) => {
       let resolved = false;
-      holder.installed?.then(() => {
+      void installed.then(() => {
         if (resolved) return;
         resolved = true;
         resolve({ status: "committed" });
@@ -702,8 +574,8 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
 
   const replaceOnlineSession = useCallback((next: OnlineMatchSession | null) => {
     const previous = onlineSessionRef.current;
-    if (previous === next) return;
     if (!next) onlineSessionGeneration.current += 1;
+    if (previous === next) return;
     onlineSessionRef.current = next;
     if (previous) {
       commandGate.invalidate();
@@ -714,17 +586,23 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     setOnlineSnapshot(next?.getSnapshot() ?? null);
   }, [commandGate, installLedger]);
 
-  const createBrowserOnlineSession = useCallback((
+  const createBrowserOnlineSession = useCallback(async (
     identity: OnlineMatchSessionIdentity,
     resumeMatch: SavedMatch | null,
   ) => {
     const generation = onlineSessionGeneration.current + 1;
     onlineSessionGeneration.current = generation;
+    const { OnlineMatchSession } = await import("./online/OnlineMatchSession");
+    if (!mounted.current || onlineSessionGeneration.current !== generation) {
+      throw new Error("online-session-superseded");
+    }
+    let session: OnlineMatchSession | null = null;
     const isCurrentSession = () => mounted.current
+      && session !== null
       && onlineSessionGeneration.current === generation
       && onlineSessionRef.current === session;
 
-    const session = new OnlineMatchSession({
+    session = new OnlineMatchSession({
       identity,
       rtcConfiguration: ONLINE_RUNTIME_CONFIG.rtcConfiguration,
       peerConnectionFactory: (configuration) => new RTCPeerConnection(configuration),
@@ -828,7 +706,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
   ) => {
     if (!ONLINE_RUNTIME_CONFIG.enabled) return;
     replaceOnlineSession(null);
-    setOnlineSetup({ role, intent, resumeMatch, busy: role === "host" });
+    setOnlineSetup({ role, intent, resumeMatch, busy: role === "host", error: undefined });
 
     if (role === "guest") {
       setNotice(intent === "resume"
@@ -859,19 +737,25 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
           intent,
           localSide: onlineSideForRematch(0, role),
         };
-    const session = createBrowserOnlineSession(identity, resumeMatch);
-    replaceOnlineSession(session);
-    if (role !== "host") {
-      setOnlineSetup((current) => current ? { ...current, busy: false } : current);
-      return;
-    }
+    let session: OnlineMatchSession | null = null;
+    let generation = onlineSessionGeneration.current;
     try {
+      const pendingSession = createBrowserOnlineSession(identity, resumeMatch);
+      generation = onlineSessionGeneration.current;
+      session = await pendingSession;
+      replaceOnlineSession(session);
       await session.createOffer();
-      if (onlineSessionRef.current !== session) return;
+      if (
+        onlineSessionGeneration.current !== generation
+        || onlineSessionRef.current !== session
+      ) return;
       setOnlineSetup((current) => current ? { ...current, busy: false, error: undefined } : current);
       setNotice("完整 Offer 已生成，请发送给好友并等待 Answer。");
     } catch {
-      if (onlineSessionRef.current !== session) return;
+      if (
+        onlineSessionGeneration.current !== generation
+        || (session && onlineSessionRef.current !== session)
+      ) return;
       setOnlineSetup((current) => current ? { ...current, busy: false, error: "无法生成邀请，请关闭后重试。" } : current);
     }
   }, [createBrowserOnlineSession, replaceOnlineSession]);
@@ -881,6 +765,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     if (!setup || setup.busy) return false;
     setOnlineSetup({ ...setup, busy: true, error: undefined });
     let session = onlineSessionRef.current;
+    let generation = onlineSessionGeneration.current;
     try {
       if (setup.role === "guest" && !session) {
         const decoded = decodeSignalingMessageV1(signal, "offer");
@@ -908,7 +793,9 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
           localSide: resumedConfig?.localSide ?? onlineSideForRematch(0, "guest"),
           rematchIndex: resumedConfig?.rematchIndex ?? 0,
         };
-        session = createBrowserOnlineSession(identity, setup.resumeMatch);
+        const pendingSession = createBrowserOnlineSession(identity, setup.resumeMatch);
+        generation = onlineSessionGeneration.current;
+        session = await pendingSession;
         replaceOnlineSession(session);
       }
       if (!session) throw new Error("session-missing");
@@ -924,7 +811,10 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
       setOnlineSetup((current) => current ? { ...current, busy: false, error: undefined } : current);
       return true;
     } catch {
-      if (session && onlineSessionRef.current !== session) return false;
+      if (
+        onlineSessionGeneration.current !== generation
+        || (session && onlineSessionRef.current !== session)
+      ) return false;
       setOnlineSetup((current) => current ? {
         ...current,
         busy: false,
@@ -1247,8 +1137,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
   };
 
   const handleKeyboardBoardKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
-    const normalizedKey = event.key.toLowerCase();
-    if (BOARD_NAVIGATION_KEYS.has(normalizedKey)) {
+    if (isKeyboardNavigationKey(event.key)) {
       event.preventDefault();
       const nextSquare = moveKeyboardCursor(keyboardSquare, event.key);
       setKeyboardSquare(nextSquare);
@@ -1387,7 +1276,10 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     >
       <div inert={confirmation ? true : undefined} aria-hidden={confirmation ? true : undefined}>
         {loading ? (
-          <GameInitializationShell onContinue={handleContinue} onStart={handleStart} />
+          <GameInitializationShell
+            onContinue={() => { void handleContinue(); }}
+            onStart={() => { void handleStart(); }}
+          />
         ) : (
           <BoardViewer
             animations={animations}
@@ -1408,12 +1300,12 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
                 hasSave={Boolean(resumableMatch)}
                 key={preparedComputerMatch?.matchId ?? "new-match-menu"}
                 loading={false}
-                onConfirmComputer={handleConfirmComputer}
-                onContinue={handleContinue}
+                onConfirmComputer={() => { void handleConfirmComputer(); }}
+                onContinue={() => { void handleContinue(); }}
                 onCreateOnline={() => { void handleStartOnline("host"); }}
                 onJoinOnline={() => { void handleStartOnline("guest"); }}
-                onRollComputer={handleRollComputer}
-                onStart={handleStart}
+                onRollComputer={(difficulty) => { void handleRollComputer(difficulty); }}
+                onStart={() => { void handleStart(); }}
                 onlineEnabled={ONLINE_RUNTIME_CONFIG.enabled}
                 preparedComputerMatch={preparedComputerMatch}
                 reducedMotion={settings.reducedMotion}

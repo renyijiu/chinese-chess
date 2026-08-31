@@ -1,7 +1,17 @@
 {
   "name": "chinese-chess-3d-web",
   "version": "0.1.0",
+  "description": "Browser-based 3D Xiangqi with local play, client-side AI, and optional WebRTC friend matches.",
   "private": true,
+  "keywords": [
+    "chinese-chess",
+    "react",
+    "threejs",
+    "typescript",
+    "webgl",
+    "webrtc",
+    "xiangqi"
+  ],
   "license": "GPL-3.0-only",
   "repository": {
     "type": "git",
@@ -41,6 +51,7 @@
     "test:presentation": "vitest run --config tests/unit/presentation/vitest.config.ts",
     "test:unit": "npm run test:rules && npm run test:game && npm run test:online && npm run test:ai && npm run test:presentation",
     "test:runtime": "vitest run --config tests/unit/runtime/vitest.config.ts",
+    "test:bundle": "node --test tests/javascript-budget.test.mjs && node scripts/verify-javascript-budget.mjs",
     "test:e2e": "playwright test --config playwright.config.ts --grep-invert @online",
     "test:e2e:dev": "npm run test:e2e",
     "pretest:e2e:release": "npm run build",
@@ -55,15 +66,13 @@
     "test:performance:headed": "RUN_RENDER_PERFORMANCE=1 PLAYWRIGHT_MEASUREMENT_MODE='Visible Chromium rendered-frame interval; not CPU time or GPU render duration' playwright test tests/e2e/performance.spec.ts --config playwright.performance.config.ts --project desktop-chromium --headed",
     "test:budget": "node scripts/verify-runtime-budgets.mjs && node scripts/verify-audio-assets.mjs && node scripts/verify-ai-engine-assets.mjs",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern output",
-    "db:generate": "drizzle-kit generate"
+    "lint": "eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern output"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.8",
     "@react-three/fiber": "^9.7.0",
     "@react-three/postprocessing": "3.1.0",
     "@types/three": "^0.185.4",
-    "drizzle-orm": "0.45.2",
     "qrcode": "^1.5.4",
     "react": "19.2.8",
     "react-dom": "19.2.8",
@@ -83,7 +92,6 @@
     "@types/react-dom": "19.2.5",
     "@vitejs/plugin-react": "6.1.0",
     "@vitejs/plugin-rsc": "0.5.34",
-    "drizzle-kit": "0.31.10",
     "eslint": "9.39.4",
     "eslint-plugin-jsx-a11y": "6.10.2",
     "eslint-plugin-react": "7.37.5",
@@ -93,10 +101,15 @@
     "tailwindcss": "4.3.3",
     "typescript": "5.9.3",
     "typescript-eslint": "8.68.0",
-    "vinext": "1.0.0-beta.2",
+    "vinext": "1.0.0-beta.8",
     "vite": "8.2.2",
     "vitest": "^4.0.18",
     "wrangler": "4.126.0"
+  },
+  "overrides": {
+    "@gltf-transform/cli": {
+      "sharp": "0.35.3"
+    }
   },
   "type": "module"
 }

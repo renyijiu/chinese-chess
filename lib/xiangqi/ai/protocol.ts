@@ -154,15 +154,15 @@ export function decodeOpponentRequestV1(value: unknown): OpponentRequestV1 | nul
     matchId: value.matchId as string,
     generation: value.generation as number,
     requestId: value.requestId as string,
-    positionRevision: value.positionRevision as number,
-    serializedGame: value.serializedGame as string,
-    positionFingerprint: value.positionFingerprint as string,
-    sideToMove: value.sideToMove as Side,
-    tier: value.tier as OpponentTier,
-    seed: value.seed as string,
-    nodeBudget: value.nodeBudget as number,
-    depthCeiling: value.depthCeiling as number,
-    safetyDeadlineMs: value.safetyDeadlineMs as number,
+    positionRevision: value.positionRevision,
+    serializedGame: value.serializedGame,
+    positionFingerprint: value.positionFingerprint,
+    sideToMove: value.sideToMove,
+    tier: value.tier,
+    seed: value.seed,
+    nodeBudget: value.nodeBudget,
+    depthCeiling: value.depthCeiling,
+    safetyDeadlineMs: value.safetyDeadlineMs,
   };
 }
 
@@ -188,13 +188,13 @@ export function decodeOpponentResultV1(value: unknown): OpponentResultV1 | null 
     matchId: value.matchId as string,
     generation: value.generation as number,
     requestId: value.requestId as string,
-    positionRevision: value.positionRevision as number,
-    positionFingerprint: value.positionFingerprint as string,
-    sideToMove: value.sideToMove as Side,
+    positionRevision: value.positionRevision,
+    positionFingerprint: value.positionFingerprint,
+    sideToMove: value.sideToMove,
     candidate,
-    completedDepth: value.completedDepth as number,
-    nodes: value.nodes as number,
-    score: value.score as number,
+    completedDepth: value.completedDepth,
+    nodes: value.nodes,
+    score: value.score,
   };
 }
 
@@ -250,7 +250,7 @@ export function decodeOpponentErrorV1(value: unknown): OpponentErrorV1 | null {
     generation: value.generation as number,
     requestId: value.requestId as string,
     code: value.code as OpponentErrorCode,
-    message: value.message as string,
+    message: value.message,
   };
 }
 

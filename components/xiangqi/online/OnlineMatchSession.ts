@@ -96,15 +96,19 @@ export class OnlineMatchSession {
       pairingId: options.identity.pairingId,
       matchId: options.identity.matchId,
       localPeerId: options.identity.localPeerId,
-      remotePeerId: options.identity.remotePeerId,
       intent: options.identity.intent,
+      ...(options.identity.remotePeerId === undefined
+        ? {}
+        : { remotePeerId: options.identity.remotePeerId }),
     };
     this.#peer = new PeerSession({
       identity,
-      rtcConfiguration: options.rtcConfiguration,
       peerConnectionFactory: options.peerConnectionFactory,
       onFrame: (frame) => this.#routeFrame(frame),
       onFrameRejected: (reason) => this.#publish({ error: `frame-${reason}` }),
+      ...(options.rtcConfiguration === undefined
+        ? {}
+        : { rtcConfiguration: options.rtcConfiguration }),
     });
     this.#snapshot = Object.freeze({
       peer: this.#peer.getSnapshot(),

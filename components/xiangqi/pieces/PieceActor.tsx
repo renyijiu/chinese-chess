@@ -17,6 +17,11 @@ import { semanticColor } from "./piece-palette";
 import { QIN_DIORAMA_THEME } from "../scene/scene-theme";
 
 const factionGeometryCache = new WeakMap<THREE.BufferGeometry, Partial<Record<Side, THREE.BufferGeometry>>>();
+const cloneRiggedScene = cloneSkeleton as <T extends THREE.Object3D>(source: T) => T;
+
+function isMesh(object: THREE.Object3D): object is THREE.Mesh {
+  return "isMesh" in object && (object as THREE.Mesh).isMesh;
+}
 
 /** Recolor COLOR_0 once per source geometry and faction, never mutating GLTF cache data. */
 function factionGeometry(source: THREE.BufferGeometry, side: Side) {
@@ -87,11 +92,11 @@ function RiggedRoleModel({ actorId, animation, animations, lod, opacity, piece }
   const url = pieceAssetUrl(piece.role, lod);
   const { animations: clips, scene } = usePieceAsset(url);
   const prepared = useMemo(() => {
-    const model = cloneSkeleton(scene);
+    const model = cloneRiggedScene(scene);
     const mixer = new THREE.AnimationMixer(model);
     const materials: THREE.Material[] = [];
     model.traverse((child) => {
-      if (!(child instanceof THREE.Mesh)) return;
+      if (!isMesh(child)) return;
       child.geometry = factionGeometry(child.geometry, piece.side);
       const source = Array.isArray(child.material) ? child.material : [child.material];
       const clones = source.map((material) => {

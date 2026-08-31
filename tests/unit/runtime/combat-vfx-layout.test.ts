@@ -42,7 +42,7 @@ describe("combat VFX layout", () => {
       expect(position[2]).toBeGreaterThanOrEqual(Math.min(start[2], end[2]));
       expect(position[2]).toBeLessThanOrEqual(Math.max(start[2], end[2]));
     });
-    expect(samples[2][1]).toBeGreaterThan(samples[0][1]);
+    expect(samples[2]![1]).toBeGreaterThan(samples[0]![1]);
   });
 
   it("clamps payload progress so a delayed frame cannot overshoot the target", () => {

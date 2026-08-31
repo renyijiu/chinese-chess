@@ -37,7 +37,7 @@ Vinext builds the application and `worker/index.ts` is the Worker entry point. I
 - immutable caching for versioned runtime bytes and revalidation for the manifest;
 - non-HTML errors for missing engine assets.
 
-The current game is client-only and needs no application database. `.openai/hosting.json` may opt into D1 or R2 bindings for the hosting environment; keep both disabled unless a feature actually uses them. No repository secret is required for local gameplay.
+The current game is client-only and needs no application database or object-store binding. Add D1 or R2 only with the feature that uses it, including its schema, migration, access-control, and failure-mode tests. No repository secret is required for local gameplay.
 
 ## Pre-deploy checklist
 

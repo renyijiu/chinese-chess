@@ -51,6 +51,10 @@ export function moveKeyboardCursor(square: Square, key: string): Square {
   };
 }
 
+export function isKeyboardNavigationKey(key: string): boolean {
+  return KEYBOARD_DELTAS[key.toLowerCase()] !== undefined;
+}
+
 export function deriveSelection(game: GameState, pieceId: string | null): GameSelection {
   if (!pieceId || game.status.kind !== "playing") return EMPTY_SELECTION;
   const piece = game.board.find((candidate) => candidate?.id === pieceId);

@@ -25,12 +25,14 @@ export default defineConfig({
     screenshot: "only-on-failure",
     trace: "retain-on-failure",
   },
-  webServer: skipWebServer ? undefined : {
-    command: webServerCommand,
-    reuseExistingServer,
-    timeout: 120_000,
-    url: baseURL,
-  },
+  ...(skipWebServer ? {} : {
+    webServer: {
+      command: webServerCommand,
+      reuseExistingServer,
+      timeout: 120_000,
+      url: baseURL,
+    },
+  }),
   projects: [
     {
       name: "desktop-chromium",

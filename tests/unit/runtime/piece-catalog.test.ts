@@ -32,10 +32,12 @@ describe("piece asset catalog", () => {
 
   it("matches every role and LOD URL in the validated production manifest", () => {
     for (const [gameRole, assetRole] of Object.entries(ASSET_ROLE_BY_GAME_ROLE)) {
+      const roleManifest = manifest.roles[assetRole];
+      if (!roleManifest) throw new Error(`Missing asset role ${assetRole}`);
       for (const lod of [0, 1, 2] as const) {
-        const expected = manifest.roles[assetRole].variants.red.lods[`lod${lod}`];
+        const expected = roleManifest.variants.red.lods[`lod${lod}`];
         expect(pieceAssetUrl(gameRole as keyof typeof ASSET_ROLE_BY_GAME_ROLE, lod)).toBe(expected);
-        expect(manifest.roles[assetRole].variants.black.lods[`lod${lod}`]).toBe(expected);
+        expect(roleManifest.variants.black.lods[`lod${lod}`]).toBe(expected);
       }
     }
   });

@@ -18,12 +18,6 @@ import {
   type VerifiedMasterAssets,
 } from "./engine-cache";
 
-export const MASTER_SEARCH_LIMITS = Object.freeze({
-  nodeBudget: 200_000,
-  depthCeiling: 12,
-  safetyDeadlineMs: 5_000,
-});
-
 export const MASTER_HOST_WORKER_URL = "/workers/xiangqi-master-v1.worker.js";
 const NETWORK_PATH = "/xiangqi-c07e94a5c7cb.nnue";
 
@@ -115,16 +109,22 @@ export function squareToUci(square: Square): string {
 export function squareFromUci(value: string): Square {
   const match = /^([a-i])(10|[1-9])$/.exec(value);
   if (!match) throw new Error(`Invalid Xiangqi UCI square: ${value}.`);
+  const file = match[1];
+  const rank = match[2];
+  if (!file || !rank) throw new Error(`Invalid Xiangqi UCI square: ${value}.`);
   return Object.freeze({
-    file: match[1].charCodeAt(0) - 97,
-    rank: Number(match[2]) - 1,
+    file: file.charCodeAt(0) - 97,
+    rank: Number(rank) - 1,
   });
 }
 
 function moveFromUci(value: string): Readonly<{ from: Square; to: Square }> {
   const match = /^([a-i](?:10|[1-9]))([a-i](?:10|[1-9]))$/.exec(value);
   if (!match) throw new Error(`Invalid Xiangqi UCI move: ${value}.`);
-  return Object.freeze({ from: squareFromUci(match[1]), to: squareFromUci(match[2]) });
+  const from = match[1];
+  const to = match[2];
+  if (!from || !to) throw new Error(`Invalid Xiangqi UCI move: ${value}.`);
+  return Object.freeze({ from: squareFromUci(from), to: squareFromUci(to) });
 }
 
 function fenPiece(piece: Piece): string {
@@ -185,7 +185,7 @@ type LineWaiter = {
   resolve: () => void;
   reject: (error: Error) => void;
   timer: unknown;
-  quietTimer: unknown | null;
+  quietTimer: unknown;
 };
 
 type BootWaiter = {
@@ -203,7 +203,7 @@ type ActiveSearch = {
   nodes: number;
   score: number;
   deadlineTimer: unknown;
-  graceTimer: unknown | null;
+  graceTimer: unknown;
   stopPromise: Promise<void> | null;
   stopResolve: (() => void) | null;
 };
@@ -246,9 +246,11 @@ function parseInfo(line: string): Readonly<{ depth?: number; nodes?: number; sco
   const cp = /(?:^|\s)score cp (-?\d+)(?:\s|$)/.exec(line);
   const mate = /(?:^|\s)score mate (-?\d+)(?:\s|$)/.exec(line);
   return Object.freeze({
-    depth: depth ? Number(depth[1]) : undefined,
-    nodes: nodes ? Number(nodes[1]) : undefined,
-    score: cp ? Number(cp[1]) : mate ? Math.sign(Number(mate[1])) * 100_000 : undefined,
+    ...(depth?.[1] ? { depth: Number(depth[1]) } : {}),
+    ...(nodes?.[1] ? { nodes: Number(nodes[1]) } : {}),
+    ...(cp?.[1]
+      ? { score: Number(cp[1]) }
+      : mate?.[1] ? { score: Math.sign(Number(mate[1])) * 100_000 } : {}),
   });
 }
 
@@ -544,6 +546,8 @@ export class MasterEngineAdapter implements OpponentProvider {
     if (info.score !== undefined) active.score = info.score;
     const bestmove = /^bestmove (\S+)(?:\s|$)/.exec(line);
     if (!bestmove) return;
+    const bestmoveUci = bestmove[1];
+    if (!bestmoveUci) return;
     if (active.mode !== "searching") {
       this.settleSearch(active.mode === "timeout"
         ? failure("timeout", "The Master search timed out.")
@@ -551,7 +555,7 @@ export class MasterEngineAdapter implements OpponentProvider {
       return;
     }
     try {
-      const candidate = moveFromUci(bestmove[1]);
+      const candidate = moveFromUci(bestmoveUci);
       const piece = getPieceAt(active.game, candidate.from);
       const legal = piece?.side === active.game.sideToMove
         && getLegalMoves(active.game, piece.id).some(
