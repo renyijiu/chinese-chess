@@ -1,7 +1,17 @@
 {
   "name": "chinese-chess-3d-web",
   "version": "0.1.0",
+  "description": "Browser-based 3D Xiangqi with local play, client-side AI, and optional WebRTC friend matches.",
   "private": true,
+  "keywords": [
+    "chinese-chess",
+    "react",
+    "threejs",
+    "typescript",
+    "webgl",
+    "webrtc",
+    "xiangqi"
+  ],
   "license": "GPL-3.0-only",
   "repository": {
     "type": "git",

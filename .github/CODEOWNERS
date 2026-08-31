@@ -1,0 +1,6 @@
+# Default maintainer review. Keep ownership explicit for sensitive project metadata.
+* @renyijiu
+/.github/ @renyijiu
+/SECURITY.md @renyijiu
+/ASSET_ATTRIBUTION.md @renyijiu
+/THIRD_PARTY_NOTICES.md @renyijiu

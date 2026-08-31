@@ -4,7 +4,7 @@
 
 ## 开始之前
 
-1. 安装 Git LFS、Node.js `>=22.13.0` 和 npm。
+1. 安装 Git LFS、Node.js `>=22.13.0` 和 npm；使用 nvm 时运行 `nvm use` 会读取仓库的 `.nvmrc`。
 2. Fork 并克隆仓库，然后运行：
 
    ```bash
@@ -14,7 +14,7 @@
    npm run dev
    ```
 
-3. 对较大功能先提交 Issue，说明用户场景、边界和验收方式。
+3. 阅读 [`docs/architecture.md`](docs/architecture.md)；对较大功能先提交 Issue，说明用户场景、边界和验收方式。
 
 ## 开发约定
 

@@ -1,5 +1,9 @@
 # 网页 3D 中国象棋
 
+[![CI](https://github.com/renyijiu/chinese-chess/actions/workflows/ci.yml/badge.svg)](https://github.com/renyijiu/chinese-chess/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/renyijiu/chinese-chess/actions/workflows/codeql.yml/badge.svg)](https://github.com/renyijiu/chinese-chess/actions/workflows/codeql.yml)
+[![License: GPL-3.0-only](https://img.shields.io/badge/license-GPL--3.0--only-blue.svg)](LICENSE)
+
 <p align="center">
   <img alt="秦兵马俑中国象棋阵容" src="assets/characters/reviews/roster-contact-sheet-qin-terracotta.png" width="900">
 </p>
@@ -183,5 +187,6 @@ npm run test:performance:headed
 
 - 报告可复现缺陷：使用 GitHub 的结构化 Bug 表单。
 - 提交功能或资产改动：先阅读 [`CONTRIBUTING.md`](CONTRIBUTING.md) 和 [`ASSET_ATTRIBUTION.md`](ASSET_ATTRIBUTION.md)。
+- 代码边界与发布维护：见 [`docs/architecture.md`](docs/architecture.md)、[`docs/releasing.md`](docs/releasing.md) 和 [`CHANGELOG.md`](CHANGELOG.md)。
 - 第三方代码与运行时来源：见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
 - 当前质量证据与已知限制：见 [`docs/validation.md`](docs/validation.md)。
