@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { createInitialGame, dispatch, serializeGame, type GameState } from "../../lib/xiangqi/index";
+import { getDeterministicFallbackCandidate, runLightweightSearchBatched } from "../../lib/xiangqi/ai/lightweight";
+import { createInitialGame, dispatch, getPieceAt, serializeGame, type GameState } from "../../lib/xiangqi/index";
 import { openCleanGame, waitForRevision } from "./helpers";
 
 const GAME_SAVE_KEY = "xiangqi3d:game:v3";
@@ -41,14 +42,35 @@ function computerSaveFixture(state: GameState, seed: string) {
   });
 }
 
-const AI_CHECK_CAPTURE_FIXTURE = computerSaveFixture(applyFixtureMoves([
+const AI_CHECK_CAPTURE_SEED = "check-capture-0";
+const AI_CHECK_CAPTURE_STATE = applyFixtureMoves([
   [[1, 2], [4, 2]],
   [[0, 6], [0, 5]],
   [[4, 3], [4, 4]],
   [[2, 6], [2, 5]],
   [[4, 4], [4, 5]],
-  [[6, 6], [6, 5]],
-]), "check-capture");
+  [[7, 9], [6, 7]],
+]);
+const AI_CHECK_CAPTURE_FIXTURE = computerSaveFixture(AI_CHECK_CAPTURE_STATE, AI_CHECK_CAPTURE_SEED);
+const AI_CHECK_CAPTURE_MOVE = {
+  from: { file: 4, rank: 5 },
+  to: { file: 4, rank: 6 },
+} as const;
+
+function searchCheckCaptureAtDepth(depthCeiling: number) {
+  return runLightweightSearchBatched(AI_CHECK_CAPTURE_STATE, {
+    tier: "lightweight-easy",
+    seed: AI_CHECK_CAPTURE_SEED,
+    nodeBudget: 100_000,
+    depthCeiling,
+    safetyDeadlineMs: 1,
+    batchNodes: 128,
+    isCancelled: () => false,
+    // Keep this fixture contract independent from host performance.
+    now: () => 0,
+    yieldTask: async () => undefined,
+  });
+}
 
 async function forceNextDie(page: Page, dieResult: 1 | 2 | 3 | 4 | 5 | 6) {
   await page.addInitScript((value) => {
@@ -91,6 +113,29 @@ async function chooseComputerMode(page: Page, difficulty: "简单" | "标准" | 
   await page.getByRole("button", { name: "人机对战" }).click();
   await page.getByRole("radio", { name: difficulty, exact: true }).check();
 }
+
+test("keeps the capture-and-check fixture stable across Easy search cutoffs", async () => {
+  const completedSearches = await Promise.all([1, 2, 3].map(searchCheckCaptureAtDepth));
+  completedSearches.forEach((result, index) => {
+    expect(result.completedDepth).toBe(index + 1);
+  });
+  const candidates = [
+    getDeterministicFallbackCandidate(AI_CHECK_CAPTURE_STATE),
+    ...completedSearches.map((result) => result.candidate),
+  ];
+
+  for (const candidate of candidates) {
+    expect(candidate).toEqual(AI_CHECK_CAPTURE_MOVE);
+  }
+  expect(getPieceAt(AI_CHECK_CAPTURE_STATE, AI_CHECK_CAPTURE_MOVE.to)?.side).toBe("black");
+  const result = dispatch(AI_CHECK_CAPTURE_STATE, {
+    type: "move",
+    expectedRevision: AI_CHECK_CAPTURE_STATE.revision,
+    ...AI_CHECK_CAPTURE_MOVE,
+  });
+  if (result.error) throw new Error(`Invalid capture-and-check fixture: ${result.error.code}`);
+  expect(result.state.status).toEqual({ kind: "playing", check: "black" });
+});
 
 test("rolls and persists an odd die before confirming a red-side computer match", async ({ page }) => {
   await forceNextDie(page, 5);
