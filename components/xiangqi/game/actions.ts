@@ -28,8 +28,14 @@ export function isComputerTurn(match: SavedMatch): boolean {
 export function canIssueHumanCommand(match: SavedMatch, command: GameCommand): boolean {
   if (match.config.mode === "local") return true;
   if (command.type === "undo") return false;
+  if (match.config.mode === "online" && command.type === "resign") {
+    return match.game.status.kind === "playing" && command.side === match.config.localSide;
+  }
+  const locallyControlledSide = match.config.mode === "computer"
+    ? match.config.humanSide
+    : match.config.localSide;
   return match.game.status.kind === "playing"
-    && match.game.sideToMove === match.config.humanSide;
+    && match.game.sideToMove === locallyControlledSide;
 }
 
 export function shouldRequestOpponentTurn(

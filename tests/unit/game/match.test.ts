@@ -4,6 +4,8 @@ import { createInitialGame } from "../../../lib/xiangqi/index";
 import {
   createComputerMatch,
   createLocalMatch,
+  createOnlineMatch,
+  onlineSideForRematch,
   parseMatchConfig,
   rollFairDie,
   setEffectiveOpponentTier,
@@ -118,10 +120,22 @@ describe("match config validation", () => {
     requestedDifficulty: "master",
     effectiveTier: "fairy-master",
   } as const;
+  const validOnline = {
+    mode: "online",
+    protocolVersion: 1,
+    pairingId: "pairing-1",
+    matchId: "match-1",
+    rematchIndex: 0,
+    localPeerId: "peer-host",
+    remotePeerId: "peer-guest",
+    localSide: "red",
+    signalingRole: "host",
+  } as const;
 
-  it("accepts complete local and computer discriminants", () => {
+  it("accepts complete local, computer, and online discriminants", () => {
     expect(parseMatchConfig({ mode: "local" })).toEqual({ mode: "local" });
     expect(parseMatchConfig(validComputer)).toEqual(validComputer);
+    expect(parseMatchConfig(validOnline)).toEqual(validOnline);
   });
 
   it("rejects unknown, extra, and cross-field values", () => {
@@ -136,5 +150,55 @@ describe("match config validation", () => {
       requestedDifficulty: "normal",
       effectiveTier: "lightweight-hard",
     })).toThrow();
+  });
+
+  it("strictly validates online identities, protocol, peers, and rematch index", () => {
+    for (const invalid of [
+      { ...validOnline, extra: true },
+      { ...validOnline, protocolVersion: 2 },
+      { ...validOnline, pairingId: "" },
+      { ...validOnline, matchId: "x".repeat(129) },
+      { ...validOnline, rematchIndex: -1 },
+      { ...validOnline, rematchIndex: 0.5 },
+      { ...validOnline, remotePeerId: validOnline.localPeerId },
+      { ...validOnline, localSide: "black" },
+      { ...validOnline, signalingRole: "caller" },
+    ]) {
+      expect(() => parseMatchConfig(invalid)).toThrow();
+    }
+  });
+
+  it("alternates host and guest sides deterministically across rematches", () => {
+    const firstHost = createOnlineMatch(validOnline);
+    const firstGuest = createOnlineMatch({
+      ...validOnline,
+      localPeerId: validOnline.remotePeerId,
+      remotePeerId: validOnline.localPeerId,
+      localSide: "black",
+      signalingRole: "guest",
+    });
+    const rematchHost = createOnlineMatch({
+      ...validOnline,
+      rematchIndex: 1,
+      localSide: "black",
+    });
+    const rematchGuest = createOnlineMatch({
+      ...validOnline,
+      rematchIndex: 1,
+      localPeerId: validOnline.remotePeerId,
+      remotePeerId: validOnline.localPeerId,
+      localSide: "red",
+      signalingRole: "guest",
+    });
+
+    expect(firstHost.config).toEqual(validOnline);
+    expect(firstGuest.config).toMatchObject({ signalingRole: "guest", localSide: "black" });
+    expect(rematchHost.config).toMatchObject({ signalingRole: "host", localSide: "black" });
+    expect(rematchGuest.config).toMatchObject({ signalingRole: "guest", localSide: "red" });
+    expect(onlineSideForRematch(0, "host")).toBe("red");
+    expect(onlineSideForRematch(0, "guest")).toBe("black");
+    expect(onlineSideForRematch(1, "host")).toBe("black");
+    expect(onlineSideForRematch(1, "guest")).toBe("red");
+    expect(firstHost.game.revision).toBe(0);
   });
 });

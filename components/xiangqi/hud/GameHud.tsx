@@ -1,9 +1,10 @@
 "use client";
 
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import type { CapturedPiece, GameState, MoveRecord, Role, Side } from "../../../lib/xiangqi/index";
 import type { OpponentCoordinatorSnapshot } from "../ai/OpponentCoordinator";
+import type { OnlineMatchCoordinatorSnapshot } from "../online/OnlineMatchCoordinator";
 import type {
   ComputerDifficulty,
   ComputerMatchConfig,
@@ -120,10 +121,20 @@ export type GameHudPermissions = Readonly<{
   canResign: boolean;
 }>;
 
+export type OnlineHudPermissionState = Readonly<{
+  peerOpen: boolean;
+  coordinatorPhase: OnlineMatchCoordinatorSnapshot["phase"] | null;
+  conflict: boolean;
+}>;
+
 export function deriveGameHudPermissions(
   match: SavedMatch,
   commandBusy: boolean,
+  online?: OnlineHudPermissionState,
 ): GameHudPermissions {
+  const resigningSide = match.config.mode === "computer"
+    ? match.config.humanSide
+    : match.game.sideToMove;
   return {
     showUndo: match.config.mode === "local",
     canUndo: match.config.mode === "local"
@@ -131,7 +142,11 @@ export function deriveGameHudPermissions(
       && !commandBusy,
     canResign: match.game.status.kind === "playing"
       && !commandBusy
-      && (match.config.mode === "local" || match.game.sideToMove === match.config.humanSide),
+      && (match.config.mode === "online"
+        ? online?.peerOpen === true
+          && (online.coordinatorPhase === "playable" || online.coordinatorPhase === "awaiting-ack")
+          && !online.conflict
+        : match.game.sideToMove === resigningSide),
   };
 }
 
@@ -172,9 +187,13 @@ export function GameMenu({
   onConfirmComputer,
   onContinue,
   onRollComputer,
+  onCreateOnline,
+  onJoinOnline,
   onStart,
+  onlineEnabled = false,
   preparedComputerMatch = null,
   reducedMotion = false,
+  resumeMode,
   warning,
 }: {
   animateMatchId?: string | null;
@@ -183,12 +202,16 @@ export function GameMenu({
   onConfirmComputer?: () => void;
   onContinue: () => void;
   onRollComputer?: (difficulty: ComputerDifficulty) => void;
+  onCreateOnline?: () => void;
+  onJoinOnline?: () => void;
   onStart: () => void;
+  onlineEnabled?: boolean;
   preparedComputerMatch?: ComputerMatchConfig | null;
   reducedMotion?: boolean;
+  resumeMode?: SavedMatch["config"]["mode"];
   warning?: string;
 }) {
-  const [mode, setMode] = useState<"local" | "computer">(
+  const [mode, setMode] = useState<"local" | "computer" | "online">(
     preparedComputerMatch ? "computer" : "local",
   );
   const [difficulty, setDifficulty] = useState<ComputerDifficulty>(
@@ -199,17 +222,20 @@ export function GameMenu({
     <div className="game-menu game-overlay-panel" role="dialog" aria-labelledby="game-menu-title">
       <p className="game-kicker">QIN DIORAMA · 秦俑棋局</p>
       <h2 id="game-menu-title">兵临九宫</h2>
-      <p>选择本机双人或无需后端的人机对战。规则仍由同一套中国象棋引擎裁定，红方先行。</p>
+      <p>选择本机双人、无需后端的人机对战，或与好友手动建立浏览器直连。规则均由同一套中国象棋引擎裁定。</p>
       {warning ? <p className="game-warning" role="status">{warning}</p> : null}
       {hasSave && !preparedComputerMatch ? (
-        <button className="game-continue-action game-primary-action" disabled={loading} type="button" onClick={onContinue}>
-          继续对局
+        <button className="game-continue-action game-primary-action" disabled={loading || (resumeMode === "online" && !onlineEnabled)} type="button" onClick={onContinue}>
+          {resumeMode === "online"
+            ? onlineEnabled ? "重新配对继续在线棋局" : "在线模式当前未启用"
+            : "继续对局"}
         </button>
       ) : null}
 
       <div className="game-mode-switch" role="group" aria-label="对局模式">
         <button aria-pressed={mode === "local"} disabled={loading} type="button" onClick={() => setMode("local")}>本机双人</button>
         <button aria-pressed={mode === "computer"} disabled={loading} type="button" onClick={() => setMode("computer")}>人机对战</button>
+        {onlineEnabled ? <button aria-pressed={mode === "online"} disabled={loading} type="button" onClick={() => setMode("online")}>好友直连</button> : null}
       </div>
 
       {mode === "local" ? (
@@ -220,7 +246,7 @@ export function GameMenu({
             {hasSave ? "开始新的本机双人对局" : "开始本机双人对局"}
           </button>
         </section>
-      ) : (
+      ) : mode === "computer" ? (
         <ComputerMatchSetup
           animateMatchId={animateMatchId}
           difficulty={difficulty}
@@ -231,6 +257,16 @@ export function GameMenu({
           preparedConfig={preparedComputerMatch}
           reducedMotion={reducedMotion}
         />
+      ) : (
+        <section className="online-match-setup" aria-labelledby="online-setup-title">
+          <h3 id="online-setup-title">手动信令直连</h3>
+          <p>房主生成 Offer，好友粘贴后生成 Answer，再由房主粘贴响应。不提供匹配大厅、账户或权威游戏服务端。</p>
+          <div className="online-inline-actions">
+            <button className="game-primary-action" disabled={loading} type="button" onClick={onCreateOnline}>创建邀请</button>
+            <button className="game-secondary-action" disabled={loading} type="button" onClick={onJoinOnline}>粘贴邀请加入</button>
+          </div>
+          <p className="online-disclosure">公共 STUN 只协助发现连接路径；首版无 TURN，某些网络会失败。本模式不提供防作弊或竞技级可靠性。</p>
+        </section>
       )}
       <small>{loading ? "正在检查本地存档…" : "自动保存 · 无计时 · 无需登录"}</small>
     </div>
@@ -273,11 +309,22 @@ export function GameOverPanel({
   game,
   onRestart,
   onUndo,
+  onlineRematch,
 }: {
   canUndo: boolean;
   game: GameState;
-  onRestart: () => void;
+  onRestart?: () => void;
   onUndo: () => void;
+  onlineRematch?: Readonly<{
+    supported: boolean;
+    available: boolean;
+    status: "idle" | "requested" | "received" | "agreed" | "declined" | "cancelled";
+    onRequest: () => void;
+    onAccept: () => void;
+    onDecline: () => void;
+    onCancel: () => void;
+    onReconnect: () => void;
+  }>;
 }) {
   return (
     <section className="game-over-panel game-overlay-panel" aria-labelledby="game-over-title">
@@ -286,7 +333,30 @@ export function GameOverPanel({
       <p>将帅仍保留在规则棋盘中，后续战斗时间线可在这里叠加败亡演出。</p>
       <div className="game-menu-actions">
         {canUndo ? <button className="game-secondary-action" type="button" onClick={onUndo}>悔棋复战</button> : null}
-        <button className="game-primary-action" type="button" onClick={onRestart}>开始新局</button>
+        {onlineRematch ? (
+          onlineRematch.status === "received" ? (
+            <>
+              <button className="game-primary-action" type="button" onClick={onlineRematch.onAccept}>接受再来一局</button>
+              <button className="game-secondary-action" type="button" onClick={onlineRematch.onDecline}>拒绝</button>
+            </>
+          ) : onlineRematch.status === "requested" ? (
+            <>
+              <span className="online-rematch-note">已邀请好友，等待回应…</span>
+              <button className="game-secondary-action" type="button" onClick={onlineRematch.onCancel}>取消邀请</button>
+            </>
+          ) : onlineRematch.status === "agreed" ? (
+            <span className="online-rematch-note">双方已同意，正在核对并创建新局…</span>
+          ) : onlineRematch.supported && onlineRematch.available ? (
+            <button className="game-primary-action" type="button" onClick={onlineRematch.onRequest}>邀请再来一局</button>
+          ) : onlineRematch.supported ? (
+            <span className="online-rematch-note">当前连接不可用，请重新配对后继续。</span>
+          ) : (
+            <span className="online-rematch-note">好友版本不支持同连接重开。</span>
+          )
+        ) : onRestart ? (
+          <button className="game-primary-action" type="button" onClick={onRestart}>开始新局</button>
+        ) : null}
+        {onlineRematch ? <button className="game-secondary-action" type="button" onClick={onlineRematch.onReconnect}>返回菜单重新配对</button> : null}
       </div>
     </section>
   );
@@ -294,6 +364,7 @@ export function GameOverPanel({
 
 export function GameHud({
   game,
+  onlineStatus,
   opponent,
   onResign,
   onRestart,
@@ -302,11 +373,13 @@ export function GameHud({
   onUndo,
   permissions,
   presentationBusy,
+  restartLabel = "重新开局",
   selectedMoveCount,
   settings,
   warning,
 }: {
   game: GameState;
+  onlineStatus?: ReactNode;
   opponent?: OpponentHudState;
   onResign: () => void;
   onRestart: () => void;
@@ -315,6 +388,7 @@ export function GameHud({
   onUndo: () => void;
   permissions: GameHudPermissions;
   presentationBusy: boolean;
+  restartLabel?: string;
   selectedMoveCount: number;
   settings: GameSettings;
   warning?: string;
@@ -369,6 +443,8 @@ export function GameHud({
         </section>
       ) : null}
 
+      {onlineStatus}
+
       <aside
         className="game-history"
         aria-label="着法历史"
@@ -413,7 +489,7 @@ export function GameHud({
         {presentationBusy ? <button className="game-skip-action" type="button" onClick={onSkip}>跳过演出</button> : null}
         {permissions.showUndo ? <button disabled={!permissions.canUndo} type="button" onClick={onUndo}>悔棋</button> : null}
         <button disabled={!permissions.canResign || ended} type="button" onClick={onResign}>认输</button>
-        <button type="button" onClick={onRestart}>重新开局</button>
+        <button type="button" onClick={onRestart}>{restartLabel}</button>
         <button aria-expanded={settingsOpen} type="button" onClick={toggleSettings}>设置</button>
       </nav>
 

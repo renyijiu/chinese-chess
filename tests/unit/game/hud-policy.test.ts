@@ -12,6 +12,7 @@ import {
 import {
   createComputerMatch,
   createLocalMatch,
+  createOnlineMatch,
   setEffectiveOpponentTier,
 } from "../../../components/xiangqi/game/match";
 
@@ -116,6 +117,56 @@ describe("game HUD policy", () => {
       computerOwnsTurn: false,
       snapshot: snapshot("ready"),
     })).toContain("已保存并回退至困难");
+  });
+
+  it("offers online resignation on either turn only while the peer protocol is healthy", () => {
+    const online = createOnlineMatch({
+      mode: "online",
+      protocolVersion: 1,
+      pairingId: "pairing-1",
+      matchId: "match-1",
+      rematchIndex: 0,
+      localPeerId: "peer-host",
+      remotePeerId: "peer-guest",
+      localSide: "red",
+      signalingRole: "host",
+    });
+    const healthy = {
+      peerOpen: true,
+      coordinatorPhase: "playable" as const,
+      conflict: false,
+    };
+    expect(deriveGameHudPermissions(online, false, healthy)).toEqual({
+      showUndo: false,
+      canUndo: false,
+      canResign: true,
+    });
+
+    const afterLocal = dispatch(online.game, {
+      type: "move",
+      expectedRevision: 0,
+      from: { file: 0, rank: 3 },
+      to: { file: 0, rank: 4 },
+    });
+    if (afterLocal.error) throw new Error("fixture move must be legal");
+    const opponentTurn = {
+      ...online,
+      game: afterLocal.state,
+      revision: afterLocal.state.revision,
+    };
+    expect(deriveGameHudPermissions(opponentTurn, false, healthy).canResign).toBe(true);
+    expect(deriveGameHudPermissions(opponentTurn, false, {
+      ...healthy,
+      peerOpen: false,
+    }).canResign).toBe(false);
+    expect(deriveGameHudPermissions(opponentTurn, false, {
+      ...healthy,
+      coordinatorPhase: "stalled",
+    }).canResign).toBe(false);
+    expect(deriveGameHudPermissions(opponentTurn, false, {
+      ...healthy,
+      coordinatorPhase: "awaiting-ack",
+    }).canResign).toBe(true);
   });
 
   it("names the captured piece and groups losses by faction", () => {

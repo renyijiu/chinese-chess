@@ -4,7 +4,7 @@
   <img alt="秦兵马俑中国象棋阵容" src="assets/characters/reviews/roster-contact-sheet-qin-terracotta.png" width="900">
 </p>
 
-这是一个可进行本机双人或纯前端人机对弈的浏览器 3D 中国象棋。32 枚棋子使用帅/将、仕/士、相/象、车、马、炮、兵/卒七类 Q 版秦兵马俑带骨骼 GLB 资产；棋盘、环境、交互反馈和 HUD 共同采用暖烧陶、黑漆、旧铜、白垩及少量矿物残彩的微缩沙盘语言。
+这是一个可进行本机双人、纯前端人机对弈，以及可选 WebRTC 好友直连的浏览器 3D 中国象棋。32 枚棋子使用帅/将、仕/士、相/象、车、马、炮、兵/卒七类 Q 版秦兵马俑带骨骼 GLB 资产；棋盘、环境、交互反馈和 HUD 共同采用暖烧陶、黑漆、旧铜、白垩及少量矿物残彩的微缩沙盘语言。
 
 > [!IMPORTANT]
 > 项目当前为实验性预发布版本。规则、存档、桌面浏览器对局与生产构建已有自动化验证；高画质 60 FPS p95 门槛和目标手机实机证据尚未关闭，详见 [`docs/validation.md`](docs/validation.md)。
@@ -64,6 +64,23 @@ Master 发布包和可重现来源位于：
 - [`LICENSE`](LICENSE)：本项目采用 `GPL-3.0-only`。
 
 发布前使用 `npm run assets:ai:validate` 校验本地清单，或在具备 Chromium 的维护环境运行 `npm run assets:ai:canary`，验证隔离加载、WASM/NNUE、UCI 协议和合法着法；运行时不会依赖上游网络。
+
+## WebRTC 好友直连（可选）
+
+实验性的好友直连模式以 `RTCDataChannel` 在两台浏览器之间传递版本化棋局命令，不建设匹配大厅、账户系统或权威游戏服务端，也不传输 3D 坐标、动画、VFX 和音频。它默认关闭；部署时设置 `NEXT_PUBLIC_XIANGQI_ONLINE_ENABLED=1`（或 `true`）才会显示入口。
+
+首版使用等待 ICE gathering complete 的手动 non-trickle 信令：房主复制或系统分享完整 Offer 邀请文本，加入方粘贴后生成完整 Answer，房主再粘贴 Answer 建立连接；不超过 2 KiB 的文本还可按需显示二维码作为辅助。双方确认准备后开局，首局房主执红；重开时双方交换红黑。不支持悔棋，支持认输、终局重开、短断线宽限，以及连接失败后重新配对。
+
+STUN 是可选配置，使用逗号分隔：
+
+```bash
+NEXT_PUBLIC_XIANGQI_ONLINE_ENABLED=1
+NEXT_PUBLIC_XIANGQI_STUN_URLS=stun:stun.example.com:3478,stun:stun-backup.example.com:3478
+```
+
+首版只接受 `stun:` URL，不提供 TURN。因此对称 NAT、防火墙严格的企业网络或 UDP 受限网络可能始终无法直连；这是预期限制，不会自动回退到游戏服务端。刷新页面会关闭当前 WebRTC 会话，需要再次交换 Offer/Answer；本地存档只用于重新配对后的严格前缀校验与恢复，不保存 SDP/ICE，也不会在日常走子中接受对方任意完整状态。
+
+邀请/响应文本包含临时 SDP 与 ICE 网络信息，应只发给本局好友并在用后清除。使用第三方 STUN 时，其运营方能够看到请求来源的公网网络元数据。该模式是好友休闲对局，不提供防作弊、旁观、匹配、跨设备账户同步或竞技级断线恢复保证。完整流程、协议边界、故障处理和部署检查见 [`docs/online-friend-match.md`](docs/online-friend-match.md)。
 
 ## 资产管线
 
@@ -131,25 +148,27 @@ npm run dev
 npm run typecheck
 npm run lint
 npm run test:unit
+npm run test:online
 npm run test:runtime
 npm run assets:ai:validate
 npm test
 npm run assets:pieces:validate
 npm run test:budget
 npm run test:e2e
+npm run test:online:e2e
 npm run test:visual
 npm run test:ai:lifecycle
 npm run test:performance
 npm run test:performance:headed
 ```
 
-`npm test` 会先执行 Vinext 生产构建，再验证服务端输出、浏览器专属棋局边界、R3F 棋盘接线、九纵十横结构和 WebGL2 回退逻辑。Playwright 另覆盖音频用户手势、键盘完整走子、真实 Canvas 指针/触摸、红黑双方连续八手、吃子、将军、终局、精确存档恢复、骰子与阵营恢复、四档人机、Master 启动/降级、Worker 超时/畸形输出、后台暂停、可选全景失败、画质往返、确认框焦点隔离和 WebGL context loss/恢复。视觉比较在环境状态显式进入 `ready` 或 `degraded` 后才截图。
+`npm test` 会先执行 Vinext 生产构建，再验证服务端输出、浏览器专属棋局边界、R3F 棋盘接线、九纵十横结构和 WebGL2 回退逻辑。Playwright 另覆盖音频用户手势、键盘完整走子、真实 Canvas 指针/触摸、红黑双方连续八手、吃子、将军、终局、精确存档恢复、骰子与阵营恢复、四档人机、Master 启动/降级、Worker 超时/畸形输出、后台暂停、可选全景失败、画质往返、确认框焦点隔离和 WebGL context loss/恢复；好友直连测试使用两个相互隔离的浏览器上下文交换真实 Offer/Answer。视觉比较在环境状态显式进入 `ready` 或 `degraded` 后才截图。
 
 `npm run test:e2e` 使用开发服务器运行包含故障注入的完整浏览器套件；`npm run test:e2e:release` 会先构建，再针对生产 Worker 验证正常对局和真实 Master 路径。测试已部署地址时设置 `PLAYWRIGHT_BASE_URL` 与 `PLAYWRIGHT_SKIP_WEB_SERVER=1`。
 
 可重复的测试范围、浏览器证据、资源预算、性能数字及尚未关闭的发布门槛记录在 [`docs/validation.md`](docs/validation.md)。2026-08-25 的 M1 Max 可见 Chromium 高画质 1920×1080 在预热后的 208 帧窗口实测为 77 次当前绘制、82 次峰值绘制、16.54 ms 平均 / 18.4 ms p95 渲染帧间隔和 3.66 MiB 首次可玩生产响应体。绘制、DPR、主动全景和下载预算通过，但尚未达到 16.7 ms 精确 p95 门槛；严格性能命令会如实返回失败。
 
-部署层继续使用 Vinext/Vite 与 Cloudflare Worker；当前人机对局完全在浏览器执行。D1、Durable Objects 和账号体系留给联机阶段接入。
+部署层继续使用 Vinext/Vite 与 Cloudflare Worker；人机对局完全在浏览器执行，好友对局也不依赖游戏服务端。将来如增加房间码，可接入与棋局协议解耦的极小第三方或边缘信令服务；如增加 TURN，则需要短期凭证签发、流量配额、滥用防护和可观测性，但这些都不改变首版手动信令路径。
 
 ## 浏览器与部署支持
 

@@ -11,7 +11,9 @@ export {
 } from "./engine";
 export {
   deserializeGame,
+  fingerprintGame,
   serializeGame,
+  sha256Hex,
   XiangqiSerializationError,
 } from "./persistence";
 export {

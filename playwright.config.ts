@@ -5,6 +5,9 @@ const audioBrowserMatrix = process.env.AUDIO_BROWSER_MATRIX === "1";
 const skipWebServer = process.env.PLAYWRIGHT_SKIP_WEB_SERVER === "1";
 const webServerCommand = process.env.PLAYWRIGHT_SERVER_COMMAND
   ?? "npm run dev";
+const reuseExistingServer = process.env.PLAYWRIGHT_REUSE_SERVER === undefined
+  ? !process.env.CI
+  : process.env.PLAYWRIGHT_REUSE_SERVER === "1";
 
 export default defineConfig({
   expect: { timeout: 12_000 },
@@ -24,7 +27,7 @@ export default defineConfig({
   },
   webServer: skipWebServer ? undefined : {
     command: webServerCommand,
-    reuseExistingServer: process.env.PLAYWRIGHT_REUSE_SERVER === "1" || !process.env.CI,
+    reuseExistingServer,
     timeout: 120_000,
     url: baseURL,
   },

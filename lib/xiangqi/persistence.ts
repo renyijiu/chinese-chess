@@ -5,6 +5,7 @@ import {
   type GameCommand,
   type GameState,
   type ReplayCommand,
+  type Side,
 } from "./types";
 
 interface SerializedGameV1 {
@@ -33,6 +34,19 @@ export function serializeGame(state: GameState): string {
   return JSON.stringify(value);
 }
 
+export async function sha256Hex(value: string): Promise<string> {
+  const bytes = new TextEncoder().encode(value);
+  const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(
+    new Uint8Array(digest),
+    (byte) => byte.toString(16).padStart(2, "0"),
+  ).join("");
+}
+
+export function fingerprintGame(state: GameState): Promise<string> {
+  return sha256Hex(serializeGame(state));
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -41,8 +55,15 @@ function parseReplayCommand(value: unknown, index: number): ReplayCommand {
   if (!isRecord(value) || typeof value.type !== "string") {
     throw new XiangqiSerializationError(`Command ${index} is not an object with a type.`);
   }
-  if (value.type === "undo" || value.type === "resign") {
-    return { type: value.type };
+  if (value.type === "undo") {
+    return { type: "undo" };
+  }
+  if (value.type === "resign") {
+    if (value.side === undefined) return { type: "resign" };
+    if (value.side !== "red" && value.side !== "black") {
+      throw new XiangqiSerializationError(`Command ${index} contains an invalid resigning side.`);
+    }
+    return { type: "resign", side: value.side as Side };
   }
   if (value.type !== "move" || !isRecord(value.from) || !isRecord(value.to)) {
     throw new XiangqiSerializationError(`Command ${index} is not a valid replay command.`);

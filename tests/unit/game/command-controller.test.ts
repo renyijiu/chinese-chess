@@ -18,6 +18,7 @@ import {
 import {
   createComputerMatch,
   createLocalMatch,
+  createOnlineMatch,
   type SavedMatch,
 } from "../../../components/xiangqi/game/match";
 
@@ -229,6 +230,40 @@ describe("computer controller policy", () => {
       expectedRevision: opponentTurn.revision,
       from: { file: 0, rank: 6 },
       to: { file: 0, rank: 5 },
+    })).toBe(false);
+  });
+
+  it("gates online commands to the local side and forbids undo", () => {
+    const online = createOnlineMatch({
+      mode: "online",
+      protocolVersion: 1,
+      pairingId: "pairing-1",
+      matchId: "match-1",
+      rematchIndex: 0,
+      localPeerId: "peer-host",
+      remotePeerId: "peer-guest",
+      localSide: "red",
+      signalingRole: "host",
+    });
+
+    expect(canIssueHumanCommand(online, redSoldierMove())).toBe(true);
+    expect(canIssueHumanCommand(online, { type: "undo", expectedRevision: 0 })).toBe(false);
+    const afterLocal = dispatch(online.game, redSoldierMove());
+    if (afterLocal.error) throw new Error("fixture move must be legal");
+    const afterOnlineLocal = {
+      ...online,
+      game: afterLocal.state,
+      revision: afterLocal.state.revision,
+    };
+    expect(canIssueHumanCommand(afterOnlineLocal, {
+      type: "resign",
+      expectedRevision: afterLocal.state.revision,
+      side: "red",
+    })).toBe(true);
+    expect(canIssueHumanCommand(afterOnlineLocal, {
+      type: "resign",
+      expectedRevision: afterLocal.state.revision,
+      side: "black",
     })).toBe(false);
   });
 
