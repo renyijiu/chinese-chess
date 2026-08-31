@@ -10,11 +10,8 @@ import {
 import {
   fingerprintGame,
   formatSquareCoordinate,
-  getPieceAt,
   serializeGame,
   sha256Hex,
-  type CommandErrorCode,
-  type DomainEvent,
   type GameCommand,
   type GameState,
   type Side,
@@ -36,6 +33,13 @@ import {
   type GameActionTransition,
   type GamePhase,
 } from "./game/actions";
+import { ControllerRuntime } from "./game/ControllerRuntime";
+import {
+  commandErrorMessage,
+  describeKeyboardSquare,
+  eventAnnouncement,
+  isBoardNavigationKey,
+} from "./game/announcements";
 import { AnimationRegistry } from "./animation/AnimationRegistry";
 import { AudioEngine } from "./audio/AudioEngine";
 import { handlePresentationAudioCue } from "./audio/presentation-audio";
@@ -92,6 +96,7 @@ import {
   GameMenu,
   GameOverPanel,
 } from "./hud/GameHud";
+import { GameInitializationShell } from "./hud/GameInitializationShell";
 import { KeyboardBoardControl } from "./hud/KeyboardBoardControl";
 
 type NewGameTarget =
@@ -113,80 +118,6 @@ type Confirmation =
   | Readonly<{ kind: "resign"; revision: number; side: GameState["sideToMove"] }>
   | null;
 
-class ControllerRuntime {
-  #match: SavedMatch;
-  #mounted = true;
-  #commit: (commit: CommandCommit) => Promise<void> = async () => undefined;
-  #fallback: (matchId: string, toTier: "lightweight-hard") => Promise<void> = async () => undefined;
-
-  constructor(match: SavedMatch) {
-    this.#match = match;
-  }
-
-  get currentMatch(): SavedMatch {
-    return this.#match;
-  }
-
-  get isMounted(): boolean {
-    return this.#mounted;
-  }
-
-  synchronize(match: SavedMatch): void {
-    this.#match = match;
-  }
-
-  setMounted(mounted: boolean): void {
-    this.#mounted = mounted;
-  }
-
-  setHandlers(
-    commit: (value: CommandCommit) => Promise<void>,
-    fallback: (matchId: string, toTier: "lightweight-hard") => Promise<void>,
-  ): void {
-    this.#commit = commit;
-    this.#fallback = fallback;
-  }
-
-  commit(value: CommandCommit): Promise<void> {
-    return this.#commit(value);
-  }
-
-  fallback(matchId: string, toTier: "lightweight-hard"): Promise<void> {
-    return this.#fallback(matchId, toTier);
-  }
-}
-
-const ERROR_MESSAGES: Record<CommandErrorCode, string> = {
-  "stale-revision": "这次操作已过期，请重新选择棋子。",
-  "game-over": "棋局已经结束。",
-  "invalid-square": "该交叉点不在棋盘范围内。",
-  "no-piece": "起点没有棋子。",
-  "not-your-turn": "现在轮到另一方行动。",
-  "illegal-move": "该落点不符合当前局面的规则。",
-  "cannot-undo": "当前不能再次悔棋。",
-};
-
-const ROLE_LABELS = {
-  advisor: "仕士",
-  cannon: "炮",
-  chariot: "车",
-  elephant: "相象",
-  general: "帅将",
-  horse: "马",
-  soldier: "兵卒",
-} as const;
-
-const BOARD_NAVIGATION_KEYS = new Set([
-  "arrowdown",
-  "arrowleft",
-  "arrowright",
-  "arrowup",
-  "a",
-  "d",
-  "s",
-  "w",
-]);
-
 const ONLINE_RUNTIME_CONFIG = resolveOnlineRuntimeConfig(
   process.env.NEXT_PUBLIC_XIANGQI_ONLINE_ENABLED,
   process.env.NEXT_PUBLIC_XIANGQI_STUN_URLS,
@@ -198,72 +129,12 @@ function randomOnlineId(prefix: string): string {
   return `${prefix}-${Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("")}`;
 }
 
-function eventAnnouncement(events: readonly DomainEvent[], game: GameState) {
-  const ended = events.find((event) => event.type === "GameEnded");
-  if (ended) return formatGameOutcome(game);
-  const undone = events.find((event) => event.type === "MoveUndone");
-  if (undone?.type === "MoveUndone") return `已撤回 ${undone.move.notation}`;
-  const move = events.find((event) => event.type === "MoveCommitted");
-  const captured = events.some((event) => event.type === "PieceCaptured");
-  const check = events.find((event) => event.type === "CheckDeclared");
-  if (move?.type === "MoveCommitted") {
-    const suffix = check?.type === "CheckDeclared" ? "，将军" : captured ? "，完成吃子" : "";
-    return `${move.move.notation}${suffix}`;
-  }
-  return "棋局状态已更新。";
-}
-
 function browserStorage(): StorageLike | null {
   try {
     return window.localStorage;
   } catch {
     return null;
   }
-}
-
-function describeKeyboardSquare(game: GameState, square: Square) {
-  const piece = getPieceAt(game, square);
-  if (!piece) return "空交叉点";
-  return `${piece.side === "red" ? "红方" : "黑方"}${ROLE_LABELS[piece.role]}`;
-}
-
-function GameInitializationShell({
-  onContinue,
-  onStart,
-}: {
-  onContinue: () => void;
-  onStart: () => void;
-}) {
-  return (
-    <section
-      aria-busy="true"
-      aria-label="Q 版秦俑沙盘中国象棋棋盘三维预览"
-      className="viewer-shell board-viewer"
-      data-environment-status="loading"
-    >
-      <div aria-hidden="true" className="viewer-canvas viewer-canvas--initializing" />
-      <div className="viewer-corner-label" aria-hidden="true">
-        <span>QIN DIORAMA</span>
-        <strong>秦俑沙盘 · 01</strong>
-      </div>
-      <div className="viewer-hud" aria-hidden="true">
-        <div className="viewer-controls">
-          <button className="viewer-control" disabled type="button">俯视棋盘</button>
-          <button className="viewer-control" disabled type="button">自动巡游</button>
-          <button className="viewer-control" disabled type="button">换边视角 · 红</button>
-        </div>
-      </div>
-      <div className="game-overlay">
-        <GameMenu
-          hasSave={false}
-          loading
-          onContinue={onContinue}
-          onStart={onStart}
-        />
-      </div>
-      <p className="sr-only" role="status">正在读取本地棋局与画质设置。</p>
-    </section>
-  );
 }
 
 export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
@@ -593,7 +464,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     });
     if (receipt.status === "rejected") {
       audio.play("ui.invalid");
-      if (mounted.current) setNotice(ERROR_MESSAGES[receipt.error.code]);
+      if (mounted.current) setNotice(commandErrorMessage(receipt.error.code));
     } else if (receipt.status === "superseded" && receipt.reason === "busy" && source === "human") {
       if (mounted.current) setNotice("当前动作仍在结算，请稍候。");
     }
@@ -1251,8 +1122,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
   };
 
   const handleKeyboardBoardKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
-    const normalizedKey = event.key.toLowerCase();
-    if (BOARD_NAVIGATION_KEYS.has(normalizedKey)) {
+    if (isBoardNavigationKey(event.key)) {
       event.preventDefault();
       const nextSquare = moveKeyboardCursor(keyboardSquare, event.key);
       setKeyboardSquare(nextSquare);
