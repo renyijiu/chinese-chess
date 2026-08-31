@@ -198,7 +198,11 @@ test("keeps the rule-correct board and modular R3F runtime wired", async () => {
   assert.match(game, /BoardViewer/);
   assert.match(game, /createLocalMatch/);
   assert.match(game, /AuthoritativeCommandGate/);
-  assert.match(game, /LightweightWorkerProvider/);
+  assert.match(game, /import\("\.\/ai\/LightweightWorkerProvider"\)/);
+  assert.match(game, /import\("\.\/ai\/MasterEngineAdapter"\)/);
+  assert.match(game, /import\("\.\/online\/OnlineMatchSession"\)/);
+  assert.doesNotMatch(game, /import \{ LightweightWorkerProvider \}/);
+  assert.doesNotMatch(game, /import \{\s*OnlineMatchSession,/);
   assert.match(game, /GameBoardLayer/);
   assert.match(gameController, /getLegalMoves/);
   assert.match(gameStorage, /GAME_SAVE_BACKUP_KEY/);

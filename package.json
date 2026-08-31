@@ -41,6 +41,7 @@
     "test:presentation": "vitest run --config tests/unit/presentation/vitest.config.ts",
     "test:unit": "npm run test:rules && npm run test:game && npm run test:online && npm run test:ai && npm run test:presentation",
     "test:runtime": "vitest run --config tests/unit/runtime/vitest.config.ts",
+    "test:bundle": "node --test tests/javascript-budget.test.mjs && node scripts/verify-javascript-budget.mjs",
     "test:e2e": "playwright test --config playwright.config.ts --grep-invert @online",
     "test:e2e:dev": "npm run test:e2e",
     "pretest:e2e:release": "npm run build",

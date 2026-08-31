@@ -40,6 +40,7 @@ npm run test:unit
 npm run test:runtime
 npm run test:budget
 npm test
+npm run test:bundle
 npm run test:e2e:release
 ```
 

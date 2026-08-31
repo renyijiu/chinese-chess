@@ -5,7 +5,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent a
 import { BoardViewer } from "../../app/BoardViewer";
 import {
   LIGHTWEIGHT_TIER_LIMITS,
-} from "../../lib/xiangqi/ai/index";
+  MASTER_SEARCH_LIMITS,
+} from "../../lib/xiangqi/ai/search-limits";
 import {
   fingerprintGame,
   formatSquareCoordinate,
@@ -20,11 +21,6 @@ import {
   type Square,
 } from "../../lib/xiangqi/index";
 import { decodeSignalingMessageV1 } from "../../lib/xiangqi/online";
-import { LightweightWorkerProvider } from "./ai/LightweightWorkerProvider";
-import {
-  createMasterEngineProvider,
-  MASTER_SEARCH_LIMITS,
-} from "./ai/MasterEngineAdapter";
 import {
   OpponentCoordinator,
   type OpponentCandidateRelease,
@@ -66,11 +62,11 @@ import {
   type ComputerDifficulty,
   type SavedMatch,
 } from "./game/match";
-import {
+import type {
+  BoundOnlineMatchIdentity,
   OnlineMatchSession,
-  type BoundOnlineMatchIdentity,
-  type OnlineMatchSessionIdentity,
-  type OnlineMatchSessionSnapshot,
+  OnlineMatchSessionIdentity,
+  OnlineMatchSessionSnapshot,
 } from "./online/OnlineMatchSession";
 import type { OnlineCommitContext } from "./online/OnlineMatchCoordinator";
 import { OnlineStatusCard } from "./online/OnlineStatusCard";
@@ -310,7 +306,11 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
   const [installLedger] = useState(() => new AuthoritativeInstallLedger());
   const [opponent] = useState(() => new OpponentCoordinator({
     providerFactory: async (tier) => {
-      if (tier === "fairy-master") return createMasterEngineProvider();
+      if (tier === "fairy-master") {
+        const { createMasterEngineProvider } = await import("./ai/MasterEngineAdapter");
+        return createMasterEngineProvider();
+      }
+      const { LightweightWorkerProvider } = await import("./ai/LightweightWorkerProvider");
       return new LightweightWorkerProvider();
     },
     onFallback: ({ matchId, toTier }) => {
@@ -715,17 +715,23 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     setOnlineSnapshot(next?.getSnapshot() ?? null);
   }, [commandGate, installLedger]);
 
-  const createBrowserOnlineSession = useCallback((
+  const createBrowserOnlineSession = useCallback(async (
     identity: OnlineMatchSessionIdentity,
     resumeMatch: SavedMatch | null,
   ) => {
     const generation = onlineSessionGeneration.current + 1;
     onlineSessionGeneration.current = generation;
+    const { OnlineMatchSession } = await import("./online/OnlineMatchSession");
+    if (!mounted.current || onlineSessionGeneration.current !== generation) {
+      throw new Error("online-session-superseded");
+    }
+    let session: OnlineMatchSession | null = null;
     const isCurrentSession = () => mounted.current
+      && session !== null
       && onlineSessionGeneration.current === generation
       && onlineSessionRef.current === session;
 
-    const session = new OnlineMatchSession({
+    session = new OnlineMatchSession({
       identity,
       rtcConfiguration: ONLINE_RUNTIME_CONFIG.rtcConfiguration,
       peerConnectionFactory: (configuration) => new RTCPeerConnection(configuration),
@@ -860,19 +866,16 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
           intent,
           localSide: onlineSideForRematch(0, role),
         };
-    const session = createBrowserOnlineSession(identity, resumeMatch);
-    replaceOnlineSession(session);
-    if (role !== "host") {
-      setOnlineSetup((current) => current ? { ...current, busy: false } : current);
-      return;
-    }
+    let session: OnlineMatchSession | null = null;
     try {
+      session = await createBrowserOnlineSession(identity, resumeMatch);
+      replaceOnlineSession(session);
       await session.createOffer();
       if (onlineSessionRef.current !== session) return;
       setOnlineSetup((current) => current ? { ...current, busy: false, error: undefined } : current);
       setNotice("完整 Offer 已生成，请发送给好友并等待 Answer。");
     } catch {
-      if (onlineSessionRef.current !== session) return;
+      if (session && onlineSessionRef.current !== session) return;
       setOnlineSetup((current) => current ? { ...current, busy: false, error: "无法生成邀请，请关闭后重试。" } : current);
     }
   }, [createBrowserOnlineSession, replaceOnlineSession]);
@@ -909,7 +912,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
           localSide: resumedConfig?.localSide ?? onlineSideForRematch(0, "guest"),
           rematchIndex: resumedConfig?.rematchIndex ?? 0,
         };
-        session = createBrowserOnlineSession(identity, setup.resumeMatch);
+        session = await createBrowserOnlineSession(identity, setup.resumeMatch);
         replaceOnlineSession(session);
       }
       if (!session) throw new Error("session-missing");

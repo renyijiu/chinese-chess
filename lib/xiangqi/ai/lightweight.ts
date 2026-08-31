@@ -1,5 +1,6 @@
 import { dispatch, getLegalMoves, getPieceAt, isInCheck } from "../engine";
 import type { GameState, Role, Side, Square } from "../types";
+import { LIGHTWEIGHT_TIER_LIMITS } from "./search-limits";
 import type { CandidateMove, LightweightTier } from "./types";
 
 const MATE_SCORE = 1_000_000;
@@ -14,16 +15,6 @@ const MATERIAL: Readonly<Record<Role, number>> = {
   horse: 420,
   cannon: 450,
   soldier: 100,
-};
-
-export const LIGHTWEIGHT_TIER_LIMITS: Readonly<Record<LightweightTier, Readonly<{
-  nodeBudget: number;
-  depthCeiling: number;
-  safetyDeadlineMs: number;
-}>>> = {
-  "lightweight-easy": { nodeBudget: 2_000, depthCeiling: 3, safetyDeadlineMs: 250 },
-  "lightweight-normal": { nodeBudget: 10_000, depthCeiling: 5, safetyDeadlineMs: 750 },
-  "lightweight-hard": { nodeBudget: 50_000, depthCeiling: 7, safetyDeadlineMs: 2_000 },
 };
 
 export const LIGHTWEIGHT_BATCH_NODES = 128;

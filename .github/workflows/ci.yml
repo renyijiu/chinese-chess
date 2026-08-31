@@ -50,7 +50,9 @@ jobs:
           npm run test:budget
 
       - name: Production build and rendered HTML smoke
-        run: npm test
+        run: |
+          npm test
+          npm run test:bundle
 
       - name: Install Chromium
         run: npx playwright install --with-deps chromium

@@ -18,12 +18,6 @@ import {
   type VerifiedMasterAssets,
 } from "./engine-cache";
 
-export const MASTER_SEARCH_LIMITS = Object.freeze({
-  nodeBudget: 200_000,
-  depthCeiling: 12,
-  safetyDeadlineMs: 5_000,
-});
-
 export const MASTER_HOST_WORKER_URL = "/workers/xiangqi-master-v1.worker.js";
 const NETWORK_PATH = "/xiangqi-c07e94a5c7cb.nnue";
 

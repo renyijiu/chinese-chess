@@ -12,7 +12,6 @@ export {
 export type { PositionDigest, PositionValidationResult } from "./protocol";
 export {
   LIGHTWEIGHT_BATCH_NODES,
-  LIGHTWEIGHT_TIER_LIMITS,
   ResumableLightweightSearch,
   createLightweightSearch,
   evaluatePosition,
@@ -20,6 +19,8 @@ export {
   runLightweightSearchBatched,
   yieldToEventLoopTask,
 } from "./lightweight";
+export { LIGHTWEIGHT_TIER_LIMITS, MASTER_SEARCH_LIMITS } from "./search-limits";
+export type { OpponentSearchLimits } from "./search-limits";
 export type {
   BatchedLightweightSearchOptions,
   LightweightSearchOptions,
