@@ -3,7 +3,6 @@ import { ASSET_ROLE_BY_GAME_ROLE } from "../pieces/piece-catalog";
 import { squareToWorld } from "../runtime/board-coordinates";
 import type { PresentationCue } from "../presentation/PresentationStore";
 import type { AudioEngine } from "./AudioEngine";
-import type { AudioCueId } from "./audio-types";
 import { ROLE_VOICE_LINES } from "./voice-lines";
 
 const CUE_SUFFIX_BY_MARKER: Readonly<
@@ -34,7 +33,7 @@ export function handlePresentationAudioCue(engine: AudioEngine, cue: Presentatio
       cue.marker === "telegraph" || cue.marker === "release" ? visualFrom : visualTo,
     );
     const suffix = CUE_SUFFIX_BY_MARKER[cue.marker];
-    if (suffix) engine.play(`${role}.${suffix}` as AudioCueId, { position: world });
+    if (suffix) engine.play(`${role}.${suffix}`, { position: world });
 
     if (cue.marker === "release" && (capture || cue.transition.after.revision % 3 === 0)) {
       const lines = ROLE_VOICE_LINES[role][move.side];
