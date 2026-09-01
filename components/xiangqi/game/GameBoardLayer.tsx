@@ -24,7 +24,7 @@ import {
   interpolateSquareToWorld,
   squareToWorld,
 } from "../runtime/board-coordinates";
-import { getQualityProfile, type QualityTier } from "../runtime/quality";
+import { getQualityProfile, type PieceLod, type QualityTier } from "../runtime/quality";
 import { PieceLayer, type ScenePieceSlot } from "../scene/PieceLayer";
 import { BOARD_HIT_RADIUS } from "../scene/board-geometry";
 import { QIN_DIORAMA_THEME } from "../scene/scene-theme";
@@ -37,6 +37,25 @@ const ALL_SQUARES: readonly Square[] = Object.freeze(
     rank: Math.floor(index / BOARD_FILES),
   })),
 );
+
+declare global {
+  interface Window {
+    __XIANGQI_COMMITTED_PIECE_LOD__?: PieceLod;
+  }
+}
+
+function PieceLodCommitMarker({ lod }: { lod: PieceLod }) {
+  useLayoutEffect(() => {
+    if (process.env.NODE_ENV === "production") return;
+    window.__XIANGQI_COMMITTED_PIECE_LOD__ = lod;
+    return () => {
+      if (window.__XIANGQI_COMMITTED_PIECE_LOD__ === lod) {
+        delete window.__XIANGQI_COMMITTED_PIECE_LOD__;
+      }
+    };
+  }, [lod]);
+  return null;
+}
 
 function BoardHitGrid({
   disabled,
@@ -476,6 +495,7 @@ export function GameBoardLayer({
           />
         )}
       />
+      <PieceLodCommitMarker lod={lod} />
       {ghostPiece ? (
         <group
           position={squareToWorld(ghostPiece.square)}
