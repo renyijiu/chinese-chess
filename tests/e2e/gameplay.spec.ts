@@ -1,12 +1,22 @@
 import { expect, test } from "@playwright/test";
 
-import { openCleanGame, pressSequence, setReducedMotion, startGame, waitForRevision } from "./helpers";
+import {
+  openCleanGame,
+  pressSequence,
+  setReducedMotion,
+  startGame,
+  waitForRevision,
+} from "./helpers";
 
 test("keyboard can select, cancel, move, capture, restore, undo, and resign", async ({ page }) => {
   test.setTimeout(120_000);
   let updateDepthError: string | undefined;
   page.on("console", (message) => {
-    if (!updateDepthError && message.type() === "error" && message.text().includes("Maximum update depth exceeded")) {
+    if (
+      !updateDepthError &&
+      message.type() === "error" &&
+      message.text().includes("Maximum update depth exceeded")
+    ) {
       updateDepthError = message.text();
     }
   });
@@ -19,7 +29,16 @@ test("keyboard can select, cancel, move, capture, restore, undo, and resign", as
   await keyboard.focus();
   const turnDetail = page.locator(".game-turn-card small");
 
-  await pressSequence(keyboard, ["ArrowLeft", "ArrowLeft", "ArrowLeft", "ArrowLeft", "ArrowUp", "ArrowUp", "ArrowUp", "Enter"]);
+  await pressSequence(keyboard, [
+    "ArrowLeft",
+    "ArrowLeft",
+    "ArrowLeft",
+    "ArrowLeft",
+    "ArrowUp",
+    "ArrowUp",
+    "ArrowUp",
+    "Enter",
+  ]);
   await expect(turnDetail).toHaveText("1 个合法落点");
   await keyboard.press("Escape");
   await expect(turnDetail).toHaveText("第 1 手");

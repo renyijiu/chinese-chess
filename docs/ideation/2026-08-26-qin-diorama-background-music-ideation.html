@@ -1,313 +1,938 @@
 <!doctype html>
 <html lang="zh-CN">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Ideation artifact</title>
-  <style>
-    :root {
-      --page: #f1e8d8;
-      --paper: #fffaf1;
-      --ink: #29241e;
-      --muted: #695f54;
-      --line: #d7c6ae;
-      --clay: #a94f32;
-      --clay-soft: #f3ddd2;
-      --bronze: #6a7150;
-      --bronze-soft: #e5e8d5;
-      --ink-soft: #e9e2d8;
-      --gold: #b4873d;
-      --shadow: 0 18px 48px rgba(63, 45, 30, 0.10);
-      --radius: 16px;
-    }
-    * { box-sizing: border-box; }
-    html { scroll-behavior: smooth; }
-    body {
-      margin: 0;
-      color: var(--ink);
-      background:
-        radial-gradient(circle at 12% 0%, rgba(169, 79, 50, 0.10), transparent 30rem),
-        linear-gradient(180deg, #eadbc5 0, var(--page) 26rem);
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-      font-size: 16px;
-      line-height: 1.65;
-    }
-    a { color: #81412d; text-decoration-thickness: 1px; text-underline-offset: 3px; }
-    a:hover { color: var(--clay); }
-    code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .92em; }
-    .page { width: min(940px, calc(100% - 32px)); margin: 28px auto 64px; }
-    .hero {
-      padding: clamp(28px, 6vw, 58px);
-      color: #fff8ef;
-      background: #2f2a23;
-      border-radius: 22px;
-      box-shadow: var(--shadow);
-    }
-    .eyebrow { margin: 0 0 8px; font-size: .76rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
-    .hero .eyebrow { color: #ddad83; }
-    h1, h2, h3 { line-height: 1.22; letter-spacing: -.015em; }
-    h1 { margin: 0; max-width: 18ch; font-size: clamp(2rem, 6vw, 3.45rem); }
-    .dek { max-width: 69ch; margin: 20px 0 0; color: #e9ded0; font-size: 1.05rem; }
-    .meta { display: flex; flex-wrap: wrap; gap: 9px; margin: 26px 0 0; padding: 0; list-style: none; }
-    .chip { display: inline-flex; align-items: center; min-height: 30px; padding: 5px 10px; border-radius: 999px; font-size: .78rem; font-weight: 750; }
-    .hero .chip { color: #fff6ea; background: #51483d; border: 1px solid #6f6254; }
-    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 18px 0 0; }
-    .stat { padding: 14px 16px; background: var(--paper); border: 1px solid var(--line); border-radius: 14px; }
-    .stat strong { display: block; font-size: 1.35rem; line-height: 1.1; }
-    .stat span { color: var(--muted); font-size: .78rem; }
-    nav.toc, section { margin-top: 20px; padding: clamp(22px, 4vw, 36px); background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 8px 28px rgba(66, 47, 30, .055); }
-    nav.toc ul { display: flex; flex-wrap: wrap; gap: 10px 20px; margin: 0; padding: 0; list-style: none; }
-    section h2, nav h2 { margin: 0 0 18px; font-size: 1.55rem; }
-    p { max-width: 72ch; }
-    .callout { margin: 18px 0 0; padding: 16px 18px; border-radius: 13px; background: var(--clay-soft); color: #542a20; }
-    .callout .eyebrow { color: #87402d; }
-    .axes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 0; padding: 0; list-style: none; }
-    .axes li { padding: 14px 16px; border-radius: 12px; background: var(--ink-soft); }
-    .axes li:last-child { grid-column: 1 / -1; }
-    .idea-nav { columns: 2; gap: 28px; margin: 0 0 24px; padding-left: 20px; }
-    .idea-nav li { break-inside: avoid; margin-bottom: 7px; }
-    .idea-card { margin-top: 16px; padding: clamp(20px, 4vw, 30px); border: 1px solid var(--line); border-radius: 15px; background: #fffdf8; }
-    .idea-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
-    .idea-kicker { margin: 0 0 5px; color: var(--clay); font-weight: 850; font-size: .78rem; letter-spacing: .09em; text-transform: uppercase; }
-    .idea-card h3 { margin: 0; font-size: 1.34rem; }
-    .rank { flex: 0 0 auto; display: grid; place-items: center; width: 43px; height: 43px; border-radius: 50%; background: var(--clay); color: white; font-weight: 850; }
-    .idea-card dl { display: grid; grid-template-columns: 8.5rem 1fr; gap: 9px 15px; margin: 20px 0 0; }
-    .idea-card dt { color: var(--muted); font-size: .78rem; font-weight: 850; letter-spacing: .05em; text-transform: uppercase; }
-    .idea-card dd { margin: 0; }
-    .metric-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
-    .metric-row .chip { border: 1px solid #cbd1af; color: #3f472f; background: var(--bronze-soft); }
-    .metric-row .axis-chip { border-color: #dfb9a6; color: #673020; background: var(--clay-soft); }
-    .concept-figure { margin: 22px 0 4px; padding: 14px; overflow-x: auto; border-radius: 14px; background: #f7efe3; }
-    .concept-figure svg { display: block; min-width: 680px; width: 100%; height: auto; }
-    .concept-figure figcaption { max-width: 72ch; margin: 10px 4px 0; color: var(--muted); font-size: .84rem; }
-    .refs { display: grid; gap: 8px; margin-top: 18px; }
-    .refs a { display: block; width: fit-content; }
-    .table-wrap { overflow-x: auto; }
-    table { width: 100%; border-collapse: collapse; font-size: .9rem; }
-    th, td { padding: 11px 12px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
-    th { color: #5a4d41; background: #eee4d5; font-size: .75rem; letter-spacing: .06em; text-transform: uppercase; }
-    tr:last-child td { border-bottom: 0; }
-    footer { margin-top: 22px; padding: 16px 4px; color: var(--muted); font-size: .78rem; text-align: center; }
-    @media (max-width: 720px) {
-      .page { width: min(100% - 20px, 940px); margin-top: 10px; }
-      .stats { grid-template-columns: repeat(2, 1fr); }
-      .axes { grid-template-columns: 1fr; }
-      .axes li:last-child { grid-column: auto; }
-      .idea-nav { columns: 1; }
-      .idea-card dl { grid-template-columns: 1fr; gap: 4px; }
-      .idea-card dt:not(:first-of-type) { margin-top: 10px; }
-    }
-  </style>
-</head>
-<body>
-  <main class="page">
-    <header class="hero">
-      <p class="eyebrow">Ideation · Audio Direction</p>
-      <h1>秦俑沙盘象棋：背景音乐优化方向</h1>
-      <p class="dek">从当前 8 秒合成循环出发，寻找既贴合 Q 版秦俑美术、又能支撑长时间思考的音乐方向。结论不是“做得更宏大”，而是建立更有辨识度、更克制、会在关键棋局状态慢慢变化的声音世界。</p>
-      <ul class="meta" aria-label="Document metadata">
-        <li class="chip">日期 · <time datetime="2026-08-26">2026-08-26</time></li>
-        <li class="chip">主题 · qin-diorama-background-music</li>
-        <li class="chip">焦点 · 背景音乐与紧邻的音频体验</li>
-        <li class="chip">模式 · repo-grounded</li>
-      </ul>
-    </header>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ideation artifact</title>
+    <style>
+      :root {
+        --page: #f1e8d8;
+        --paper: #fffaf1;
+        --ink: #29241e;
+        --muted: #695f54;
+        --line: #d7c6ae;
+        --clay: #a94f32;
+        --clay-soft: #f3ddd2;
+        --bronze: #6a7150;
+        --bronze-soft: #e5e8d5;
+        --ink-soft: #e9e2d8;
+        --gold: #b4873d;
+        --shadow: 0 18px 48px rgba(63, 45, 30, 0.1);
+        --radius: 16px;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at 12% 0%, rgba(169, 79, 50, 0.1), transparent 30rem),
+          linear-gradient(180deg, #eadbc5 0, var(--page) 26rem);
+        font-family:
+          Inter,
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          "PingFang SC",
+          "Hiragino Sans GB",
+          "Microsoft YaHei",
+          sans-serif;
+        font-size: 16px;
+        line-height: 1.65;
+      }
+      a {
+        color: #81412d;
+        text-decoration-thickness: 1px;
+        text-underline-offset: 3px;
+      }
+      a:hover {
+        color: var(--clay);
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.92em;
+      }
+      .page {
+        width: min(940px, calc(100% - 32px));
+        margin: 28px auto 64px;
+      }
+      .hero {
+        padding: clamp(28px, 6vw, 58px);
+        color: #fff8ef;
+        background: #2f2a23;
+        border-radius: 22px;
+        box-shadow: var(--shadow);
+      }
+      .eyebrow {
+        margin: 0 0 8px;
+        font-size: 0.76rem;
+        font-weight: 800;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+      .hero .eyebrow {
+        color: #ddad83;
+      }
+      h1,
+      h2,
+      h3 {
+        line-height: 1.22;
+        letter-spacing: -0.015em;
+      }
+      h1 {
+        margin: 0;
+        max-width: 18ch;
+        font-size: clamp(2rem, 6vw, 3.45rem);
+      }
+      .dek {
+        max-width: 69ch;
+        margin: 20px 0 0;
+        color: #e9ded0;
+        font-size: 1.05rem;
+      }
+      .meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 9px;
+        margin: 26px 0 0;
+        padding: 0;
+        list-style: none;
+      }
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        min-height: 30px;
+        padding: 5px 10px;
+        border-radius: 999px;
+        font-size: 0.78rem;
+        font-weight: 750;
+      }
+      .hero .chip {
+        color: #fff6ea;
+        background: #51483d;
+        border: 1px solid #6f6254;
+      }
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
+        margin: 18px 0 0;
+      }
+      .stat {
+        padding: 14px 16px;
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+      }
+      .stat strong {
+        display: block;
+        font-size: 1.35rem;
+        line-height: 1.1;
+      }
+      .stat span {
+        color: var(--muted);
+        font-size: 0.78rem;
+      }
+      nav.toc,
+      section {
+        margin-top: 20px;
+        padding: clamp(22px, 4vw, 36px);
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        box-shadow: 0 8px 28px rgba(66, 47, 30, 0.055);
+      }
+      nav.toc ul {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px 20px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      section h2,
+      nav h2 {
+        margin: 0 0 18px;
+        font-size: 1.55rem;
+      }
+      p {
+        max-width: 72ch;
+      }
+      .callout {
+        margin: 18px 0 0;
+        padding: 16px 18px;
+        border-radius: 13px;
+        background: var(--clay-soft);
+        color: #542a20;
+      }
+      .callout .eyebrow {
+        color: #87402d;
+      }
+      .axes {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      .axes li {
+        padding: 14px 16px;
+        border-radius: 12px;
+        background: var(--ink-soft);
+      }
+      .axes li:last-child {
+        grid-column: 1 / -1;
+      }
+      .idea-nav {
+        columns: 2;
+        gap: 28px;
+        margin: 0 0 24px;
+        padding-left: 20px;
+      }
+      .idea-nav li {
+        break-inside: avoid;
+        margin-bottom: 7px;
+      }
+      .idea-card {
+        margin-top: 16px;
+        padding: clamp(20px, 4vw, 30px);
+        border: 1px solid var(--line);
+        border-radius: 15px;
+        background: #fffdf8;
+      }
+      .idea-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 18px;
+      }
+      .idea-kicker {
+        margin: 0 0 5px;
+        color: var(--clay);
+        font-weight: 850;
+        font-size: 0.78rem;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+      }
+      .idea-card h3 {
+        margin: 0;
+        font-size: 1.34rem;
+      }
+      .rank {
+        flex: 0 0 auto;
+        display: grid;
+        place-items: center;
+        width: 43px;
+        height: 43px;
+        border-radius: 50%;
+        background: var(--clay);
+        color: white;
+        font-weight: 850;
+      }
+      .idea-card dl {
+        display: grid;
+        grid-template-columns: 8.5rem 1fr;
+        gap: 9px 15px;
+        margin: 20px 0 0;
+      }
+      .idea-card dt {
+        color: var(--muted);
+        font-size: 0.78rem;
+        font-weight: 850;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+      }
+      .idea-card dd {
+        margin: 0;
+      }
+      .metric-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 20px;
+      }
+      .metric-row .chip {
+        border: 1px solid #cbd1af;
+        color: #3f472f;
+        background: var(--bronze-soft);
+      }
+      .metric-row .axis-chip {
+        border-color: #dfb9a6;
+        color: #673020;
+        background: var(--clay-soft);
+      }
+      .concept-figure {
+        margin: 22px 0 4px;
+        padding: 14px;
+        overflow-x: auto;
+        border-radius: 14px;
+        background: #f7efe3;
+      }
+      .concept-figure svg {
+        display: block;
+        min-width: 680px;
+        width: 100%;
+        height: auto;
+      }
+      .concept-figure figcaption {
+        max-width: 72ch;
+        margin: 10px 4px 0;
+        color: var(--muted);
+        font-size: 0.84rem;
+      }
+      .refs {
+        display: grid;
+        gap: 8px;
+        margin-top: 18px;
+      }
+      .refs a {
+        display: block;
+        width: fit-content;
+      }
+      .table-wrap {
+        overflow-x: auto;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+      }
+      th,
+      td {
+        padding: 11px 12px;
+        text-align: left;
+        vertical-align: top;
+        border-bottom: 1px solid var(--line);
+      }
+      th {
+        color: #5a4d41;
+        background: #eee4d5;
+        font-size: 0.75rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+      tr:last-child td {
+        border-bottom: 0;
+      }
+      footer {
+        margin-top: 22px;
+        padding: 16px 4px;
+        color: var(--muted);
+        font-size: 0.78rem;
+        text-align: center;
+      }
+      @media (max-width: 720px) {
+        .page {
+          width: min(100% - 20px, 940px);
+          margin-top: 10px;
+        }
+        .stats {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        .axes {
+          grid-template-columns: 1fr;
+        }
+        .axes li:last-child {
+          grid-column: auto;
+        }
+        .idea-nav {
+          columns: 1;
+        }
+        .idea-card dl {
+          grid-template-columns: 1fr;
+          gap: 4px;
+        }
+        .idea-card dt:not(:first-of-type) {
+          margin-top: 10px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <header class="hero">
+        <p class="eyebrow">Ideation · Audio Direction</p>
+        <h1>秦俑沙盘象棋：背景音乐优化方向</h1>
+        <p class="dek">
+          从当前 8 秒合成循环出发，寻找既贴合 Q
+          版秦俑美术、又能支撑长时间思考的音乐方向。结论不是“做得更宏大”，而是建立更有辨识度、更克制、会在关键棋局状态慢慢变化的声音世界。
+        </p>
+        <ul class="meta" aria-label="Document metadata">
+          <li class="chip">日期 · <time datetime="2026-08-26">2026-08-26</time></li>
+          <li class="chip">主题 · qin-diorama-background-music</li>
+          <li class="chip">焦点 · 背景音乐与紧邻的音频体验</li>
+          <li class="chip">模式 · repo-grounded</li>
+        </ul>
+      </header>
 
-    <div class="stats" aria-label="Ideation summary">
-      <div class="stat"><strong>27</strong><span>原始候选</span></div>
-      <div class="stat"><strong>7</strong><span>保留方向</span></div>
-      <div class="stat"><strong>5</strong><span>覆盖轴</span></div>
-      <div class="stat"><strong>0</strong><span>空白轴</span></div>
-    </div>
-
-    <nav class="toc" aria-label="Document navigation">
-      <h2>导航</h2>
-      <ul>
-        <li><a href="#codebase-context">Codebase Context</a></li>
-        <li><a href="#topic-axes">Topic Axes</a></li>
-        <li><a href="#ranked-ideas">Ranked Ideas</a></li>
-        <li><a href="#rejection-summary">Rejection Summary</a></li>
-      </ul>
-    </nav>
-
-    <section id="codebase-context">
-      <p class="eyebrow">Grounding Context</p>
-      <h2>Codebase Context</h2>
-      <p>当前音频基础并不差：全应用共用一个 Web Audio 上下文，具备 master、music、ambient、voice、SFX、UI 六级控制，支持开始手势解锁、后台挂起、空间化棋子音效、设置持久化和故障隔离。真正的短板是音乐内容仍是一段 8 秒五声音阶合成循环，缺少段落、状态衔接、平滑过渡和长局抗疲劳设计。</p>
-      <p>视觉方向是温暖、哑光、低噪声的 Q 版秦俑博物馆沙盘。声音应对应“陶土、青铜、呼吸、微型仪仗”，避免通用古装大片式的沉重管弦，也不能宣称复原了真实秦代音乐。成熟的互动音乐做法支持分层和分段，但象棋不适合每步都变：音乐应慢速叙事，走子与攻击的即时反馈继续交给 SFX。</p>
-      <div class="callout">
-        <p class="eyebrow">Decisive POV</p>
-        <p><strong>推荐总方向：</strong>以“微型帝国仪仗”为音乐身份，以权威棋局状态驱动缓慢变化，以安静间隔保护思考；所有增强都保留当前合成音乐作为失败降级。</p>
+      <div class="stats" aria-label="Ideation summary">
+        <div class="stat"><strong>27</strong><span>原始候选</span></div>
+        <div class="stat"><strong>7</strong><span>保留方向</span></div>
+        <div class="stat"><strong>5</strong><span>覆盖轴</span></div>
+        <div class="stat"><strong>0</strong><span>空白轴</span></div>
       </div>
-      <div class="refs" aria-label="External reference spine">
-        <a href="https://www.audiokinetic.com/en/public-library/2024.1.8_8893/?id=creating_interactive_music&amp;source=Help">Wwise · Interactive Music</a>
-        <a href="https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API">MDN · Web Audio API</a>
-        <a href="https://www.metmuseum.org/essays/music-and-art-of-china">The Met · Music and Art of China</a>
-        <a href="https://asia-archive.si.edu/exhibition/resound-ancient-bells-of-china/">Smithsonian · Resound: Ancient Bells of China</a>
-        <a href="https://www.w3.org/WAI/WCAG21/Understanding/audio-control.html">W3C · Audio Control</a>
-      </div>
-    </section>
 
-    <section id="topic-axes">
-      <p class="eyebrow">Surface Map</p>
-      <h2>Topic Axes</h2>
-      <ol class="axes">
-        <li><strong>1. 音乐身份与历史表达</strong><br>秦俑沙盘的音色辨识度，以及明确的“秦风灵感”边界。</li>
-        <li><strong>2. 棋局状态叙事</strong><br>将军、终局、悔棋和继续游戏如何触发缓慢而可靠的音乐变化。</li>
-        <li><strong>3. 浏览器运行时与性能</strong><br>循环、分层、淡入淡出、并发、内存和移动端生命周期。</li>
-        <li><strong>4. 混音、疲劳与可访问性</strong><br>如何保护思考、降低语音与多重音效的注意力竞争。</li>
-        <li><strong>5. 素材、版权与验证</strong><br>从纯合成走向录制/渲染素材时的预算、来源、降级和质量证明。</li>
-      </ol>
-    </section>
+      <nav class="toc" aria-label="Document navigation">
+        <h2>导航</h2>
+        <ul>
+          <li><a href="#codebase-context">Codebase Context</a></li>
+          <li><a href="#topic-axes">Topic Axes</a></li>
+          <li><a href="#ranked-ideas">Ranked Ideas</a></li>
+          <li><a href="#rejection-summary">Rejection Summary</a></li>
+        </ul>
+      </nav>
 
-    <section id="ranked-ideas">
-      <p class="eyebrow">Qualified Directions</p>
-      <h2>Ranked Ideas</h2>
-      <ol class="idea-nav">
-        <li><a href="#idea-1">I1. 秦俑微型帝国仪仗</a></li>
-        <li><a href="#idea-2">I2. 后果时钟音乐导演</a></li>
-        <li><a href="#idea-3">I3. 安静对局编曲模式</a></li>
-        <li><a href="#idea-4">I4. 可控分轨与平滑过渡</a></li>
-        <li><a href="#idea-5">I5. 声场承载力调度器</a></li>
-        <li><a href="#idea-6">I6. 终局礼仪短章</a></li>
-        <li><a href="#idea-7">I7. 创作音色 + 合成安全网</a></li>
-      </ol>
+      <section id="codebase-context">
+        <p class="eyebrow">Grounding Context</p>
+        <h2>Codebase Context</h2>
+        <p>
+          当前音频基础并不差：全应用共用一个 Web Audio 上下文，具备
+          master、music、ambient、voice、SFX、UI
+          六级控制，支持开始手势解锁、后台挂起、空间化棋子音效、设置持久化和故障隔离。真正的短板是音乐内容仍是一段
+          8 秒五声音阶合成循环，缺少段落、状态衔接、平滑过渡和长局抗疲劳设计。
+        </p>
+        <p>
+          视觉方向是温暖、哑光、低噪声的 Q
+          版秦俑博物馆沙盘。声音应对应“陶土、青铜、呼吸、微型仪仗”，避免通用古装大片式的沉重管弦，也不能宣称复原了真实秦代音乐。成熟的互动音乐做法支持分层和分段，但象棋不适合每步都变：音乐应慢速叙事，走子与攻击的即时反馈继续交给
+          SFX。
+        </p>
+        <div class="callout">
+          <p class="eyebrow">Decisive POV</p>
+          <p>
+            <strong>推荐总方向：</strong
+            >以“微型帝国仪仗”为音乐身份，以权威棋局状态驱动缓慢变化，以安静间隔保护思考；所有增强都保留当前合成音乐作为失败降级。
+          </p>
+        </div>
+        <div class="refs" aria-label="External reference spine">
+          <a
+            href="https://www.audiokinetic.com/en/public-library/2024.1.8_8893/?id=creating_interactive_music&amp;source=Help"
+            >Wwise · Interactive Music</a
+          >
+          <a href="https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API"
+            >MDN · Web Audio API</a
+          >
+          <a href="https://www.metmuseum.org/essays/music-and-art-of-china"
+            >The Met · Music and Art of China</a
+          >
+          <a href="https://asia-archive.si.edu/exhibition/resound-ancient-bells-of-china/"
+            >Smithsonian · Resound: Ancient Bells of China</a
+          >
+          <a href="https://www.w3.org/WAI/WCAG21/Understanding/audio-control.html"
+            >W3C · Audio Control</a
+          >
+        </div>
+      </section>
 
-      <article class="idea-card" id="idea-1">
-        <div class="idea-head"><div><p class="idea-kicker">I1. Top pick</p><h3>秦俑微型帝国仪仗</h3></div><span class="rank">1</span></div>
-        <dl>
-          <dt>Description</dt><dd>创造一个项目自有的“陶土共鸣器”，在空陶敲击、钝青铜与呼吸感之间变化；再以它为中心构成土/气底层、轻弦脉冲、青铜点音和软鼓仪仗四类小型音色。目标是 60–90 秒感知长度或等价的程序化变化，稀疏、温暖、不会抢走棋盘注意力，并始终表述为秦俑幻想风格而非历史复原。</dd>
-          <dt>Axis</dt><dd>音乐身份与历史表达</dd>
-          <dt>Basis</dt><dd><code>direct:</code> 美术与角色证据要求声音呼应哑光陶土、老青铜、微型仪仗和安静策略；博物馆资料可支持古代乐器家族作为色彩参考，但不能支撑“真实秦乐”宣称。</dd>
-          <dt>Rationale</dt><dd>当前八秒循环只能证明“有音乐”。一个自有音色与小型编曲语言能让声音像秦俑模型一样成为产品识别资产，并可复用于角色、终局和后续场景。</dd>
-          <dt>Downsides</dt><dd>需要真正的作曲与长时间试听，不是多加几个振荡器就能完成；若纯合成音色塑造不足，仍可能显得廉价。</dd>
-        </dl>
-        <div class="metric-row"><span class="chip axis-chip">身份</span><span class="chip">Confidence · 94%</span><span class="chip">Complexity · Medium</span></div>
-      </article>
+      <section id="topic-axes">
+        <p class="eyebrow">Surface Map</p>
+        <h2>Topic Axes</h2>
+        <ol class="axes">
+          <li>
+            <strong>1. 音乐身份与历史表达</strong
+            ><br />秦俑沙盘的音色辨识度，以及明确的“秦风灵感”边界。
+          </li>
+          <li>
+            <strong>2. 棋局状态叙事</strong
+            ><br />将军、终局、悔棋和继续游戏如何触发缓慢而可靠的音乐变化。
+          </li>
+          <li>
+            <strong>3. 浏览器运行时与性能</strong
+            ><br />循环、分层、淡入淡出、并发、内存和移动端生命周期。
+          </li>
+          <li>
+            <strong>4. 混音、疲劳与可访问性</strong
+            ><br />如何保护思考、降低语音与多重音效的注意力竞争。
+          </li>
+          <li>
+            <strong>5. 素材、版权与验证</strong
+            ><br />从纯合成走向录制/渲染素材时的预算、来源、降级和质量证明。
+          </li>
+        </ol>
+      </section>
 
-      <article class="idea-card" id="idea-2">
-        <div class="idea-head"><div><p class="idea-kicker">I2. Core behavior</p><h3>后果时钟音乐导演</h3></div><span class="rank">2</span></div>
-        <dl>
-          <dt>Description</dt><dd>增加一个只读取已接受棋局快照的音乐导演，把正常对局、将军和终局映射为少量缓慢状态。走子立即由 SFX 响应，音乐只在下一乐句边界承认“后果”；悔棋、重开、继续游戏和切回前台时重新对齐权威状态。任何调度失败都不进入走子等待链。</dd>
-          <dt>Axis</dt><dd>棋局状态叙事</dd>
-          <dt>Basis</dt><dd><code>direct:</code> 规则层已经提供 playing/check/ended、终局原因和去重事件；表现监听器明确隔离异常。一次走子可能同时包含吃子、将军和终局，因此应只产生一个有优先级的音乐响应。</dd>
-          <dt>Rationale</dt><dd>它让音乐读懂局势，却不会像即时游戏一样每步跳段，也避免音频重新推导规则或在悔棋后停留在错误状态。</dd>
-          <dt>Downsides</dt><dd>需要定义滞回、最短驻留与乐句边界；过于保守会让玩家感受不到变化，过于敏感又会产生抖动。</dd>
-        </dl>
-        <figure class="concept-figure">
-          <svg viewBox="0 0 820 188" role="img" aria-labelledby="score-flow-title score-flow-desc">
-            <title id="score-flow-title">权威状态驱动的慢速音乐流程</title>
-            <desc id="score-flow-desc">棋局快照进入音乐导演，导演等待乐句边界，再调整陶土、呼吸、青铜和鼓四类声音；即时走子反馈仍由独立音效负责。</desc>
-            <defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#9a6a4b"/></marker></defs>
-            <rect x="18" y="45" width="175" height="86" rx="15" fill="#e9e2d8" stroke="#b9a895"/>
-            <text x="105" y="80" text-anchor="middle" font-size="16" font-weight="700" fill="#29241e">已提交棋局快照</text>
-            <text x="105" y="106" text-anchor="middle" font-size="13" fill="#695f54">正常 · 将军 · 终局</text>
-            <line x1="205" y1="88" x2="285" y2="88" stroke="#9a6a4b" stroke-width="3" marker-end="url(#arrow)"/>
-            <rect x="300" y="30" width="205" height="116" rx="18" fill="#f3ddd2" stroke="#c98165"/>
-            <text x="402" y="72" text-anchor="middle" font-size="17" font-weight="800" fill="#5d2d20">音乐导演</text>
-            <text x="402" y="99" text-anchor="middle" font-size="13" fill="#744232">去重 · 滞回 · 恢复对齐</text>
-            <text x="402" y="122" text-anchor="middle" font-size="13" fill="#744232">等待乐句边界</text>
-            <line x1="517" y1="88" x2="596" y2="88" stroke="#9a6a4b" stroke-width="3" marker-end="url(#arrow)"/>
-            <rect x="611" y="45" width="191" height="86" rx="15" fill="#e5e8d5" stroke="#9ea77a"/>
-            <text x="706" y="80" text-anchor="middle" font-size="16" font-weight="700" fill="#343b28">稀疏音乐层</text>
-            <text x="706" y="106" text-anchor="middle" font-size="13" fill="#586044">陶土 · 呼吸 · 青铜 · 鼓</text>
-          </svg>
-          <figcaption>方向性示意：音乐读取已提交状态并慢速变化；走子、攻击与命中仍由现有时间线音效即时表达。</figcaption>
-        </figure>
-        <div class="metric-row"><span class="chip axis-chip">自适应</span><span class="chip">Confidence · 95%</span><span class="chip">Complexity · Medium</span></div>
-      </article>
+      <section id="ranked-ideas">
+        <p class="eyebrow">Qualified Directions</p>
+        <h2>Ranked Ideas</h2>
+        <ol class="idea-nav">
+          <li><a href="#idea-1">I1. 秦俑微型帝国仪仗</a></li>
+          <li><a href="#idea-2">I2. 后果时钟音乐导演</a></li>
+          <li><a href="#idea-3">I3. 安静对局编曲模式</a></li>
+          <li><a href="#idea-4">I4. 可控分轨与平滑过渡</a></li>
+          <li><a href="#idea-5">I5. 声场承载力调度器</a></li>
+          <li><a href="#idea-6">I6. 终局礼仪短章</a></li>
+          <li><a href="#idea-7">I7. 创作音色 + 合成安全网</a></li>
+        </ol>
 
-      <article class="idea-card" id="idea-3">
-        <div class="idea-head"><div><p class="idea-kicker">I3. Attention first</p><h3>安静对局编曲模式</h3></div><span class="rank">3</span></div>
-        <dl>
-          <dt>Description</dt><dd>默认音乐不再永久填满空间，而是播放 15–35 秒的微型仪仗乐句，随后让 8–25 秒的环境声或安静进入。提供 Standard、Focus、Low Stimulation 三种可持久化编曲；低刺激模式去掉紧张层、频繁角色喊话和重复走子点音，只保留简短将军/结果提示与既有文字状态。</dd>
-          <dt>Axis</dt><dd>混音、疲劳与可访问性</dd>
-          <dt>Basis</dt><dd><code>direct:</code> 当前每步已有多段空间音效，角色语音在吃子或每三步可能触发，再叠加连续循环会形成注意力负担；独立总线、设置持久化和文字提示已为独立的音频舒适模式提供基础。</dd>
-          <dt>Rationale</dt><dd>象棋的核心体验是思考。让安静成为编曲的一部分，比单纯把音乐滑杆调低更能建立舒适且有记忆点的节奏。</dd>
-          <dt>Downsides</dt><dd>间歇长度需要通过完整对局试听调校；部分玩家可能把长安静误解为音频故障，需要用环境底色和设置文案建立预期。</dd>
-        </dl>
-        <div class="metric-row"><span class="chip axis-chip">舒适度</span><span class="chip">Confidence · 92%</span><span class="chip">Complexity · Medium</span></div>
-      </article>
+        <article class="idea-card" id="idea-1">
+          <div class="idea-head">
+            <div>
+              <p class="idea-kicker">I1. Top pick</p>
+              <h3>秦俑微型帝国仪仗</h3>
+            </div>
+            <span class="rank">1</span>
+          </div>
+          <dl>
+            <dt>Description</dt>
+            <dd>
+              创造一个项目自有的“陶土共鸣器”，在空陶敲击、钝青铜与呼吸感之间变化；再以它为中心构成土/气底层、轻弦脉冲、青铜点音和软鼓仪仗四类小型音色。目标是
+              60–90
+              秒感知长度或等价的程序化变化，稀疏、温暖、不会抢走棋盘注意力，并始终表述为秦俑幻想风格而非历史复原。
+            </dd>
+            <dt>Axis</dt>
+            <dd>音乐身份与历史表达</dd>
+            <dt>Basis</dt>
+            <dd>
+              <code>direct:</code>
+              美术与角色证据要求声音呼应哑光陶土、老青铜、微型仪仗和安静策略；博物馆资料可支持古代乐器家族作为色彩参考，但不能支撑“真实秦乐”宣称。
+            </dd>
+            <dt>Rationale</dt>
+            <dd>
+              当前八秒循环只能证明“有音乐”。一个自有音色与小型编曲语言能让声音像秦俑模型一样成为产品识别资产，并可复用于角色、终局和后续场景。
+            </dd>
+            <dt>Downsides</dt>
+            <dd>
+              需要真正的作曲与长时间试听，不是多加几个振荡器就能完成；若纯合成音色塑造不足，仍可能显得廉价。
+            </dd>
+          </dl>
+          <div class="metric-row">
+            <span class="chip axis-chip">身份</span><span class="chip">Confidence · 94%</span
+            ><span class="chip">Complexity · Medium</span>
+          </div>
+        </article>
 
-      <article class="idea-card" id="idea-4">
-        <div class="idea-head"><div><p class="idea-kicker">I4. Runtime foundation</p><h3>可控分轨与平滑过渡</h3></div><span class="rank">4</span></div>
-        <dl>
-          <dt>Description</dt><dd>把永久匿名循环升级为引擎明确拥有的音乐源：每个底层/分轨可启动、淡入、淡出、停止和回收。音量、静音、状态变化、前后台恢复与合成/素材降级统一使用短增益坡度和乐句安全切换；某一层失败时继续播放基础合成层。</dd>
-          <dt>Axis</dt><dd>浏览器运行时与性能</dd>
-          <dt>Basis</dt><dd><code>direct:</code> 当前已有单一上下文和增益节点，接口甚至暴露了 <code>linearRampToValueAtTime</code>，但实际仍是瞬时增益写入，并缺少循环停止、交叉淡化、缝隙处理和状态恢复。</dd>
-          <dt>Rationale</dt><dd>这是所有自适应方案的最低可靠平台，而且能先独立改善滑杆、静音与循环接缝体验。</dd>
-          <dt>Downsides</dt><dd>需要为持久源建立清晰所有权与测试；乐句对齐比普通淡入淡出更复杂，不能让调度器成为第二个游戏状态机。</dd>
-        </dl>
-        <div class="metric-row"><span class="chip axis-chip">运行时</span><span class="chip">Confidence · 96%</span><span class="chip">Complexity · Medium</span></div>
-      </article>
+        <article class="idea-card" id="idea-2">
+          <div class="idea-head">
+            <div>
+              <p class="idea-kicker">I2. Core behavior</p>
+              <h3>后果时钟音乐导演</h3>
+            </div>
+            <span class="rank">2</span>
+          </div>
+          <dl>
+            <dt>Description</dt>
+            <dd>
+              增加一个只读取已接受棋局快照的音乐导演，把正常对局、将军和终局映射为少量缓慢状态。走子立即由
+              SFX
+              响应，音乐只在下一乐句边界承认“后果”；悔棋、重开、继续游戏和切回前台时重新对齐权威状态。任何调度失败都不进入走子等待链。
+            </dd>
+            <dt>Axis</dt>
+            <dd>棋局状态叙事</dd>
+            <dt>Basis</dt>
+            <dd>
+              <code>direct:</code> 规则层已经提供
+              playing/check/ended、终局原因和去重事件；表现监听器明确隔离异常。一次走子可能同时包含吃子、将军和终局，因此应只产生一个有优先级的音乐响应。
+            </dd>
+            <dt>Rationale</dt>
+            <dd>
+              它让音乐读懂局势，却不会像即时游戏一样每步跳段，也避免音频重新推导规则或在悔棋后停留在错误状态。
+            </dd>
+            <dt>Downsides</dt>
+            <dd>
+              需要定义滞回、最短驻留与乐句边界；过于保守会让玩家感受不到变化，过于敏感又会产生抖动。
+            </dd>
+          </dl>
+          <figure class="concept-figure">
+            <svg
+              viewBox="0 0 820 188"
+              role="img"
+              aria-labelledby="score-flow-title score-flow-desc"
+            >
+              <title id="score-flow-title">权威状态驱动的慢速音乐流程</title>
+              <desc id="score-flow-desc">
+                棋局快照进入音乐导演，导演等待乐句边界，再调整陶土、呼吸、青铜和鼓四类声音；即时走子反馈仍由独立音效负责。
+              </desc>
+              <defs>
+                <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+                  <path d="M0,0 L8,4 L0,8 Z" fill="#9a6a4b" />
+                </marker>
+              </defs>
+              <rect x="18" y="45" width="175" height="86" rx="15" fill="#e9e2d8" stroke="#b9a895" />
+              <text
+                x="105"
+                y="80"
+                text-anchor="middle"
+                font-size="16"
+                font-weight="700"
+                fill="#29241e"
+              >
+                已提交棋局快照
+              </text>
+              <text x="105" y="106" text-anchor="middle" font-size="13" fill="#695f54">
+                正常 · 将军 · 终局
+              </text>
+              <line
+                x1="205"
+                y1="88"
+                x2="285"
+                y2="88"
+                stroke="#9a6a4b"
+                stroke-width="3"
+                marker-end="url(#arrow)"
+              />
+              <rect
+                x="300"
+                y="30"
+                width="205"
+                height="116"
+                rx="18"
+                fill="#f3ddd2"
+                stroke="#c98165"
+              />
+              <text
+                x="402"
+                y="72"
+                text-anchor="middle"
+                font-size="17"
+                font-weight="800"
+                fill="#5d2d20"
+              >
+                音乐导演
+              </text>
+              <text x="402" y="99" text-anchor="middle" font-size="13" fill="#744232">
+                去重 · 滞回 · 恢复对齐
+              </text>
+              <text x="402" y="122" text-anchor="middle" font-size="13" fill="#744232">
+                等待乐句边界
+              </text>
+              <line
+                x1="517"
+                y1="88"
+                x2="596"
+                y2="88"
+                stroke="#9a6a4b"
+                stroke-width="3"
+                marker-end="url(#arrow)"
+              />
+              <rect
+                x="611"
+                y="45"
+                width="191"
+                height="86"
+                rx="15"
+                fill="#e5e8d5"
+                stroke="#9ea77a"
+              />
+              <text
+                x="706"
+                y="80"
+                text-anchor="middle"
+                font-size="16"
+                font-weight="700"
+                fill="#343b28"
+              >
+                稀疏音乐层
+              </text>
+              <text x="706" y="106" text-anchor="middle" font-size="13" fill="#586044">
+                陶土 · 呼吸 · 青铜 · 鼓
+              </text>
+            </svg>
+            <figcaption>
+              方向性示意：音乐读取已提交状态并慢速变化；走子、攻击与命中仍由现有时间线音效即时表达。
+            </figcaption>
+          </figure>
+          <div class="metric-row">
+            <span class="chip axis-chip">自适应</span><span class="chip">Confidence · 95%</span
+            ><span class="chip">Complexity · Medium</span>
+          </div>
+        </article>
 
-      <article class="idea-card" id="idea-5">
-        <div class="idea-head"><div><p class="idea-kicker">I5. Mix discipline</p><h3>声场承载力调度器</h3></div><span class="rank">5</span></div>
-        <dl>
-          <dt>Description</dt><dd>在现有“每种 cue 最多四个”之外增加全局政策：终局 &gt; 将军 &gt; 吃子 &gt; 角色语音 &gt; 普通走子/UI。设置总声源与解码内存上限，保护关键提示槽位，并在密集攻击时合并低价值声音、打断角色闲聊或短暂压低音乐。</dd>
-          <dt>Axis</dt><dd>浏览器运行时与性能</dd>
-          <dt>Basis</dt><dd><code>direct:</code> 当前限制只针对同一个 cue，不同 cue 仍可同时叠加；六条总线存在，却没有跨总线语义优先级、抢占或 ducking。</dd>
-          <dt>Rationale</dt><dd>新增背景音乐不能以掩盖将军、命中或终局为代价。全局承载力让后续角色音效增长仍然可控，也为移动端提供明确资源边界。</dd>
-          <dt>Downsides</dt><dd>优先级与 ducking 参数错误会让声音被吞或产生明显“抽吸”；需要压力棋局与真机试听，而非只测节点数量。</dd>
-        </dl>
-        <div class="metric-row"><span class="chip axis-chip">性能与混音</span><span class="chip">Confidence · 93%</span><span class="chip">Complexity · Medium</span></div>
-      </article>
+        <article class="idea-card" id="idea-3">
+          <div class="idea-head">
+            <div>
+              <p class="idea-kicker">I3. Attention first</p>
+              <h3>安静对局编曲模式</h3>
+            </div>
+            <span class="rank">3</span>
+          </div>
+          <dl>
+            <dt>Description</dt>
+            <dd>
+              默认音乐不再永久填满空间，而是播放 15–35 秒的微型仪仗乐句，随后让 8–25
+              秒的环境声或安静进入。提供 Standard、Focus、Low Stimulation
+              三种可持久化编曲；低刺激模式去掉紧张层、频繁角色喊话和重复走子点音，只保留简短将军/结果提示与既有文字状态。
+            </dd>
+            <dt>Axis</dt>
+            <dd>混音、疲劳与可访问性</dd>
+            <dt>Basis</dt>
+            <dd>
+              <code>direct:</code>
+              当前每步已有多段空间音效，角色语音在吃子或每三步可能触发，再叠加连续循环会形成注意力负担；独立总线、设置持久化和文字提示已为独立的音频舒适模式提供基础。
+            </dd>
+            <dt>Rationale</dt>
+            <dd>
+              象棋的核心体验是思考。让安静成为编曲的一部分，比单纯把音乐滑杆调低更能建立舒适且有记忆点的节奏。
+            </dd>
+            <dt>Downsides</dt>
+            <dd>
+              间歇长度需要通过完整对局试听调校；部分玩家可能把长安静误解为音频故障，需要用环境底色和设置文案建立预期。
+            </dd>
+          </dl>
+          <div class="metric-row">
+            <span class="chip axis-chip">舒适度</span><span class="chip">Confidence · 92%</span
+            ><span class="chip">Complexity · Medium</span>
+          </div>
+        </article>
 
-      <article class="idea-card" id="idea-6">
-        <div class="idea-head"><div><p class="idea-kicker">I6. Bounded delight</p><h3>终局礼仪短章</h3></div><span class="rank">6</span></div>
-        <dl>
-          <dt>Description</dt><dd>将死、认输、困毙、重复和棋与无吃子和棋使用不同但克制的 2–5 秒收束：胜负可以有青铜与鼓的落点，和棋更像仪仗停驻或归于安静。每个终局只触发一次，之后进入安静结果底层，不回到开局循环。</dd>
-          <dt>Axis</dt><dd>棋局状态叙事</dd>
-          <dt>Basis</dt><dd><code>direct:</code> 规则状态明确区分五类终局原因，认输也会发出独立事件和终局事件；现有系统已经在表现完成点播放胜负提示。</dd>
-          <dt>Rationale</dt><dd>这是一个范围小、感知强的改进，也能先验证新的秦俑音色是否成立，再投入整套动态配乐。</dd>
-          <dt>Downsides</dt><dd>过度区分会增加创作量；普通玩家未必理解全部差异，因此变化应服务情绪而不是承担规则教学。</dd>
-        </dl>
-        <div class="metric-row"><span class="chip axis-chip">终局</span><span class="chip">Confidence · 88%</span><span class="chip">Complexity · Low</span></div>
-      </article>
+        <article class="idea-card" id="idea-4">
+          <div class="idea-head">
+            <div>
+              <p class="idea-kicker">I4. Runtime foundation</p>
+              <h3>可控分轨与平滑过渡</h3>
+            </div>
+            <span class="rank">4</span>
+          </div>
+          <dl>
+            <dt>Description</dt>
+            <dd>
+              把永久匿名循环升级为引擎明确拥有的音乐源：每个底层/分轨可启动、淡入、淡出、停止和回收。音量、静音、状态变化、前后台恢复与合成/素材降级统一使用短增益坡度和乐句安全切换；某一层失败时继续播放基础合成层。
+            </dd>
+            <dt>Axis</dt>
+            <dd>浏览器运行时与性能</dd>
+            <dt>Basis</dt>
+            <dd>
+              <code>direct:</code> 当前已有单一上下文和增益节点，接口甚至暴露了
+              <code>linearRampToValueAtTime</code
+              >，但实际仍是瞬时增益写入，并缺少循环停止、交叉淡化、缝隙处理和状态恢复。
+            </dd>
+            <dt>Rationale</dt>
+            <dd>这是所有自适应方案的最低可靠平台，而且能先独立改善滑杆、静音与循环接缝体验。</dd>
+            <dt>Downsides</dt>
+            <dd>
+              需要为持久源建立清晰所有权与测试；乐句对齐比普通淡入淡出更复杂，不能让调度器成为第二个游戏状态机。
+            </dd>
+          </dl>
+          <div class="metric-row">
+            <span class="chip axis-chip">运行时</span><span class="chip">Confidence · 96%</span
+            ><span class="chip">Complexity · Medium</span>
+          </div>
+        </article>
 
-      <article class="idea-card" id="idea-7">
-        <div class="idea-head"><div><p class="idea-kicker">I7. Long-term production</p><h3>创作音色 + 合成安全网</h3></div><span class="rank">7</span></div>
-        <dl>
-          <dt>Description</dt><dd>保持当前零下载合成音乐作为可靠底层；开始游戏后再机会式加载一套很小的创作音频胶囊——一条 60–90 秒基础、最多两条同步分轨和少量关键短章，在乐句边界原子切换。所有文件必须有可编辑/无损源、作者与授权、哈希、压缩体积、响度、采样率、解码内存、失败降级和自动/人工试听记录。</dd>
-          <dt>Axis</dt><dd>素材、版权与验证</dd>
-          <dt>Basis</dt><dd><code>direct:</code> 当前无第三方素材且故障可安全降级，但音频不在 12 MiB 首屏预算、性能 E2E 或来源锁定中；角色资产流水线已经提供可复用的来源、哈希和优化输出惯例。</dd>
-          <dt>Rationale</dt><dd>它避免在“音色品质”和“浏览器可靠性”之间二选一：先有即时合成，再让高质量素材成为不阻塞的增强层。</dd>
-          <dt>Downsides</dt><dd>复杂度最高，需要创作、编码、版权、预算和真机解码验证；如果纯合成版本已经达到目标，可能没有足够收益支撑这条生产线。</dd>
-        </dl>
-        <div class="metric-row"><span class="chip axis-chip">资产交付</span><span class="chip">Confidence · 86%</span><span class="chip">Complexity · High</span></div>
-      </article>
-    </section>
+        <article class="idea-card" id="idea-5">
+          <div class="idea-head">
+            <div>
+              <p class="idea-kicker">I5. Mix discipline</p>
+              <h3>声场承载力调度器</h3>
+            </div>
+            <span class="rank">5</span>
+          </div>
+          <dl>
+            <dt>Description</dt>
+            <dd>
+              在现有“每种 cue 最多四个”之外增加全局政策：终局 &gt; 将军 &gt; 吃子 &gt; 角色语音 &gt;
+              普通走子/UI。设置总声源与解码内存上限，保护关键提示槽位，并在密集攻击时合并低价值声音、打断角色闲聊或短暂压低音乐。
+            </dd>
+            <dt>Axis</dt>
+            <dd>浏览器运行时与性能</dd>
+            <dt>Basis</dt>
+            <dd>
+              <code>direct:</code> 当前限制只针对同一个 cue，不同 cue
+              仍可同时叠加；六条总线存在，却没有跨总线语义优先级、抢占或 ducking。
+            </dd>
+            <dt>Rationale</dt>
+            <dd>
+              新增背景音乐不能以掩盖将军、命中或终局为代价。全局承载力让后续角色音效增长仍然可控，也为移动端提供明确资源边界。
+            </dd>
+            <dt>Downsides</dt>
+            <dd>
+              优先级与 ducking
+              参数错误会让声音被吞或产生明显“抽吸”；需要压力棋局与真机试听，而非只测节点数量。
+            </dd>
+          </dl>
+          <div class="metric-row">
+            <span class="chip axis-chip">性能与混音</span><span class="chip">Confidence · 93%</span
+            ><span class="chip">Complexity · Medium</span>
+          </div>
+        </article>
 
-    <section id="rejection-summary">
-      <p class="eyebrow">Adversarial Cut</p>
-      <h2>Rejection Summary</h2>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>#</th><th>Idea</th><th>Reason Rejected</th></tr></thead>
-          <tbody>
-            <tr><td>1</td><td>Material Motif API</td><td>角色视觉语义尚不足以证明需要通用音频 API 或阵营修饰器。</td></tr>
-            <tr><td>2</td><td>Music-Box Reserve</td><td>冷却/储备式生成语法有趣，但依据较弱，且不如主音乐身份直观。</td></tr>
-            <tr><td>3</td><td>Per-game Museum Seed</td><td>没有已验证的用户需求，还会为新奇效果引入新的持久化状态。</td></tr>
-            <tr><td>4</td><td>Procession Stations</td><td>横向分段是可选编曲手法，作为独立产品方向弱于权威状态导演。</td></tr>
-            <tr><td>5</td><td>Conductor, Not Jukebox</td><td>多分轨构想被“音乐导演 + 可控分轨”更清楚地覆盖。</td></tr>
-            <tr><td>6</td><td>Four-Voice Empire</td><td>证据支持全局上限，但不支持任意指定为四个声部。</td></tr>
-            <tr><td>7</td><td>Ramped Controls</td><td>依据强，但更适合作为可控分轨的基础能力而非独立方向。</td></tr>
-            <tr><td>8</td><td>Silence-First Score</td><td>疲劳问题成立，但“玩家已经安定”缺少可靠的产品信号。</td></tr>
-            <tr><td>9</td><td>Broadcast Director Mix</td><td>被更完整的全局声场调度器吸收。</td></tr>
-            <tr><td>10</td><td>Voice as Sparse Flavor</td><td>被低刺激编曲和全局优先级策略吸收。</td></tr>
-            <tr><td>11</td><td>Second-Playable Soundtrack</td><td>被“创作音色 + 合成安全网”完整覆盖。</td></tr>
-            <tr><td>12</td><td>Code Is the Master Tape</td><td>在决定是否需要素材交付前就引入 CI 母带流程，时机过早。</td></tr>
-            <tr><td>13</td><td>Sound Asset Passport</td><td>作为混合素材方向的必要条件保留，不单独排名。</td></tr>
-            <tr><td>14</td><td>Music Quality Lab</td><td>作为混合素材方向的验证条件保留，不单独排名。</td></tr>
-            <tr><td>15</td><td>Four-Voice Terracotta Ensemble</td><td>继承了任意声部数量，并把多个独立决策过早捆绑。</td></tr>
-            <tr><td>16</td><td>Museum Quiet Arc</td><td>把依据不足的分站模型与已成立的安静/配置策略混在一起。</td></tr>
-            <tr><td>17</td><td>Audio Contract as Data</td><td>依据被否定：当前小型合成系统尚未出现足以证明统一数据契约的重复与漂移。</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
+        <article class="idea-card" id="idea-6">
+          <div class="idea-head">
+            <div>
+              <p class="idea-kicker">I6. Bounded delight</p>
+              <h3>终局礼仪短章</h3>
+            </div>
+            <span class="rank">6</span>
+          </div>
+          <dl>
+            <dt>Description</dt>
+            <dd>
+              将死、认输、困毙、重复和棋与无吃子和棋使用不同但克制的 2–5
+              秒收束：胜负可以有青铜与鼓的落点，和棋更像仪仗停驻或归于安静。每个终局只触发一次，之后进入安静结果底层，不回到开局循环。
+            </dd>
+            <dt>Axis</dt>
+            <dd>棋局状态叙事</dd>
+            <dt>Basis</dt>
+            <dd>
+              <code>direct:</code>
+              规则状态明确区分五类终局原因，认输也会发出独立事件和终局事件；现有系统已经在表现完成点播放胜负提示。
+            </dd>
+            <dt>Rationale</dt>
+            <dd>
+              这是一个范围小、感知强的改进，也能先验证新的秦俑音色是否成立，再投入整套动态配乐。
+            </dd>
+            <dt>Downsides</dt>
+            <dd>
+              过度区分会增加创作量；普通玩家未必理解全部差异，因此变化应服务情绪而不是承担规则教学。
+            </dd>
+          </dl>
+          <div class="metric-row">
+            <span class="chip axis-chip">终局</span><span class="chip">Confidence · 88%</span
+            ><span class="chip">Complexity · Low</span>
+          </div>
+        </article>
 
-    <footer class="composition-signal">Composed 2026-08-26T12:40:13+08:00 by ce-ideate from the current user prompt and repository evidence.</footer>
-  </main>
-</body>
+        <article class="idea-card" id="idea-7">
+          <div class="idea-head">
+            <div>
+              <p class="idea-kicker">I7. Long-term production</p>
+              <h3>创作音色 + 合成安全网</h3>
+            </div>
+            <span class="rank">7</span>
+          </div>
+          <dl>
+            <dt>Description</dt>
+            <dd>
+              保持当前零下载合成音乐作为可靠底层；开始游戏后再机会式加载一套很小的创作音频胶囊——一条
+              60–90
+              秒基础、最多两条同步分轨和少量关键短章，在乐句边界原子切换。所有文件必须有可编辑/无损源、作者与授权、哈希、压缩体积、响度、采样率、解码内存、失败降级和自动/人工试听记录。
+            </dd>
+            <dt>Axis</dt>
+            <dd>素材、版权与验证</dd>
+            <dt>Basis</dt>
+            <dd>
+              <code>direct:</code> 当前无第三方素材且故障可安全降级，但音频不在 12 MiB
+              首屏预算、性能 E2E
+              或来源锁定中；角色资产流水线已经提供可复用的来源、哈希和优化输出惯例。
+            </dd>
+            <dt>Rationale</dt>
+            <dd>
+              它避免在“音色品质”和“浏览器可靠性”之间二选一：先有即时合成，再让高质量素材成为不阻塞的增强层。
+            </dd>
+            <dt>Downsides</dt>
+            <dd>
+              复杂度最高，需要创作、编码、版权、预算和真机解码验证；如果纯合成版本已经达到目标，可能没有足够收益支撑这条生产线。
+            </dd>
+          </dl>
+          <div class="metric-row">
+            <span class="chip axis-chip">资产交付</span><span class="chip">Confidence · 86%</span
+            ><span class="chip">Complexity · High</span>
+          </div>
+        </article>
+      </section>
+
+      <section id="rejection-summary">
+        <p class="eyebrow">Adversarial Cut</p>
+        <h2>Rejection Summary</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Idea</th>
+                <th>Reason Rejected</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>1</td>
+                <td>Material Motif API</td>
+                <td>角色视觉语义尚不足以证明需要通用音频 API 或阵营修饰器。</td>
+              </tr>
+              <tr>
+                <td>2</td>
+                <td>Music-Box Reserve</td>
+                <td>冷却/储备式生成语法有趣，但依据较弱，且不如主音乐身份直观。</td>
+              </tr>
+              <tr>
+                <td>3</td>
+                <td>Per-game Museum Seed</td>
+                <td>没有已验证的用户需求，还会为新奇效果引入新的持久化状态。</td>
+              </tr>
+              <tr>
+                <td>4</td>
+                <td>Procession Stations</td>
+                <td>横向分段是可选编曲手法，作为独立产品方向弱于权威状态导演。</td>
+              </tr>
+              <tr>
+                <td>5</td>
+                <td>Conductor, Not Jukebox</td>
+                <td>多分轨构想被“音乐导演 + 可控分轨”更清楚地覆盖。</td>
+              </tr>
+              <tr>
+                <td>6</td>
+                <td>Four-Voice Empire</td>
+                <td>证据支持全局上限，但不支持任意指定为四个声部。</td>
+              </tr>
+              <tr>
+                <td>7</td>
+                <td>Ramped Controls</td>
+                <td>依据强，但更适合作为可控分轨的基础能力而非独立方向。</td>
+              </tr>
+              <tr>
+                <td>8</td>
+                <td>Silence-First Score</td>
+                <td>疲劳问题成立，但“玩家已经安定”缺少可靠的产品信号。</td>
+              </tr>
+              <tr>
+                <td>9</td>
+                <td>Broadcast Director Mix</td>
+                <td>被更完整的全局声场调度器吸收。</td>
+              </tr>
+              <tr>
+                <td>10</td>
+                <td>Voice as Sparse Flavor</td>
+                <td>被低刺激编曲和全局优先级策略吸收。</td>
+              </tr>
+              <tr>
+                <td>11</td>
+                <td>Second-Playable Soundtrack</td>
+                <td>被“创作音色 + 合成安全网”完整覆盖。</td>
+              </tr>
+              <tr>
+                <td>12</td>
+                <td>Code Is the Master Tape</td>
+                <td>在决定是否需要素材交付前就引入 CI 母带流程，时机过早。</td>
+              </tr>
+              <tr>
+                <td>13</td>
+                <td>Sound Asset Passport</td>
+                <td>作为混合素材方向的必要条件保留，不单独排名。</td>
+              </tr>
+              <tr>
+                <td>14</td>
+                <td>Music Quality Lab</td>
+                <td>作为混合素材方向的验证条件保留，不单独排名。</td>
+              </tr>
+              <tr>
+                <td>15</td>
+                <td>Four-Voice Terracotta Ensemble</td>
+                <td>继承了任意声部数量，并把多个独立决策过早捆绑。</td>
+              </tr>
+              <tr>
+                <td>16</td>
+                <td>Museum Quiet Arc</td>
+                <td>把依据不足的分站模型与已成立的安静/配置策略混在一起。</td>
+              </tr>
+              <tr>
+                <td>17</td>
+                <td>Audio Contract as Data</td>
+                <td>依据被否定：当前小型合成系统尚未出现足以证明统一数据契约的重复与漂移。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <footer class="composition-signal">
+        Composed 2026-08-26T12:40:13+08:00 by ce-ideate from the current user prompt and repository
+        evidence.
+      </footer>
+    </main>
+  </body>
 </html>

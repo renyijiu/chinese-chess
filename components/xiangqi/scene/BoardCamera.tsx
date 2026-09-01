@@ -8,7 +8,11 @@ import * as THREE from "three";
 export type BoardView = "battle" | "overhead";
 export type BoardViewSide = "red" | "black";
 
-function CameraRig({ reducedMotion, side, view }: {
+function CameraRig({
+  reducedMotion,
+  side,
+  view,
+}: {
   reducedMotion: boolean;
   side: BoardViewSide;
   view: BoardView;
@@ -55,7 +59,12 @@ function CameraRig({ reducedMotion, side, view }: {
   return null;
 }
 
-export function BoardCamera({ autoTour, reducedMotion, side, view }: {
+export function BoardCamera({
+  autoTour,
+  reducedMotion,
+  side,
+  view,
+}: {
   autoTour: boolean;
   reducedMotion: boolean;
   side: BoardViewSide;

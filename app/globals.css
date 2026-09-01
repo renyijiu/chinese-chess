@@ -15,9 +15,22 @@ html {
 
 body {
   background:
-    radial-gradient(circle at 76% 8%, color-mix(in srgb, var(--qin-fired-clay) 30%, transparent), transparent 31rem),
-    radial-gradient(circle at 7% 43%, color-mix(in srgb, var(--qin-verdigris) 20%, transparent), transparent 34rem),
-    linear-gradient(180deg, var(--qin-fired-clay-shadow) -42%, var(--deep) 42%, var(--qin-black-lacquer) 100%);
+    radial-gradient(
+      circle at 76% 8%,
+      color-mix(in srgb, var(--qin-fired-clay) 30%, transparent),
+      transparent 31rem
+    ),
+    radial-gradient(
+      circle at 7% 43%,
+      color-mix(in srgb, var(--qin-verdigris) 20%, transparent),
+      transparent 34rem
+    ),
+    linear-gradient(
+      180deg,
+      var(--qin-fired-clay-shadow) -42%,
+      var(--deep) 42%,
+      var(--qin-black-lacquer) 100%
+    );
   color: var(--ink);
   font-family: "Noto Serif SC", "Songti SC", "STSong", Georgia, serif;
   margin: 0;
@@ -35,7 +48,9 @@ a {
 }
 
 :where(a, button, input, select):focus-visible {
-  box-shadow: 0 0 0 2px var(--qin-state-keyboard-focus), 0 0 0 5px var(--qin-chalk);
+  box-shadow:
+    0 0 0 2px var(--qin-state-keyboard-focus),
+    0 0 0 5px var(--qin-chalk);
   outline: 0;
 }
 
@@ -113,7 +128,11 @@ a {
 
 .viewer-canvas--initializing {
   background:
-    radial-gradient(circle at 50% 43%, color-mix(in srgb, var(--qin-fired-clay) 30%, transparent), transparent 38%),
+    radial-gradient(
+      circle at 50% 43%,
+      color-mix(in srgb, var(--qin-fired-clay) 30%, transparent),
+      transparent 38%
+    ),
     linear-gradient(155deg, var(--qin-hud-surface-raised), var(--qin-black-lacquer) 68%);
 }
 
@@ -280,7 +299,11 @@ a {
 .game-menu {
   backdrop-filter: blur(20px);
   background:
-    linear-gradient(145deg, color-mix(in srgb, var(--qin-hud-surface-raised) 70%, var(--qin-hud-surface)), var(--qin-hud-surface) 62%),
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--qin-hud-surface-raised) 70%, var(--qin-hud-surface)),
+      var(--qin-hud-surface) 62%
+    ),
     var(--qin-hud-surface);
   border: 2px solid var(--qin-aged-bronze);
   box-shadow:
@@ -322,7 +345,10 @@ a {
   border: 1px solid transparent;
   color: var(--qin-hud-text-muted);
   cursor: pointer;
-  font: 600 12px/1 ui-sans-serif, system-ui, sans-serif;
+  font:
+    600 12px/1 ui-sans-serif,
+    system-ui,
+    sans-serif;
   min-height: 44px;
 }
 
@@ -349,7 +375,10 @@ a {
 .online-match-setup h3,
 .computer-setup-heading h3 {
   color: var(--qin-chalk);
-  font: 500 20px/1.2 ui-serif, Georgia, serif;
+  font:
+    500 20px/1.2 ui-serif,
+    Georgia,
+    serif;
   margin: 0 0 8px;
 }
 
@@ -358,7 +387,10 @@ a {
 .computer-setup-heading p,
 .computer-master-disclosure {
   color: var(--qin-hud-text-muted);
-  font: 11px/1.65 ui-sans-serif, system-ui, sans-serif;
+  font:
+    11px/1.65 ui-sans-serif,
+    system-ui,
+    sans-serif;
   margin: 0 0 14px;
 }
 
@@ -400,19 +432,29 @@ a {
 .online-status-card span,
 .online-status-card small {
   color: var(--qin-hud-text-muted);
-  font: 9px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  font:
+    9px/1.4 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
 }
 
 .online-status-card strong {
   color: var(--qin-fired-clay-light);
-  font: 600 12px/1 ui-sans-serif, system-ui, sans-serif;
+  font:
+    600 12px/1 ui-sans-serif,
+    system-ui,
+    sans-serif;
 }
 
 .online-status-card p,
 .online-status-card em,
 .online-progress {
   color: var(--qin-chalk);
-  font: 11px/1.5 ui-sans-serif, system-ui, sans-serif;
+  font:
+    11px/1.5 ui-sans-serif,
+    system-ui,
+    sans-serif;
   margin: 0;
 }
 
@@ -428,7 +470,10 @@ a {
 
 .online-rematch-note {
   color: var(--qin-hud-text-muted);
-  font: 11px/1.5 ui-sans-serif, system-ui, sans-serif;
+  font:
+    11px/1.5 ui-sans-serif,
+    system-ui,
+    sans-serif;
   width: 100%;
 }
 
@@ -456,19 +501,30 @@ a {
 
 .online-signal-qr figcaption {
   color: var(--qin-hud-text-muted);
-  font: 11px/1.5 ui-sans-serif, system-ui, sans-serif;
+  font:
+    11px/1.5 ui-sans-serif,
+    system-ui,
+    sans-serif;
 }
 
 .online-signal-block label {
   color: var(--qin-hud-text-muted);
-  font: 10px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  font:
+    10px/1.4 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
 }
 
 .online-signal-block textarea {
   background: color-mix(in srgb, var(--qin-black-lacquer) 82%, transparent);
   border: 1px solid var(--qin-hud-border);
   color: var(--qin-chalk);
-  font: 9px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+  font:
+    9px/1.45 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
   max-height: 140px;
   min-height: 78px;
   padding: 9px;
@@ -494,7 +550,11 @@ a {
 .computer-setup-heading > div > span {
   color: var(--qin-fired-clay-light);
   display: block;
-  font: 9px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
+  font:
+    9px/1.2 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
   letter-spacing: 0.12em;
   margin-bottom: 7px;
 }
@@ -536,12 +596,18 @@ a {
 }
 
 .computer-difficulty strong {
-  font: 600 12px/1.2 ui-sans-serif, system-ui, sans-serif;
+  font:
+    600 12px/1.2 ui-sans-serif,
+    system-ui,
+    sans-serif;
 }
 
 .computer-difficulty small {
   color: var(--qin-hud-text-muted);
-  font: 9px/1.45 ui-sans-serif, system-ui, sans-serif;
+  font:
+    9px/1.45 ui-sans-serif,
+    system-ui,
+    sans-serif;
 }
 
 .computer-master-disclosure {
@@ -570,7 +636,10 @@ a {
   box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--qin-black-lacquer) 45%, transparent);
   color: var(--qin-chalk);
   display: flex;
-  font: 700 28px/1 ui-serif, Georgia, serif;
+  font:
+    700 28px/1 ui-serif,
+    Georgia,
+    serif;
   justify-content: center;
 }
 
@@ -586,12 +655,19 @@ a {
 .computer-die-result span,
 .computer-die-result small {
   color: var(--qin-hud-text-muted);
-  font: 9px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  font:
+    9px/1.4 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
 }
 
 .computer-die-result strong {
   color: var(--qin-chalk);
-  font: 600 18px/1.25 ui-sans-serif, system-ui, sans-serif;
+  font:
+    600 18px/1.25 ui-sans-serif,
+    system-ui,
+    sans-serif;
 }
 
 .computer-setup-actions {
@@ -604,13 +680,22 @@ a {
 }
 
 @keyframes qin-die-roll {
-  from { transform: rotate(-8deg) scale(0.94); }
-  to { transform: rotate(9deg) scale(1.04); }
+  from {
+    transform: rotate(-8deg) scale(0.94);
+  }
+  to {
+    transform: rotate(9deg) scale(1.04);
+  }
 }
 
 .game-menu::before,
 .game-over-panel::before {
-  background: linear-gradient(90deg, var(--qin-cinnabar), var(--qin-aged-bronze), var(--qin-verdigris));
+  background: linear-gradient(
+    90deg,
+    var(--qin-cinnabar),
+    var(--qin-aged-bronze),
+    var(--qin-verdigris)
+  );
   content: "";
   height: 2px;
   left: 0;
@@ -742,24 +827,37 @@ a {
 .game-opponent-status span,
 .game-opponent-status small {
   color: var(--qin-hud-text-muted);
-  font: 9px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace;
+  font:
+    9px/1.35 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
   letter-spacing: 0.05em;
 }
 
 .game-opponent-status strong {
   color: var(--qin-fired-clay-light);
-  font: 600 12px/1 ui-sans-serif, system-ui, sans-serif;
+  font:
+    600 12px/1 ui-sans-serif,
+    system-ui,
+    sans-serif;
 }
 
 .game-opponent-status p {
   color: var(--qin-chalk);
-  font: 11px/1.45 ui-sans-serif, system-ui, sans-serif;
+  font:
+    11px/1.45 ui-sans-serif,
+    system-ui,
+    sans-serif;
   margin: 0;
 }
 
 .game-opponent-status em {
   color: var(--qin-state-check);
-  font: normal 9px/1.4 ui-sans-serif, system-ui, sans-serif;
+  font:
+    normal 9px/1.4 ui-sans-serif,
+    system-ui,
+    sans-serif;
 }
 
 .game-hud:has(.game-opponent-status) + .game-keyboard-control {
@@ -813,7 +911,9 @@ a {
   position: absolute;
   right: 28px;
   top: 92px;
-  transition: max-height 180ms ease, width 180ms ease;
+  transition:
+    max-height 180ms ease,
+    width 180ms ease;
   width: 210px;
 }
 
@@ -835,7 +935,11 @@ a {
 
 .game-history-heading strong {
   color: var(--qin-chalk);
-  font: 600 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  font:
+    600 12px/1 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
   margin-left: auto;
 }
 
@@ -844,7 +948,10 @@ a {
   border: 1px solid color-mix(in srgb, var(--qin-hud-border) 72%, transparent);
   color: var(--qin-hud-text);
   cursor: pointer;
-  font: 10px/1 ui-sans-serif, system-ui, sans-serif;
+  font:
+    10px/1 ui-sans-serif,
+    system-ui,
+    sans-serif;
   min-height: 28px;
   padding: 5px 8px;
 }
@@ -881,12 +988,19 @@ a {
 
 .game-capture-ledger small {
   color: var(--qin-hud-text-muted);
-  font: 8px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
+  font:
+    8px/1.2 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
 }
 
 .game-capture-ledger strong {
   color: var(--qin-chalk);
-  font: 600 11px/1.25 ui-sans-serif, system-ui, sans-serif;
+  font:
+    600 11px/1.25 ui-sans-serif,
+    system-ui,
+    sans-serif;
   min-height: 14px;
   overflow: hidden;
   text-overflow: ellipsis;

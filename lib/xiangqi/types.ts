@@ -3,14 +3,7 @@ export const POPULAR_RULESET_ID = "popular-v1" as const;
 
 export type Side = "red" | "black";
 
-export type Role =
-  | "general"
-  | "advisor"
-  | "elephant"
-  | "chariot"
-  | "horse"
-  | "cannon"
-  | "soldier";
+export type Role = "general" | "advisor" | "elephant" | "chariot" | "horse" | "cannon" | "soldier";
 
 export interface Square {
   readonly file: number;
@@ -26,12 +19,7 @@ export interface Piece {
 
 export type Board = ReadonlyArray<Piece | null>;
 
-export type GameEndReason =
-  | "checkmate"
-  | "stalemate"
-  | "repetition"
-  | "no-capture"
-  | "resignation";
+export type GameEndReason = "checkmate" | "stalemate" | "repetition" | "no-capture" | "resignation";
 
 export type GameStatus =
   | {

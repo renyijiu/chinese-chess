@@ -9,13 +9,7 @@ import {
   type Side,
 } from "../../../lib/xiangqi/index";
 
-export function piece(
-  id: string,
-  side: Side,
-  role: Role,
-  file: number,
-  rank: number,
-): Piece {
+export function piece(id: string, side: Side, role: Role, file: number, rank: number): Piece {
   return { id, side, role, square: { file, rank } };
 }
 

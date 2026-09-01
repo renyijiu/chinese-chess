@@ -58,8 +58,12 @@ describe("quality profiles", () => {
     expect(medium.environment.detailLevel).toBeGreaterThan(low.environment.detailLevel);
 
     const panoramaCost = { high: 3, medium: 2, low: 1 } as const;
-    expect(panoramaCost[high.environment.panorama]).toBeGreaterThan(panoramaCost[medium.environment.panorama]);
-    expect(panoramaCost[medium.environment.panorama]).toBeGreaterThan(panoramaCost[low.environment.panorama]);
+    expect(panoramaCost[high.environment.panorama]).toBeGreaterThan(
+      panoramaCost[medium.environment.panorama],
+    );
+    expect(panoramaCost[medium.environment.panorama]).toBeGreaterThan(
+      panoramaCost[low.environment.panorama],
+    );
   });
 
   it("classifies environment shadows and dynamic lights for every tier", () => {

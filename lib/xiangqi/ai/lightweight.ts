@@ -86,8 +86,7 @@ function squareKey(square: Square): number {
 }
 
 function compareCandidates(left: CandidateMove, right: CandidateMove): number {
-  return squareKey(left.from) - squareKey(right.from)
-    || squareKey(left.to) - squareKey(right.to);
+  return squareKey(left.from) - squareKey(right.from) || squareKey(left.to) - squareKey(right.to);
 }
 
 function positionalValue(role: Role, side: Side, square: Square): number {
@@ -97,21 +96,23 @@ function positionalValue(role: Role, side: Side, square: Square): number {
       const progress = side === "red" ? square.rank : 9 - square.rank;
       return progress * 12 + (progress >= 5 ? center * 3 : 0);
     }
-    case "horse": return center * 5;
-    case "cannon": return center * 2;
-    case "chariot": return center;
+    case "horse":
+      return center * 5;
+    case "cannon":
+      return center * 2;
+    case "chariot":
+      return center;
     case "advisor":
     case "elephant":
-    case "general": return 0;
+    case "general":
+      return 0;
   }
 }
 
 function terminalScore(state: GameState, ply: number): number | null {
   if (state.status.kind !== "ended") return null;
   if (!state.status.winner) return 0;
-  return state.status.winner === state.sideToMove
-    ? MATE_SCORE - ply
-    : -MATE_SCORE + ply;
+  return state.status.winner === state.sideToMove ? MATE_SCORE - ply : -MATE_SCORE + ply;
 }
 
 export function evaluatePosition(state: GameState): number {
@@ -169,8 +170,10 @@ function legalTransitions(state: GameState): SearchTransition[] {
       }
     }
   }
-  return transitions.sort((left, right) =>
-    right.orderScore - left.orderScore || compareCandidates(left.candidate, right.candidate));
+  return transitions.sort(
+    (left, right) =>
+      right.orderScore - left.orderScore || compareCandidates(left.candidate, right.candidate),
+  );
 }
 
 export function getDeterministicFallbackCandidate(state: GameState): CandidateMove | null {
@@ -193,8 +196,9 @@ function chooseCompletedMove(
   depth: number,
 ): RootScore | null {
   if (scores.length === 0) return null;
-  const ordered = [...scores].sort((left, right) =>
-    right.score - left.score || compareCandidates(left.candidate, right.candidate));
+  const ordered = [...scores].sort(
+    (left, right) => right.score - left.score || compareCandidates(left.candidate, right.candidate),
+  );
   const strongest = ordered[0];
   if (!strongest) return null;
   if (tier !== "lightweight-easy") return strongest;
@@ -250,7 +254,8 @@ export class ResumableLightweightSearch {
     this.#nodeBudget = Math.max(1, Math.floor(options.nodeBudget ?? defaults.nodeBudget));
     this.#depthCeiling = Math.max(1, Math.floor(options.depthCeiling ?? defaults.depthCeiling));
     this.#now = options.now ?? (() => performance.now());
-    this.#deadlineAt = this.#now() + Math.max(1, options.safetyDeadlineMs ?? defaults.safetyDeadlineMs);
+    this.#deadlineAt =
+      this.#now() + Math.max(1, options.safetyDeadlineMs ?? defaults.safetyDeadlineMs);
     this.#stack = [createFrame(state, 1, 0, NEGATIVE_INFINITY, POSITIVE_INFINITY, null)];
   }
 
@@ -299,14 +304,16 @@ export class ResumableLightweightSearch {
       if (!transition) continue;
       const childAlpha = frame.ply === 0 ? NEGATIVE_INFINITY : -frame.beta;
       const childBeta = frame.ply === 0 ? POSITIVE_INFINITY : -frame.alpha;
-      this.#stack.push(createFrame(
-        transition.state,
-        frame.depth - 1,
-        frame.ply + 1,
-        childAlpha,
-        childBeta,
-        transition.candidate,
-      ));
+      this.#stack.push(
+        createFrame(
+          transition.state,
+          frame.depth - 1,
+          frame.ply + 1,
+          childAlpha,
+          childBeta,
+          transition.candidate,
+        ),
+      );
     }
     return this.progress();
   }
@@ -336,7 +343,12 @@ export class ResumableLightweightSearch {
     if (!frame) return;
     const parent = this.#stack.at(-1);
     if (!parent) {
-      const chosen = chooseCompletedMove(frame.rootScores, this.#tier, this.#seed, frame.ply + frame.depth);
+      const chosen = chooseCompletedMove(
+        frame.rootScores,
+        this.#tier,
+        this.#seed,
+        frame.ply + frame.depth,
+      );
       this.#completedDepth = frame.depth;
       this.#completedCandidate = chosen?.candidate ?? frame.bestCandidate;
       this.#completedScore = chosen?.score ?? score;
@@ -344,14 +356,9 @@ export class ResumableLightweightSearch {
         this.#reason = "complete";
       } else {
         const nextDepth = this.#completedDepth + 1;
-        this.#stack.push(createFrame(
-          this.#state,
-          nextDepth,
-          0,
-          NEGATIVE_INFINITY,
-          POSITIVE_INFINITY,
-          null,
-        ));
+        this.#stack.push(
+          createFrame(this.#state, nextDepth, 0, NEGATIVE_INFINITY, POSITIVE_INFINITY, null),
+        );
       }
       return;
     }
@@ -360,10 +367,11 @@ export class ResumableLightweightSearch {
       parent.rootScores.push({ candidate: frame.parentCandidate, score: parentScore });
     }
     if (
-      parentScore > parent.bestScore
-      || (parentScore === parent.bestScore
-        && frame.parentCandidate
-        && (!parent.bestCandidate || compareCandidates(frame.parentCandidate, parent.bestCandidate) < 0))
+      parentScore > parent.bestScore ||
+      (parentScore === parent.bestScore &&
+        frame.parentCandidate &&
+        (!parent.bestCandidate ||
+          compareCandidates(frame.parentCandidate, parent.bestCandidate) < 0))
     ) {
       parent.bestScore = parentScore;
       parent.bestCandidate = frame.parentCandidate;

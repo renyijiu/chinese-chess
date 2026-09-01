@@ -19,14 +19,14 @@ deterministic and uses additive/resonant synthesis plus seeded noise. The
 lossless master and stems live in `source/exports/`; runtime MP3/WAV files live
 under `public/audio/qin-diorama/v1/`.
 
-| Source record ID | Runtime work | Lossless/editable source |
-| --- | --- | --- |
+| Source record ID              | Runtime work            | Lossless/editable source                                                  |
+| ----------------------------- | ----------------------- | ------------------------------------------------------------------------- |
 | `source.music.qin-procession` | `qin-procession-v1.mp3` | master FLAC, clay/bronze/breath/ritual FLAC stems, session JSON, renderer |
-| `source.accent.capture-clay` | `capture-clay-v1.wav` | cue master FLAC, session JSON, renderer |
-| `source.system.check` | `check-bronze-v1.wav` | cue master FLAC, session JSON, renderer |
-| `source.system.victory` | `result-victory-v1.wav` | cue master FLAC, session JSON, renderer |
-| `source.system.defeat` | `result-defeat-v1.wav` | cue master FLAC, session JSON, renderer |
-| `source.system.draw` | `result-draw-v1.wav` | cue master FLAC, session JSON, renderer |
+| `source.accent.capture-clay`  | `capture-clay-v1.wav`   | cue master FLAC, session JSON, renderer                                   |
+| `source.system.check`         | `check-bronze-v1.wav`   | cue master FLAC, session JSON, renderer                                   |
+| `source.system.victory`       | `result-victory-v1.wav` | cue master FLAC, session JSON, renderer                                   |
+| `source.system.defeat`        | `result-defeat-v1.wav`  | cue master FLAC, session JSON, renderer                                   |
+| `source.system.draw`          | `result-draw-v1.wav`    | cue master FLAC, session JSON, renderer                                   |
 
 ## Reproduction and review
 

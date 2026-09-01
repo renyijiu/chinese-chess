@@ -22,14 +22,44 @@ const XIANGQI_FEN = "rnbakabnr/9/1c5c1/p1p1p1p1p/9/9/P1P1P1P1P/1C5C1/9/RNBAKABNR
 // Fairy coordinate mapping file a-i and project rank + 1. Keeping the list in
 // this isolated release canary avoids importing TypeScript application code.
 const LEGAL_INITIAL_MOVES = Object.freeze([
-  "b1a3", "b1c3", "h1g3", "h1i3",
-  "c1a3", "c1e3", "g1e3", "g1i3",
-  "d1e2", "f1e2", "e1e2",
-  "a4a5", "c4c5", "e4e5", "g4g5", "i4i5",
-  "b3a3", "b3c3", "b3d3", "b3e3", "b3f3", "b3g3",
-  "b3b2", "b3b4", "b3b5", "b3b6", "b3b7",
-  "h3i3", "h3g3", "h3f3", "h3e3", "h3d3", "h3c3",
-  "h3h2", "h3h4", "h3h5", "h3h6", "h3h7"
+  "b1a3",
+  "b1c3",
+  "h1g3",
+  "h1i3",
+  "c1a3",
+  "c1e3",
+  "g1e3",
+  "g1i3",
+  "d1e2",
+  "f1e2",
+  "e1e2",
+  "a4a5",
+  "c4c5",
+  "e4e5",
+  "g4g5",
+  "i4i5",
+  "b3a3",
+  "b3c3",
+  "b3d3",
+  "b3e3",
+  "b3f3",
+  "b3g3",
+  "b3b2",
+  "b3b4",
+  "b3b5",
+  "b3b6",
+  "b3b7",
+  "h3i3",
+  "h3g3",
+  "h3f3",
+  "h3e3",
+  "h3d3",
+  "h3c3",
+  "h3h2",
+  "h3h4",
+  "h3h5",
+  "h3h6",
+  "h3h7",
 ]);
 
 function contentType(path) {
@@ -79,7 +109,10 @@ function startIsolatedServer() {
         return;
       }
       resolvePromise({
-        close: () => new Promise((done, closeReject) => server.close((error) => error ? closeReject(error) : done())),
+        close: () =>
+          new Promise((done, closeReject) =>
+            server.close((error) => (error ? closeReject(error) : done())),
+          ),
         origin: `http://127.0.0.1:${address.port}`,
       });
     });
@@ -100,143 +133,202 @@ export async function runAiEngineBrowserCanary(options = {}) {
     page.on("pageerror", (error) => browserErrors.push(error.message));
     page.on("request", (request) => requestedOrigins.add(new URL(request.url()).origin));
     await page.goto(`${localServer.origin}/canary`, { waitUntil: "load", timeout: 15_000 });
-    const result = await page.evaluate(async ({ fen, legalInitialMoves }) => {
-      if (!globalThis.isSecureContext) throw new Error("Canary origin is not a secure context.");
-      if (!globalThis.crossOriginIsolated) throw new Error("Canary response is not cross-origin isolated.");
-      if (typeof SharedArrayBuffer !== "function") throw new Error("SharedArrayBuffer is unavailable.");
-      if (typeof WebAssembly !== "object") throw new Error("WebAssembly is unavailable.");
-      const stockfishFactory = globalThis.Stockfish;
-      if (typeof stockfishFactory !== "function") throw new Error("Stockfish browser factory was not loaded.");
+    const result = await page.evaluate(
+      async ({ fen, legalInitialMoves }) => {
+        if (!globalThis.isSecureContext) throw new Error("Canary origin is not a secure context.");
+        if (!globalThis.crossOriginIsolated)
+          throw new Error("Canary response is not cross-origin isolated.");
+        if (typeof SharedArrayBuffer !== "function")
+          throw new Error("SharedArrayBuffer is unavailable.");
+        if (typeof WebAssembly !== "object") throw new Error("WebAssembly is unavailable.");
+        const stockfishFactory = globalThis.Stockfish;
+        if (typeof stockfishFactory !== "function")
+          throw new Error("Stockfish browser factory was not loaded.");
 
-      // Compiling the shipped SIMD build is the production-equivalent feature
-      // probe: a browser without WASM SIMD rejects this module before startup.
-      const wasmResponse = await fetch("/engine/stockfish.wasm");
-      if (!wasmResponse.ok) throw new Error(`WASM fetch failed with ${wasmResponse.status}.`);
-      const wasmBytes = await wasmResponse.arrayBuffer();
-      await WebAssembly.compile(wasmBytes);
+        // Compiling the shipped SIMD build is the production-equivalent feature
+        // probe: a browser without WASM SIMD rejects this module before startup.
+        const wasmResponse = await fetch("/engine/stockfish.wasm");
+        if (!wasmResponse.ok) throw new Error(`WASM fetch failed with ${wasmResponse.status}.`);
+        const wasmBytes = await wasmResponse.arrayBuffer();
+        await WebAssembly.compile(wasmBytes);
 
-      const transcript = [];
-      let exitResolve;
-      const exitPromise = new Promise((resolveExit) => { exitResolve = resolveExit; });
-      const engine = await stockfishFactory({
-        locateFile: (name) => `/engine/${name}`,
-        onExit: (code) => exitResolve(code),
-      });
-      const listeners = new Set();
-      const lineListener = (line) => {
-        const text = String(line);
-        transcript.push(text);
-        for (const listener of [...listeners]) listener(text);
-      };
-      engine.addMessageListener(lineListener);
-
-      const waitFor = (predicate, label, timeoutMs = 12_000) => new Promise((resolveLine, rejectLine) => {
-        const timer = setTimeout(() => {
-          listeners.delete(onLine);
-          rejectLine(new Error(`Timed out waiting for ${label}. Last output: ${transcript.slice(-8).join(" | ")}`));
-        }, timeoutMs);
-        const onLine = (line) => {
-          const match = predicate(line);
-          if (!match) return;
-          clearTimeout(timer);
-          listeners.delete(onLine);
-          resolveLine(match);
+        const transcript = [];
+        let exitResolve;
+        const exitPromise = new Promise((resolveExit) => {
+          exitResolve = resolveExit;
+        });
+        const engine = await stockfishFactory({
+          locateFile: (name) => `/engine/${name}`,
+          onExit: (code) => exitResolve(code),
+        });
+        const listeners = new Set();
+        const lineListener = (line) => {
+          const text = String(line);
+          transcript.push(text);
+          for (const listener of [...listeners]) listener(text);
         };
-        listeners.add(onLine);
-      });
-      const commandAndWait = (command, predicate, label, timeoutMs) => {
-        const pending = waitFor(predicate, label, timeoutMs);
-        engine.postMessage(command);
-        return pending;
-      };
+        engine.addMessageListener(lineListener);
 
-      try {
-        const networkResponse = await fetch("/engine/xiangqi-c07e94a5c7cb.nnue");
-        if (!networkResponse.ok) throw new Error(`NNUE fetch failed with ${networkResponse.status}.`);
-        const network = new Uint8Array(await networkResponse.arrayBuffer());
-        engine.FS.writeFile("/xiangqi-c07e94a5c7cb.nnue", network);
-
-        await commandAndWait("uci", (line) => line === "uciok" && line, "uciok");
-        if (!transcript.some((line) => /option name UCI_Variant .*\bvar xiangqi\b/.test(line))) {
-          throw new Error("UCI_Variant does not advertise Xiangqi.");
-        }
-        if (!transcript.some((line) => line.startsWith("option name EvalFile "))) {
-          throw new Error("Engine does not advertise the EvalFile option.");
-        }
-        engine.postMessage("setoption name UCI_Variant value xiangqi");
-        engine.postMessage("setoption name EvalFile value /xiangqi-c07e94a5c7cb.nnue");
-        await commandAndWait("isready", (line) => line === "readyok" && line, "readyok after NNUE load", 20_000);
-
-        engine.postMessage(`position fen ${fen}`);
-        const fenLine = await commandAndWait("d", (line) => {
-          const match = line.match(/(?:^|\n)Fen: ([^\n]+)/);
-          return match?.[1] ?? false;
-        }, "FEN round trip");
-        if (fenLine.trim() !== fen) throw new Error(`FEN round trip differs: ${fenLine}`);
-
-        const firstBestmove = await commandAndWait("go depth 1", (line) => {
-          const match = line.match(/^bestmove ([a-i](?:10|[1-9])[a-i](?:10|[1-9]))(?:\s|$)/);
-          return match?.[1] ?? false;
-        }, "legal Xiangqi bestmove", 20_000);
-        if (!legalInitialMoves.includes(firstBestmove)) {
-          throw new Error(`Bestmove is not legal in the fixed initial Xiangqi position: ${firstBestmove}`);
-        }
-
-        engine.postMessage(`position fen ${fen} moves ${firstBestmove}`);
-        const appliedFen = await commandAndWait("d", (line) => {
-          const match = line.match(/(?:^|\n)Fen: ([^\n]+)/);
-          return match?.[1] ?? false;
-        }, "FEN after bestmove");
-        if (appliedFen.trim() === fen || !/ b - - /.test(appliedFen)) {
-          throw new Error(`Engine did not accept its bestmove as legal: ${firstBestmove}; ${appliedFen}`);
-        }
-
-        engine.postMessage(`position fen ${fen}`);
-
-        const searching = commandAndWait("go infinite", (line) => /^info .*\bdepth \d+/.test(line) && line, "infinite-search info", 20_000);
-        await searching;
-        const stoppedBestmove = waitFor((line) => {
-          const match = line.match(/^bestmove ([a-i](?:10|[1-9])[a-i](?:10|[1-9]))(?:\s|$)/);
-          return match?.[1] ?? false;
-        }, "bestmove after stop", 12_000);
-        engine.postMessage("stop");
-        const stopMove = await stoppedBestmove;
-        if (!legalInitialMoves.includes(stopMove)) {
-          throw new Error(`Stopped bestmove is not legal in the fixed initial Xiangqi position: ${stopMove}`);
-        }
-
-        engine.postMessage("quit");
-        const exitCode = await Promise.race([
-          exitPromise,
-          new Promise((_, rejectExit) => setTimeout(() => rejectExit(new Error("Engine did not exit after quit.")), 8_000)),
-        ]);
-        return {
-          crossOriginIsolated: globalThis.crossOriginIsolated,
-          exitCode,
-          appliedFen,
-          firstBestmove,
-          networkBytes: network.byteLength,
-          readyok: transcript.includes("readyok"),
-          stopMove,
-          transcriptTail: transcript.slice(-10),
-          uciok: transcript.includes("uciok"),
-          wasmBytes: wasmBytes.byteLength,
+        const waitFor = (predicate, label, timeoutMs = 12_000) =>
+          new Promise((resolveLine, rejectLine) => {
+            const timer = setTimeout(() => {
+              listeners.delete(onLine);
+              rejectLine(
+                new Error(
+                  `Timed out waiting for ${label}. Last output: ${transcript.slice(-8).join(" | ")}`,
+                ),
+              );
+            }, timeoutMs);
+            const onLine = (line) => {
+              const match = predicate(line);
+              if (!match) return;
+              clearTimeout(timer);
+              listeners.delete(onLine);
+              resolveLine(match);
+            };
+            listeners.add(onLine);
+          });
+        const commandAndWait = (command, predicate, label, timeoutMs) => {
+          const pending = waitFor(predicate, label, timeoutMs);
+          engine.postMessage(command);
+          return pending;
         };
-      } finally {
-        engine.removeMessageListener(lineListener);
-        engine.terminate();
-      }
-    }, { fen: XIANGQI_FEN, legalInitialMoves: LEGAL_INITIAL_MOVES });
+
+        try {
+          const networkResponse = await fetch("/engine/xiangqi-c07e94a5c7cb.nnue");
+          if (!networkResponse.ok)
+            throw new Error(`NNUE fetch failed with ${networkResponse.status}.`);
+          const network = new Uint8Array(await networkResponse.arrayBuffer());
+          engine.FS.writeFile("/xiangqi-c07e94a5c7cb.nnue", network);
+
+          await commandAndWait("uci", (line) => line === "uciok" && line, "uciok");
+          if (!transcript.some((line) => /option name UCI_Variant .*\bvar xiangqi\b/.test(line))) {
+            throw new Error("UCI_Variant does not advertise Xiangqi.");
+          }
+          if (!transcript.some((line) => line.startsWith("option name EvalFile "))) {
+            throw new Error("Engine does not advertise the EvalFile option.");
+          }
+          engine.postMessage("setoption name UCI_Variant value xiangqi");
+          engine.postMessage("setoption name EvalFile value /xiangqi-c07e94a5c7cb.nnue");
+          await commandAndWait(
+            "isready",
+            (line) => line === "readyok" && line,
+            "readyok after NNUE load",
+            20_000,
+          );
+
+          engine.postMessage(`position fen ${fen}`);
+          const fenLine = await commandAndWait(
+            "d",
+            (line) => {
+              const match = line.match(/(?:^|\n)Fen: ([^\n]+)/);
+              return match?.[1] ?? false;
+            },
+            "FEN round trip",
+          );
+          if (fenLine.trim() !== fen) throw new Error(`FEN round trip differs: ${fenLine}`);
+
+          const firstBestmove = await commandAndWait(
+            "go depth 1",
+            (line) => {
+              const match = line.match(/^bestmove ([a-i](?:10|[1-9])[a-i](?:10|[1-9]))(?:\s|$)/);
+              return match?.[1] ?? false;
+            },
+            "legal Xiangqi bestmove",
+            20_000,
+          );
+          if (!legalInitialMoves.includes(firstBestmove)) {
+            throw new Error(
+              `Bestmove is not legal in the fixed initial Xiangqi position: ${firstBestmove}`,
+            );
+          }
+
+          engine.postMessage(`position fen ${fen} moves ${firstBestmove}`);
+          const appliedFen = await commandAndWait(
+            "d",
+            (line) => {
+              const match = line.match(/(?:^|\n)Fen: ([^\n]+)/);
+              return match?.[1] ?? false;
+            },
+            "FEN after bestmove",
+          );
+          if (appliedFen.trim() === fen || !/ b - - /.test(appliedFen)) {
+            throw new Error(
+              `Engine did not accept its bestmove as legal: ${firstBestmove}; ${appliedFen}`,
+            );
+          }
+
+          engine.postMessage(`position fen ${fen}`);
+
+          const searching = commandAndWait(
+            "go infinite",
+            (line) => /^info .*\bdepth \d+/.test(line) && line,
+            "infinite-search info",
+            20_000,
+          );
+          await searching;
+          const stoppedBestmove = waitFor(
+            (line) => {
+              const match = line.match(/^bestmove ([a-i](?:10|[1-9])[a-i](?:10|[1-9]))(?:\s|$)/);
+              return match?.[1] ?? false;
+            },
+            "bestmove after stop",
+            12_000,
+          );
+          engine.postMessage("stop");
+          const stopMove = await stoppedBestmove;
+          if (!legalInitialMoves.includes(stopMove)) {
+            throw new Error(
+              `Stopped bestmove is not legal in the fixed initial Xiangqi position: ${stopMove}`,
+            );
+          }
+
+          engine.postMessage("quit");
+          const exitCode = await Promise.race([
+            exitPromise,
+            new Promise((_, rejectExit) =>
+              setTimeout(() => rejectExit(new Error("Engine did not exit after quit.")), 8_000),
+            ),
+          ]);
+          return {
+            crossOriginIsolated: globalThis.crossOriginIsolated,
+            exitCode,
+            appliedFen,
+            firstBestmove,
+            networkBytes: network.byteLength,
+            readyok: transcript.includes("readyok"),
+            stopMove,
+            transcriptTail: transcript.slice(-10),
+            uciok: transcript.includes("uciok"),
+            wasmBytes: wasmBytes.byteLength,
+          };
+        } finally {
+          engine.removeMessageListener(lineListener);
+          engine.terminate();
+        }
+      },
+      { fen: XIANGQI_FEN, legalInitialMoves: LEGAL_INITIAL_MOVES },
+    );
 
     // The upstream minified browser build deliberately calls
     // emscripten_force_exit(0) for `quit`, which Chromium reports as the
     // minified ExitStatus constructor (`ua`) after onExit has delivered 0.
-    const unexpectedBrowserErrors = browserErrors.filter((message) => result.exitCode !== 0 || !/^(?:ua|ExitStatus)/.test(message));
-    if (unexpectedBrowserErrors.length > 0) throw new Error(`Browser page errors: ${unexpectedBrowserErrors.join(" | ")}`);
+    const unexpectedBrowserErrors = browserErrors.filter(
+      (message) => result.exitCode !== 0 || !/^(?:ua|ExitStatus)/.test(message),
+    );
+    if (unexpectedBrowserErrors.length > 0)
+      throw new Error(`Browser page errors: ${unexpectedBrowserErrors.join(" | ")}`);
     for (const origin of requestedOrigins) {
-      if (origin !== localServer.origin) throw new Error(`Canary attempted an unexpected network origin: ${origin}`);
+      if (origin !== localServer.origin)
+        throw new Error(`Canary attempted an unexpected network origin: ${origin}`);
     }
-    if (!result.uciok || !result.readyok || !result.firstBestmove || !result.stopMove || result.exitCode !== 0) {
+    if (
+      !result.uciok ||
+      !result.readyok ||
+      !result.firstBestmove ||
+      !result.stopMove ||
+      result.exitCode !== 0
+    ) {
       throw new Error(`Canary returned an incomplete result: ${JSON.stringify(result)}`);
     }
     return result;
@@ -249,15 +341,17 @@ export async function runAiEngineBrowserCanary(options = {}) {
 
 const entryPoint = process.argv[1] ? pathToFileURL(resolve(process.argv[1])).href : "";
 if (import.meta.url === entryPoint) {
-  runAiEngineBrowserCanary().then((result) => {
-    console.log("Fairy-Stockfish browser canary passed.");
-    console.log(`crossOriginIsolated: ${result.crossOriginIsolated}`);
-    console.log(`uciok: ${result.uciok}; readyok: ${result.readyok}`);
-    console.log(`NNUE bytes: ${result.networkBytes}`);
-    console.log(`bestmove: ${result.firstBestmove}; stopped bestmove: ${result.stopMove}`);
-    console.log(`exit code: ${result.exitCode}`);
-  }).catch((error) => {
-    console.error(`AI ENGINE BROWSER CANARY FAILED: ${error.message}`);
-    process.exitCode = 1;
-  });
+  runAiEngineBrowserCanary()
+    .then((result) => {
+      console.log("Fairy-Stockfish browser canary passed.");
+      console.log(`crossOriginIsolated: ${result.crossOriginIsolated}`);
+      console.log(`uciok: ${result.uciok}; readyok: ${result.readyok}`);
+      console.log(`NNUE bytes: ${result.networkBytes}`);
+      console.log(`bestmove: ${result.firstBestmove}; stopped bestmove: ${result.stopMove}`);
+      console.log(`exit code: ${result.exitCode}`);
+    })
+    .catch((error) => {
+      console.error(`AI ENGINE BROWSER CANARY FAILED: ${error.message}`);
+      process.exitCode = 1;
+    });
 }

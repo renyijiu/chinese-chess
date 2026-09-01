@@ -106,7 +106,9 @@ export class PresentationStore {
     } as const;
   }
 
-  play(transition: GameActionTransition): Promise<TimelineResult | { id: string; progress: 1; reason: "duplicate" }> {
+  play(
+    transition: GameActionTransition,
+  ): Promise<TimelineResult | { id: string; progress: 1; reason: "duplicate" }> {
     if (this.completedIds.has(transition.actionId)) {
       return Promise.resolve({ id: transition.actionId, progress: 1, reason: "duplicate" });
     }
@@ -119,7 +121,15 @@ export class PresentationStore {
     const capture = isCapture(transition);
     const moving = isMove(transition);
     const terminalDefeat = isTerminalDefeat(transition);
-    const durationMs = transition.reducedMotion ? 100 : capture ? 1_500 : terminalDefeat ? 900 : moving ? 700 : 550;
+    const durationMs = transition.reducedMotion
+      ? 100
+      : capture
+        ? 1_500
+        : terminalDefeat
+          ? 900
+          : moving
+            ? 700
+            : 550;
     const markers = capture || terminalDefeat ? CAPTURE_MARKERS : MOVE_MARKERS;
     const firedMarkers = new Set<PresentationMarker>();
     this.snapshot = {
@@ -128,44 +138,46 @@ export class PresentationStore {
     this.emit();
 
     const timeoutMs = durationMs + 750;
-    const pending = this.timeline.play({
-      durationMs,
-      id: transition.actionId,
-      markers,
-      onMarker: (marker) => {
-        const presentationMarker = marker.id as PresentationMarker;
-        firedMarkers.add(presentationMarker);
-        this.cueListeners.forEach((listener) => {
-          try {
-            listener({
-              actionId: transition.actionId,
-              marker: presentationMarker,
-              transition,
-            });
-          } catch {
-            // A future audio/VFX cue consumer cannot stop the authoritative timeline.
+    const pending = this.timeline
+      .play({
+        durationMs,
+        id: transition.actionId,
+        markers,
+        onMarker: (marker) => {
+          const presentationMarker = marker.id as PresentationMarker;
+          firedMarkers.add(presentationMarker);
+          this.cueListeners.forEach((listener) => {
+            try {
+              listener({
+                actionId: transition.actionId,
+                marker: presentationMarker,
+                transition,
+              });
+            } catch {
+              // A future audio/VFX cue consumer cannot stop the authoritative timeline.
+            }
+          });
+          this.publishActive(transition, firedMarkers, this.snapshot.active?.progress ?? 0);
+        },
+        onProgress: (progress) => this.publishActive(transition, firedMarkers, progress),
+        timeoutMs,
+      })
+      .then((result) => {
+        this.clearFallbackTimer(transition.actionId);
+        if (!this.disposed) {
+          this.completedIds.add(transition.actionId);
+          if (this.completedIds.size > 256) {
+            const oldest = this.completedIds.values().next().value;
+            if (oldest) this.completedIds.delete(oldest);
           }
-        });
-        this.publishActive(transition, firedMarkers, this.snapshot.active?.progress ?? 0);
-      },
-      onProgress: (progress) => this.publishActive(transition, firedMarkers, progress),
-      timeoutMs,
-    }).then((result) => {
-      this.clearFallbackTimer(transition.actionId);
-      if (!this.disposed) {
-        this.completedIds.add(transition.actionId);
-        if (this.completedIds.size > 256) {
-          const oldest = this.completedIds.values().next().value;
-          if (oldest) this.completedIds.delete(oldest);
         }
-      }
-      if (this.snapshot.active?.transition.actionId === transition.actionId) {
-        this.snapshot = IDLE_SNAPSHOT;
-        this.activePromise = null;
-        this.emit();
-      }
-      return result;
-    });
+        if (this.snapshot.active?.transition.actionId === transition.actionId) {
+          this.snapshot = IDLE_SNAPSHOT;
+          this.activePromise = null;
+          this.emit();
+        }
+        return result;
+      });
     this.fallbackTimer = setTimeout(() => {
       if (this.snapshot.active?.transition.actionId === transition.actionId) {
         this.timeline.skip(transition.actionId, "timeout");

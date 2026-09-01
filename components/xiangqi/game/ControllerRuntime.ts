@@ -11,7 +11,8 @@ export class ControllerRuntime {
   #match: SavedMatch;
   #mounted = true;
   #commit: (commit: CommandCommit) => Promise<void> = async () => undefined;
-  #fallback: (matchId: string, toTier: OpponentFallbackTier) => Promise<void> = async () => undefined;
+  #fallback: (matchId: string, toTier: OpponentFallbackTier) => Promise<void> = async () =>
+    undefined;
 
   constructor(match: SavedMatch) {
     this.#match = match;

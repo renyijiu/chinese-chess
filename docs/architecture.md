@@ -19,16 +19,16 @@ flowchart LR
 
 ## 目录边界
 
-| 目录 | 职责 | 约束 |
-| --- | --- | --- |
-| `lib/xiangqi/` | 规则、序列化、hash、AI 协议与确定性搜索 | 不依赖 React、Three.js 或浏览器 UI |
-| `components/xiangqi/game/` | 对局配置、命令门、存档策略与组件支持 | 通过规则引擎提交，不复制走法规则 |
-| `components/xiangqi/ai/` | Worker Provider、Master 适配与生命周期协调 | 可失败/降级，但不能提交过期着法 |
-| `components/xiangqi/online/` | 手动信令、DataChannel、恢复与重开协议 | 只交换版本化命令和可验证状态 |
-| `components/xiangqi/presentation/`、`animation/`、`audio/` | 表现时间线和音频反馈 | 失败后棋盘仍与规则状态一致 |
-| `components/xiangqi/scene/`、`pieces/`、`runtime/`、`vfx/` | R3F 场景、资产、性能和降级 | 不参与规则判定；资源必须可释放 |
-| `app/`、`worker/` | Vinext 页面、客户端边界与 Cloudflare Worker | 保持安全头、MIME 和缓存合同 |
-| `scripts/` | 资产、供应链、元数据和预算校验 | 校验失败必须返回非零状态 |
+| 目录                                                       | 职责                                        | 约束                               |
+| ---------------------------------------------------------- | ------------------------------------------- | ---------------------------------- |
+| `lib/xiangqi/`                                             | 规则、序列化、hash、AI 协议与确定性搜索     | 不依赖 React、Three.js 或浏览器 UI |
+| `components/xiangqi/game/`                                 | 对局配置、命令门、存档策略与组件支持        | 通过规则引擎提交，不复制走法规则   |
+| `components/xiangqi/ai/`                                   | Worker Provider、Master 适配与生命周期协调  | 可失败/降级，但不能提交过期着法    |
+| `components/xiangqi/online/`                               | 手动信令、DataChannel、恢复与重开协议       | 只交换版本化命令和可验证状态       |
+| `components/xiangqi/presentation/`、`animation/`、`audio/` | 表现时间线和音频反馈                        | 失败后棋盘仍与规则状态一致         |
+| `components/xiangqi/scene/`、`pieces/`、`runtime/`、`vfx/` | R3F 场景、资产、性能和降级                  | 不参与规则判定；资源必须可释放     |
+| `app/`、`worker/`                                          | Vinext 页面、客户端边界与 Cloudflare Worker | 保持安全头、MIME 和缓存合同        |
+| `scripts/`                                                 | 资产、供应链、元数据和预算校验              | 校验失败必须返回非零状态           |
 
 ## 运行时边界
 

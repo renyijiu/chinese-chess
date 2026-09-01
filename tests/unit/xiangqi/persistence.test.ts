@@ -52,18 +52,26 @@ describe("replay persistence", () => {
 
   it("rejects malformed, unsupported, and illegal replay data", () => {
     expect(() => deserializeGame("not json")).toThrow(XiangqiSerializationError);
-    expect(() => deserializeGame(JSON.stringify({
-      schemaVersion: 2,
-      rulesetId: "popular-v1",
-      initialPosition: "standard",
-      commands: [],
-    }))).toThrow(/unsupported/);
-    expect(() => deserializeGame(JSON.stringify({
-      schemaVersion: 1,
-      rulesetId: "popular-v1",
-      initialPosition: "standard",
-      commands: [{ type: "move", from: { file: 0, rank: 6 }, to: { file: 0, rank: 5 } }],
-    }))).toThrow(/not-your-turn/);
+    expect(() =>
+      deserializeGame(
+        JSON.stringify({
+          schemaVersion: 2,
+          rulesetId: "popular-v1",
+          initialPosition: "standard",
+          commands: [],
+        }),
+      ),
+    ).toThrow(/unsupported/);
+    expect(() =>
+      deserializeGame(
+        JSON.stringify({
+          schemaVersion: 1,
+          rulesetId: "popular-v1",
+          initialPosition: "standard",
+          commands: [{ type: "move", from: { file: 0, rank: 6 }, to: { file: 0, rank: 5 } }],
+        }),
+      ),
+    ).toThrow(/not-your-turn/);
   });
 
   it("records an explicitly named resigning side even when it is not that side's turn", () => {
@@ -104,12 +112,16 @@ describe("replay persistence", () => {
   });
 
   it("rejects invalid explicit resign sides", () => {
-    expect(() => deserializeGame(JSON.stringify({
-      schemaVersion: 1,
-      rulesetId: "popular-v1",
-      initialPosition: "standard",
-      commands: [{ type: "resign", side: "green" }],
-    }))).toThrow(/side/i);
+    expect(() =>
+      deserializeGame(
+        JSON.stringify({
+          schemaVersion: 1,
+          rulesetId: "popular-v1",
+          initialPosition: "standard",
+          commands: [{ type: "resign", side: "green" }],
+        }),
+      ),
+    ).toThrow(/side/i);
   });
 });
 
@@ -128,7 +140,8 @@ describe("canonical game fingerprints", () => {
     await expect(fingerprintGame(game)).resolves.toBe(
       "b0d6c2da8043fbd46812939390a3b576fa3a947626627be0670a31a660a0591d",
     );
-    await expect(fingerprintGame(deserializeGame(serializeGame(game))))
-      .resolves.toBe(await fingerprintGame(game));
+    await expect(fingerprintGame(deserializeGame(serializeGame(game)))).resolves.toBe(
+      await fingerprintGame(game),
+    );
   });
 });

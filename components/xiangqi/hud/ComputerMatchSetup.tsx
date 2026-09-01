@@ -2,10 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import type {
-  ComputerDifficulty,
-  ComputerMatchConfig,
-} from "../game/match";
+import type { ComputerDifficulty, ComputerMatchConfig } from "../game/match";
 
 export const DIFFICULTY_LABELS: Record<ComputerDifficulty, string> = {
   easy: "简单",
@@ -42,11 +39,11 @@ export function ComputerMatchSetup({
   preparedConfig: ComputerMatchConfig | null;
   reducedMotion: boolean;
 }) {
-  const [settledMatchId, setSettledMatchId] = useState<string | null>(() => (
+  const [settledMatchId, setSettledMatchId] = useState<string | null>(() =>
     preparedConfig && (reducedMotion || animateMatchId !== preparedConfig.matchId)
       ? preparedConfig.matchId
-      : null
-  ));
+      : null,
+  );
   const confirmButton = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -102,7 +99,8 @@ export function ComputerMatchSetup({
 
       {difficulty === "master" ? (
         <p className="computer-master-disclosure" role="note">
-          大师模式首次使用需要下载并缓存 GPL 强力引擎资源；若浏览器能力、下载或初始化不可用，本局会明确提示并保存为困难难度继续，不会锁死棋盘。
+          大师模式首次使用需要下载并缓存 GPL
+          强力引擎资源；若浏览器能力、下载或初始化不可用，本局会明确提示并保存为困难难度继续，不会锁死棋盘。
         </p>
       ) : null}
 
@@ -123,7 +121,9 @@ export function ComputerMatchSetup({
           </div>
           <div>
             <span>{rolling ? "铜骰正在落定…" : `掷出 ${preparedConfig.dieResult}`}</span>
-            <strong>{rolling ? "正在分配阵营" : `你执${SIDE_LABELS[preparedConfig.humanSide]}`}</strong>
+            <strong>
+              {rolling ? "正在分配阵营" : `你执${SIDE_LABELS[preparedConfig.humanSide]}`}
+            </strong>
             <small>
               {preparedConfig.humanSide === "red"
                 ? "你先行。确认后即可落子。"
@@ -145,7 +145,12 @@ export function ComputerMatchSetup({
             以{assignedSide ? SIDE_LABELS[assignedSide] : "已分配阵营"}开始对局
           </button>
         ) : (
-          <button className="game-primary-action" disabled={disabled} type="button" onClick={onRoll}>
+          <button
+            className="game-primary-action"
+            disabled={disabled}
+            type="button"
+            onClick={onRoll}
+          >
             掷骰决定阵营
           </button>
         )}

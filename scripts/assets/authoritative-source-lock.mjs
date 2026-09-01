@@ -29,7 +29,9 @@ export function readSourceLock(root, roleNames) {
   const lockedRoles = Object.keys(lock.roles ?? {}).sort();
   const expectedRoles = [...roleNames].sort();
   if (JSON.stringify(lockedRoles) !== JSON.stringify(expectedRoles)) {
-    fail(`Authoritative source lock roles differ; expected ${expectedRoles.join(", ")}, got ${lockedRoles.join(", ")}`);
+    fail(
+      `Authoritative source lock roles differ; expected ${expectedRoles.join(", ")}, got ${lockedRoles.join(", ")}`,
+    );
   }
   return lock;
 }

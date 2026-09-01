@@ -19,21 +19,22 @@ describe("authoritative asset source verification", () => {
     const original = Buffer.from("glTF-authoritative");
     const changed = Buffer.from("glTF-authoritativf");
 
-    expect(() => assertLockedBytes(
-      changed,
-      { path: "fixture.glb", sha256: digest(original) },
-      "fixture GLB",
-    )).toThrow("digest drift");
+    expect(() =>
+      assertLockedBytes(changed, { path: "fixture.glb", sha256: digest(original) }, "fixture GLB"),
+    ).toThrow("digest drift");
   });
 
   it("rejects an unhydrated Git LFS pointer", () => {
-    const pointer = Buffer.from("version https://git-lfs.github.com/spec/v1\noid sha256:abc\nsize 1\n");
+    const pointer = Buffer.from(
+      "version https://git-lfs.github.com/spec/v1\noid sha256:abc\nsize 1\n",
+    );
 
-    expect(() => assertLockedBytes(
-      pointer,
-      { path: "fixture.blend", sha256: digest(pointer) },
-      "fixture BLEND",
-    ))
-      .toThrow("unhydrated Git LFS pointer");
+    expect(() =>
+      assertLockedBytes(
+        pointer,
+        { path: "fixture.blend", sha256: digest(pointer) },
+        "fixture BLEND",
+      ),
+    ).toThrow("unhydrated Git LFS pointer");
   });
 });

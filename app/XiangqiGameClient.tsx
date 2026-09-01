@@ -13,17 +13,27 @@ function LoadingGameShell() {
       <div aria-hidden="true" className="viewer-canvas viewer-canvas--initializing" />
       <div className="viewer-hud" aria-hidden="true">
         <div className="viewer-controls">
-          <button className="viewer-control" disabled type="button">俯视棋盘</button>
-          <button className="viewer-control" disabled type="button">自动巡游</button>
-          <button className="viewer-control" disabled type="button">换边视角 · 红</button>
+          <button className="viewer-control" disabled type="button">
+            俯视棋盘
+          </button>
+          <button className="viewer-control" disabled type="button">
+            自动巡游
+          </button>
+          <button className="viewer-control" disabled type="button">
+            换边视角 · 红
+          </button>
         </div>
       </div>
       <div className="game-overlay">
         <section aria-label="兵临九宫" aria-busy="true" className="game-menu" role="dialog">
-          <button disabled type="button">开始本机双人对局</button>
+          <button disabled type="button">
+            开始本机双人对局
+          </button>
         </section>
       </div>
-      <p className="sr-only" role="status">正在加载浏览器棋局运行时。</p>
+      <p className="sr-only" role="status">
+        正在加载浏览器棋局运行时。
+      </p>
     </section>
   );
 }

@@ -12,19 +12,72 @@ import {
   type WireCodecResult,
 } from "./types";
 
-const IDENTITY_KEYS = ["v", "type", "pairingId", "sessionId", "matchId", "senderPeerId", "seq"] as const;
+const IDENTITY_KEYS = [
+  "v",
+  "type",
+  "pairingId",
+  "sessionId",
+  "matchId",
+  "senderPeerId",
+  "seq",
+] as const;
 const MESSAGE_KEYS = {
-  hello: [...IDENTITY_KEYS, "intent", "signalingRole", "side", "gameSchemaVersion", "ruleset", "revision", "positionHash", "features"],
+  hello: [
+    ...IDENTITY_KEYS,
+    "intent",
+    "signalingRole",
+    "side",
+    "gameSchemaVersion",
+    "ruleset",
+    "revision",
+    "positionHash",
+    "features",
+  ],
   ready: [...IDENTITY_KEYS, "revision", "positionHash"],
-  command: [...IDENTITY_KEYS, "commandId", "actorSide", "expectedRevision", "beforeHash", "command", "afterRevision", "afterHash"],
+  command: [
+    ...IDENTITY_KEYS,
+    "commandId",
+    "actorSide",
+    "expectedRevision",
+    "beforeHash",
+    "command",
+    "afterRevision",
+    "afterHash",
+  ],
   ack: [...IDENTITY_KEYS, "ackedMessageId", "ackedSeq", "status", "revision", "positionHash"],
   "snapshot-request": [...IDENTITY_KEYS, "requestId", "reason", "knownRevision", "knownHash"],
   snapshot: [...IDENTITY_KEYS, "requestId", "revision", "positionHash", "serializedGame"],
   ping: [...IDENTITY_KEYS, "nonce", "purpose", "revision", "positionHash"],
   pong: [...IDENTITY_KEYS, "nonce", "purpose", "revision", "positionHash"],
-  "resign-request": [...IDENTITY_KEYS, "action", "proposalId", "resigningSide", "knownRevision", "knownHash"],
-  "resign-commit": [...IDENTITY_KEYS, "action", "proposalId", "commandId", "resigningSide", "expectedRevision", "beforeHash", "afterRevision", "afterHash"],
-  rematch: [...IDENTITY_KEYS, "action", "proposalId", "nextMatchId", "nextRematchIndex", "hostSide", "terminalRevision", "terminalHash"],
+  "resign-request": [
+    ...IDENTITY_KEYS,
+    "action",
+    "proposalId",
+    "resigningSide",
+    "knownRevision",
+    "knownHash",
+  ],
+  "resign-commit": [
+    ...IDENTITY_KEYS,
+    "action",
+    "proposalId",
+    "commandId",
+    "resigningSide",
+    "expectedRevision",
+    "beforeHash",
+    "afterRevision",
+    "afterHash",
+  ],
+  rematch: [
+    ...IDENTITY_KEYS,
+    "action",
+    "proposalId",
+    "nextMatchId",
+    "nextRematchIndex",
+    "hostSide",
+    "terminalRevision",
+    "terminalHash",
+  ],
   error: [...IDENTITY_KEYS, "code", "fatal", "relatedSeq"],
 } as const;
 
@@ -57,8 +110,10 @@ export function hasExactKeys(
 ): boolean {
   const actual = Object.keys(value).sort();
   const sortedExpected = [...expected].sort();
-  return actual.length === sortedExpected.length
-    && actual.every((key, index) => key === sortedExpected[index]);
+  return (
+    actual.length === sortedExpected.length &&
+    actual.every((key, index) => key === sortedExpected[index])
+  );
 }
 
 export function isBoundedId(value: unknown): value is string {
@@ -116,19 +171,25 @@ function decodeMove(value: unknown): MovePayloadV1 | null {
 }
 
 function hasValidIdentity(value: Record<string, unknown>): boolean {
-  return isBoundedId(value.pairingId)
-    && isBoundedId(value.sessionId)
-    && isBoundedId(value.matchId)
-    && isBoundedId(value.senderPeerId)
-    && isSafeNonnegativeInteger(value.seq)
-    && value.seq >= 1;
+  return (
+    isBoundedId(value.pairingId) &&
+    isBoundedId(value.sessionId) &&
+    isBoundedId(value.matchId) &&
+    isBoundedId(value.senderPeerId) &&
+    isSafeNonnegativeInteger(value.seq) &&
+    value.seq >= 1
+  );
 }
 
 function hasCanonicalFeatures(value: unknown): value is ReadonlyArray<OnlineFeatureV1> {
   if (!Array.isArray(value) || value.length > FEATURES.size) return false;
   let previous = "";
   for (const feature of value) {
-    if (typeof feature !== "string" || !FEATURES.has(feature as OnlineFeatureV1) || feature <= previous) {
+    if (
+      typeof feature !== "string" ||
+      !FEATURES.has(feature as OnlineFeatureV1) ||
+      feature <= previous
+    ) {
       return false;
     }
     previous = feature;
@@ -141,118 +202,136 @@ function isBoundedReason(value: unknown): value is string {
 }
 
 function hasNextRevision(expectedRevision: unknown, afterRevision: unknown): boolean {
-  return isSafeNonnegativeInteger(expectedRevision)
-    && isSafeNonnegativeInteger(afterRevision)
-    && expectedRevision < Number.MAX_SAFE_INTEGER
-    && afterRevision === expectedRevision + 1;
+  return (
+    isSafeNonnegativeInteger(expectedRevision) &&
+    isSafeNonnegativeInteger(afterRevision) &&
+    expectedRevision < Number.MAX_SAFE_INTEGER &&
+    afterRevision === expectedRevision + 1
+  );
 }
 
 export function decodeOnlineMessageValueV1(value: unknown): WireCodecResult<OnlineMessageV1> {
   if (!isRecord(value)) return failure("schema");
   if (Object.hasOwn(value, "v") && value.v !== ONLINE_PROTOCOL_VERSION) return failure("version");
-  if (value.v !== ONLINE_PROTOCOL_VERSION || typeof value.type !== "string" || !hasValidIdentity(value)) {
+  if (
+    value.v !== ONLINE_PROTOCOL_VERSION ||
+    typeof value.type !== "string" ||
+    !hasValidIdentity(value)
+  ) {
     return failure("schema");
   }
 
   let valid = false;
   switch (value.type) {
     case "hello":
-      valid = hasExactKeys(value, MESSAGE_KEYS.hello)
-        && (value.intent === "new" || value.intent === "resume")
-        && (value.signalingRole === "host" || value.signalingRole === "guest")
-        && isSide(value.side)
-        && value.gameSchemaVersion === XIANGQI_SCHEMA_VERSION
-        && value.ruleset === POPULAR_RULESET_ID
-        && isSafeNonnegativeInteger(value.revision)
-        && isPositionHash(value.positionHash)
-        && hasCanonicalFeatures(value.features);
+      valid =
+        hasExactKeys(value, MESSAGE_KEYS.hello) &&
+        (value.intent === "new" || value.intent === "resume") &&
+        (value.signalingRole === "host" || value.signalingRole === "guest") &&
+        isSide(value.side) &&
+        value.gameSchemaVersion === XIANGQI_SCHEMA_VERSION &&
+        value.ruleset === POPULAR_RULESET_ID &&
+        isSafeNonnegativeInteger(value.revision) &&
+        isPositionHash(value.positionHash) &&
+        hasCanonicalFeatures(value.features);
       break;
     case "ready":
-      valid = hasExactKeys(value, MESSAGE_KEYS.ready)
-        && isSafeNonnegativeInteger(value.revision)
-        && isPositionHash(value.positionHash);
+      valid =
+        hasExactKeys(value, MESSAGE_KEYS.ready) &&
+        isSafeNonnegativeInteger(value.revision) &&
+        isPositionHash(value.positionHash);
       break;
     case "command":
-      valid = hasExactKeys(value, MESSAGE_KEYS.command)
-        && isBoundedId(value.commandId)
-        && isSide(value.actorSide)
-        && hasNextRevision(value.expectedRevision, value.afterRevision)
-        && isPositionHash(value.beforeHash)
-        && decodeMove(value.command) !== null
-        && isPositionHash(value.afterHash);
+      valid =
+        hasExactKeys(value, MESSAGE_KEYS.command) &&
+        isBoundedId(value.commandId) &&
+        isSide(value.actorSide) &&
+        hasNextRevision(value.expectedRevision, value.afterRevision) &&
+        isPositionHash(value.beforeHash) &&
+        decodeMove(value.command) !== null &&
+        isPositionHash(value.afterHash);
       break;
     case "ack":
-      valid = hasExactKeys(value, MESSAGE_KEYS.ack)
-        && isBoundedId(value.ackedMessageId)
-        && isSafeNonnegativeInteger(value.ackedSeq)
-        && (value.status === "applied" || value.status === "duplicate")
-        && isSafeNonnegativeInteger(value.revision)
-        && isPositionHash(value.positionHash);
+      valid =
+        hasExactKeys(value, MESSAGE_KEYS.ack) &&
+        isBoundedId(value.ackedMessageId) &&
+        isSafeNonnegativeInteger(value.ackedSeq) &&
+        (value.status === "applied" || value.status === "duplicate") &&
+        isSafeNonnegativeInteger(value.revision) &&
+        isPositionHash(value.positionHash);
       break;
     case "snapshot-request":
-      valid = hasExactKeys(value, MESSAGE_KEYS["snapshot-request"])
-        && isBoundedId(value.requestId)
-        && isBoundedReason(value.reason)
-        && isSafeNonnegativeInteger(value.knownRevision)
-        && isPositionHash(value.knownHash);
+      valid =
+        hasExactKeys(value, MESSAGE_KEYS["snapshot-request"]) &&
+        isBoundedId(value.requestId) &&
+        isBoundedReason(value.reason) &&
+        isSafeNonnegativeInteger(value.knownRevision) &&
+        isPositionHash(value.knownHash);
       break;
     case "snapshot":
-      valid = hasExactKeys(value, MESSAGE_KEYS.snapshot)
-        && isBoundedId(value.requestId)
-        && isSafeNonnegativeInteger(value.revision)
-        && isPositionHash(value.positionHash)
-        && typeof value.serializedGame === "string"
-        && value.serializedGame.length > 0;
+      valid =
+        hasExactKeys(value, MESSAGE_KEYS.snapshot) &&
+        isBoundedId(value.requestId) &&
+        isSafeNonnegativeInteger(value.revision) &&
+        isPositionHash(value.positionHash) &&
+        typeof value.serializedGame === "string" &&
+        value.serializedGame.length > 0;
       break;
     case "ping":
     case "pong":
-      valid = hasExactKeys(value, MESSAGE_KEYS[value.type])
-        && isBoundedId(value.nonce)
-        && (value.purpose === "heartbeat" || value.purpose === "revalidation")
-        && isSafeNonnegativeInteger(value.revision)
-        && isPositionHash(value.positionHash);
+      valid =
+        hasExactKeys(value, MESSAGE_KEYS[value.type]) &&
+        isBoundedId(value.nonce) &&
+        (value.purpose === "heartbeat" || value.purpose === "revalidation") &&
+        isSafeNonnegativeInteger(value.revision) &&
+        isPositionHash(value.positionHash);
       break;
     case "resign":
       if (value.action === "request") {
-        valid = hasExactKeys(value, MESSAGE_KEYS["resign-request"])
-          && isBoundedId(value.proposalId)
-          && isSide(value.resigningSide)
-          && isSafeNonnegativeInteger(value.knownRevision)
-          && isPositionHash(value.knownHash);
+        valid =
+          hasExactKeys(value, MESSAGE_KEYS["resign-request"]) &&
+          isBoundedId(value.proposalId) &&
+          isSide(value.resigningSide) &&
+          isSafeNonnegativeInteger(value.knownRevision) &&
+          isPositionHash(value.knownHash);
       } else if (value.action === "commit") {
-        valid = hasExactKeys(value, MESSAGE_KEYS["resign-commit"])
-          && isBoundedId(value.proposalId)
-          && isBoundedId(value.commandId)
-          && isSide(value.resigningSide)
-          && hasNextRevision(value.expectedRevision, value.afterRevision)
-          && isPositionHash(value.beforeHash)
-          && isPositionHash(value.afterHash);
+        valid =
+          hasExactKeys(value, MESSAGE_KEYS["resign-commit"]) &&
+          isBoundedId(value.proposalId) &&
+          isBoundedId(value.commandId) &&
+          isSide(value.resigningSide) &&
+          hasNextRevision(value.expectedRevision, value.afterRevision) &&
+          isPositionHash(value.beforeHash) &&
+          isPositionHash(value.afterHash);
       }
       break;
     case "rematch":
-      valid = hasExactKeys(value, MESSAGE_KEYS.rematch)
-        && (value.action === "request" || value.action === "accept" || value.action === "decline" || value.action === "cancel")
-        && isBoundedId(value.proposalId)
-        && isBoundedId(value.nextMatchId)
-        && isSafeNonnegativeInteger(value.nextRematchIndex)
-        && isSide(value.hostSide)
-        && isSafeNonnegativeInteger(value.terminalRevision)
-        && isPositionHash(value.terminalHash);
+      valid =
+        hasExactKeys(value, MESSAGE_KEYS.rematch) &&
+        (value.action === "request" ||
+          value.action === "accept" ||
+          value.action === "decline" ||
+          value.action === "cancel") &&
+        isBoundedId(value.proposalId) &&
+        isBoundedId(value.nextMatchId) &&
+        isSafeNonnegativeInteger(value.nextRematchIndex) &&
+        isSide(value.hostSide) &&
+        isSafeNonnegativeInteger(value.terminalRevision) &&
+        isPositionHash(value.terminalHash);
       break;
     case "error":
-      valid = hasExactKeys(value, MESSAGE_KEYS.error)
-        && typeof value.code === "string"
-        && ERROR_CODES.has(value.code as OnlineErrorCodeV1)
-        && typeof value.fatal === "boolean"
-        && isSafeNonnegativeInteger(value.relatedSeq);
+      valid =
+        hasExactKeys(value, MESSAGE_KEYS.error) &&
+        typeof value.code === "string" &&
+        ERROR_CODES.has(value.code as OnlineErrorCodeV1) &&
+        typeof value.fatal === "boolean" &&
+        isSafeNonnegativeInteger(value.relatedSeq);
       break;
     default:
       return failure("schema");
   }
 
-  return valid
-    ? { ok: true, value: value as unknown as OnlineMessageV1 }
-    : failure("schema");
+  return valid ? { ok: true, value: value as unknown as OnlineMessageV1 } : failure("schema");
 }
 
 export function decodeOnlineMessageV1(frame: OnlineWireFrame): WireCodecResult<OnlineMessageV1> {

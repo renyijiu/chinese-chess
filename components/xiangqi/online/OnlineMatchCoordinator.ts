@@ -264,7 +264,9 @@ function oppositeRole(role: SignalingRole): SignalingRole {
   return role === "host" ? "guest" : "host";
 }
 
-function actionFailure(reason: OnlineCoordinatorActionFailureReason): OnlineCoordinatorActionResult {
+function actionFailure(
+  reason: OnlineCoordinatorActionFailureReason,
+): OnlineCoordinatorActionResult {
   return { ok: false, reason };
 }
 
@@ -389,11 +391,10 @@ export class OnlineMatchCoordinator {
         const current = await this.#fingerprint();
         if (!this.#isCurrent(generation)) return actionFailure("disposed");
         this.#publishFingerprint(current);
-        return this.#sendHello(current, generation)
-          ? { ok: true }
-          : actionFailure("send-failed");
+        return this.#sendHello(current, generation) ? { ok: true } : actionFailure("send-failed");
       } catch {
-        if (this.#isCurrent(generation)) this.#lock("failed", "internal-error", true, 0, generation);
+        if (this.#isCurrent(generation))
+          this.#lock("failed", "internal-error", true, 0, generation);
         return this.#isCurrent(generation)
           ? actionFailure("send-failed")
           : actionFailure("disposed");
@@ -405,11 +406,12 @@ export class OnlineMatchCoordinator {
     return this.#enqueueVoid(async (generation) => {
       const decoded = decodeOnlineMessageV1(frame);
       if (!decoded.ok) {
-        const code: OnlineErrorCodeV1 = decoded.error.code === "version"
-          ? "unsupported-version"
-          : decoded.error.code === "size"
-            ? "message-too-large"
-            : "invalid-message";
+        const code: OnlineErrorCodeV1 =
+          decoded.error.code === "version"
+            ? "unsupported-version"
+            : decoded.error.code === "size"
+              ? "message-too-large"
+              : "invalid-message";
         this.#lock("failed", code, true, 0, generation);
         return;
       }
@@ -491,7 +493,8 @@ export class OnlineMatchCoordinator {
         this.#publishPlayableIfReady(current.game);
         return { ok: true };
       } catch {
-        if (this.#isCurrent(generation)) this.#lock("failed", "internal-error", true, 0, generation);
+        if (this.#isCurrent(generation))
+          this.#lock("failed", "internal-error", true, 0, generation);
         return this.#isCurrent(generation)
           ? actionFailure("send-failed")
           : actionFailure("disposed");
@@ -508,7 +511,10 @@ export class OnlineMatchCoordinator {
       try {
         const before = await this.#fingerprint();
         if (!this.#isCurrent(generation)) return actionFailure("disposed");
-        if (before.game.status.kind !== "playing" || before.game.sideToMove !== this.#identity.localSide) {
+        if (
+          before.game.status.kind !== "playing" ||
+          before.game.sideToMove !== this.#identity.localSide
+        ) {
           return actionFailure("not-local-turn");
         }
         if (!this.#snapshotMatches(before)) {
@@ -558,24 +564,28 @@ export class OnlineMatchCoordinator {
           this.#lock("failed", "internal-error", true, 0, generation);
           return actionFailure("send-failed");
         }
-        this.#addAckExpectation({
-          kind: "move",
-          messageId: commandId,
-          messageSeq: prepared.message.seq,
-          expectedRevision: before.revision,
-          afterRevision: actual.revision,
-          afterHash: actual.hash,
-          proposalId: null,
-          resigningSide: null,
-          timer: null,
-          timedOut: false,
-        }, generation);
+        this.#addAckExpectation(
+          {
+            kind: "move",
+            messageId: commandId,
+            messageSeq: prepared.message.seq,
+            expectedRevision: before.revision,
+            afterRevision: actual.revision,
+            afterHash: actual.hash,
+            proposalId: null,
+            resigningSide: null,
+            timer: null,
+            timedOut: false,
+          },
+          generation,
+        );
         if (!this.#transmitAuthoritative(prepared, generation)) {
           return actionFailure("send-failed");
         }
         return { ok: true };
       } catch {
-        if (this.#isCurrent(generation)) this.#lock("failed", "internal-error", true, 0, generation);
+        if (this.#isCurrent(generation))
+          this.#lock("failed", "internal-error", true, 0, generation);
         return this.#isCurrent(generation)
           ? actionFailure("commit-failed")
           : actionFailure("disposed");
@@ -585,9 +595,11 @@ export class OnlineMatchCoordinator {
 
   submitLocalResign(): Promise<OnlineCoordinatorActionResult> {
     return this.#enqueueAction(async (generation) => {
-      if (!this.#canInteract()
-        || (this.#snapshot.phase !== "playable" && this.#snapshot.phase !== "awaiting-ack")
-        || this.#localResign !== null) {
+      if (
+        !this.#canInteract() ||
+        (this.#snapshot.phase !== "playable" && this.#snapshot.phase !== "awaiting-ack") ||
+        this.#localResign !== null
+      ) {
         return actionFailure("invalid-phase");
       }
       const current = await this.#fingerprint();
@@ -625,8 +637,8 @@ export class OnlineMatchCoordinator {
     return this.#enqueueAction(async (generation) => {
       if (!this.#canUseRematch() || !this.#canInteract()) return actionFailure("unsupported");
       if (this.#activeRematch) {
-        const hostMayOverrideRemote = this.#identity.signalingRole === "host"
-          && this.#activeRematch.owner === "remote";
+        const hostMayOverrideRemote =
+          this.#identity.signalingRole === "host" && this.#activeRematch.owner === "remote";
         if (!hostMayOverrideRemote) return actionFailure("invalid-phase");
       }
       const current = await this.#fingerprint();
@@ -650,7 +662,12 @@ export class OnlineMatchCoordinator {
   cancelRematch(): Promise<OnlineCoordinatorActionResult> {
     return this.#enqueueAction(async (generation) => {
       const proposal = this.#activeRematch;
-      if (!this.#canUseRematch() || !proposal || proposal.owner !== "local" || !this.#canInteract()) {
+      if (
+        !this.#canUseRematch() ||
+        !proposal ||
+        proposal.owner !== "local" ||
+        !this.#canInteract()
+      ) {
         return actionFailure("invalid-phase");
       }
       if (!this.#sendRematch("cancel", proposal, generation)) return actionFailure("send-failed");
@@ -704,10 +721,13 @@ export class OnlineMatchCoordinator {
     work: (generation: number) => Promise<OnlineCoordinatorActionResult>,
   ): Promise<OnlineCoordinatorActionResult> {
     const generation = this.#generation;
-    const pending = this.#chain.then(() => this.#isCurrent(generation)
-      ? work(generation)
-      : actionFailure("disposed"));
-    this.#chain = pending.then(() => undefined, () => undefined);
+    const pending = this.#chain.then(() =>
+      this.#isCurrent(generation) ? work(generation) : actionFailure("disposed"),
+    );
+    this.#chain = pending.then(
+      () => undefined,
+      () => undefined,
+    );
     return pending;
   }
 
@@ -718,10 +738,14 @@ export class OnlineMatchCoordinator {
       try {
         await work(generation);
       } catch {
-        if (this.#isCurrent(generation)) this.#lock("failed", "internal-error", true, 0, generation);
+        if (this.#isCurrent(generation))
+          this.#lock("failed", "internal-error", true, 0, generation);
       }
     });
-    this.#chain = pending.then(() => undefined, () => undefined);
+    this.#chain = pending.then(
+      () => undefined,
+      () => undefined,
+    );
     return pending;
   }
 
@@ -742,9 +766,11 @@ export class OnlineMatchCoordinator {
   }
 
   #hasStickyPhase(): boolean {
-    return this.#snapshot.phase === "failed"
-      || this.#snapshot.phase === "repair-required"
-      || this.#snapshot.phase === "disposed";
+    return (
+      this.#snapshot.phase === "failed" ||
+      this.#snapshot.phase === "repair-required" ||
+      this.#snapshot.phase === "disposed"
+    );
   }
 
   #hasPendingWork(): boolean {
@@ -773,8 +799,9 @@ export class OnlineMatchCoordinator {
   }
 
   #publish(patch: Partial<OnlineMatchCoordinatorSnapshot>): void {
-    const changed = (Object.keys(patch) as Array<keyof OnlineMatchCoordinatorSnapshot>)
-      .some((key) => !Object.is(this.#snapshot[key], patch[key]));
+    const changed = (Object.keys(patch) as Array<keyof OnlineMatchCoordinatorSnapshot>).some(
+      (key) => !Object.is(this.#snapshot[key], patch[key]),
+    );
     if (!changed) return;
     this.#snapshot = Object.freeze({ ...this.#snapshot, ...patch });
     for (const listener of [...this.#subscribers]) {
@@ -845,11 +872,14 @@ export class OnlineMatchCoordinator {
         });
       }
     }
-    const preserveLivenessPhase = (this.#snapshot.phase === "stalled" && this.#snapshot.issue !== null)
-      || (this.#snapshot.phase === "revalidating" && this.#outstandingPing !== null);
+    const preserveLivenessPhase =
+      (this.#snapshot.phase === "stalled" && this.#snapshot.issue !== null) ||
+      (this.#snapshot.phase === "revalidating" && this.#outstandingPing !== null);
     const phase = preserveLivenessPhase
       ? this.#snapshot.phase
-      : pending ? "awaiting-ack" : this.#activePhaseForGame(this.#getGame());
+      : pending
+        ? "awaiting-ack"
+        : this.#activePhaseForGame(this.#getGame());
     this.#publish({ pending, phase, error: null });
     this.#refreshHeartbeat();
   }
@@ -859,9 +889,11 @@ export class OnlineMatchCoordinator {
   }
 
   #readyMatches(current: GameFingerprint): boolean {
-    return this.#remoteHello !== null
-      && this.#remoteHello.revision === current.revision
-      && this.#remoteHello.hash === current.hash;
+    return (
+      this.#remoteHello !== null &&
+      this.#remoteHello.revision === current.revision &&
+      this.#remoteHello.hash === current.hash
+    );
   }
 
   #prepareMessage(payload: OutgoingPayload): PreparedMessage | null {
@@ -934,27 +966,35 @@ export class OnlineMatchCoordinator {
   }
 
   #sendHello(current: GameFingerprint, generation: number): boolean {
-    return this.#sendPayload({
-      type: "hello",
-      intent: this.#identity.intent,
-      signalingRole: this.#identity.signalingRole,
-      side: this.#identity.localSide,
-      gameSchemaVersion: XIANGQI_SCHEMA_VERSION,
-      ruleset: POPULAR_RULESET_ID,
-      revision: current.revision,
-      positionHash: current.hash,
-      features: ["rematch-v1", "snapshot-v1"],
-    }, generation) !== null;
+    return (
+      this.#sendPayload(
+        {
+          type: "hello",
+          intent: this.#identity.intent,
+          signalingRole: this.#identity.signalingRole,
+          side: this.#identity.localSide,
+          gameSchemaVersion: XIANGQI_SCHEMA_VERSION,
+          ruleset: POPULAR_RULESET_ID,
+          revision: current.revision,
+          positionHash: current.hash,
+          features: ["rematch-v1", "snapshot-v1"],
+        },
+        generation,
+      ) !== null
+    );
   }
 
   #sendReady(current: GameFingerprint, generation: number): boolean {
     const key = `${current.revision}:${current.hash}`;
     if (this.#readySentKey === key) return true;
-    const sent = this.#sendPayload({
-      type: "ready",
-      revision: current.revision,
-      positionHash: current.hash,
-    }, generation);
+    const sent = this.#sendPayload(
+      {
+        type: "ready",
+        revision: current.revision,
+        positionHash: current.hash,
+      },
+      generation,
+    );
     if (!sent) return false;
     this.#readySentKey = key;
     return true;
@@ -1000,29 +1040,29 @@ export class OnlineMatchCoordinator {
     if (emit) this.#trySendError(code, fatal, relatedSeq, generation);
   }
 
-  #rejectWithoutMutation(
-    code: OnlineErrorCodeV1,
-    relatedSeq: number,
-    generation: number,
-  ): void {
+  #rejectWithoutMutation(code: OnlineErrorCodeV1, relatedSeq: number, generation: number): void {
     this.#publish({ error: Object.freeze({ code, fatal: false, relatedSeq }) });
     this.#trySendError(code, false, relatedSeq, generation);
   }
 
   #hasRemoteIdentity(message: OnlineMessageV1): boolean {
-    return message.pairingId === this.#identity.pairingId
-      && message.sessionId === this.#identity.sessionId
-      && message.matchId === this.#identity.matchId
-      && message.senderPeerId === this.#identity.remotePeerId
-      && message.senderPeerId !== this.#identity.localPeerId;
+    return (
+      message.pairingId === this.#identity.pairingId &&
+      message.sessionId === this.#identity.sessionId &&
+      message.matchId === this.#identity.matchId &&
+      message.senderPeerId === this.#identity.remotePeerId &&
+      message.senderPeerId !== this.#identity.localPeerId
+    );
   }
 
   async #handleHello(message: HelloMessageV1, generation: number): Promise<void> {
-    if (message.signalingRole !== oppositeRole(this.#identity.signalingRole)
-      || message.side !== oppositeSide(this.#identity.localSide)
-      || message.intent !== this.#identity.intent
-      || message.gameSchemaVersion !== XIANGQI_SCHEMA_VERSION
-      || message.ruleset !== POPULAR_RULESET_ID) {
+    if (
+      message.signalingRole !== oppositeRole(this.#identity.signalingRole) ||
+      message.side !== oppositeSide(this.#identity.localSide) ||
+      message.intent !== this.#identity.intent ||
+      message.gameSchemaVersion !== XIANGQI_SCHEMA_VERSION ||
+      message.ruleset !== POPULAR_RULESET_ID
+    ) {
       this.#lock("failed", "identity-mismatch", true, message.seq, generation);
       return;
     }
@@ -1076,13 +1116,16 @@ export class OnlineMatchCoordinator {
       remoteRevision: message.revision,
       remoteHash: message.positionHash,
     };
-    this.#sendPayload({
-      type: "snapshot-request",
-      requestId,
-      reason: "snapshot-required",
-      knownRevision: current.revision,
-      knownHash: current.hash,
-    }, generation);
+    this.#sendPayload(
+      {
+        type: "snapshot-request",
+        requestId,
+        reason: "snapshot-required",
+        knownRevision: current.revision,
+        knownHash: current.hash,
+      },
+      generation,
+    );
   }
 
   async #handleReady(
@@ -1095,13 +1138,20 @@ export class OnlineMatchCoordinator {
     }
     const current = await this.#fingerprint();
     if (!this.#isCurrent(generation)) return;
-    if (!this.#readyMatches(current)
-      || message.revision !== current.revision
-      || message.positionHash !== current.hash) {
+    if (
+      !this.#readyMatches(current) ||
+      message.revision !== current.revision ||
+      message.positionHash !== current.hash
+    ) {
       this.#lock("repair-required", "position-mismatch", true, message.seq, generation);
       return;
     }
-    this.#publish({ remoteReady: true, revision: current.revision, hash: current.hash, error: null });
+    this.#publish({
+      remoteReady: true,
+      revision: current.revision,
+      hash: current.hash,
+      error: null,
+    });
     this.#publishPlayableIfReady(current.game);
   }
 
@@ -1117,11 +1167,13 @@ export class OnlineMatchCoordinator {
       this.#replayCachedReceipt(message, generation);
       return;
     }
-    if ((this.#snapshot.phase !== "playable"
-        && !this.#isHiddenLifecyclePause()
-        && this.#localResign === null)
-      || this.#snapshot.phase === "revalidating"
-      || !this.#canSend()) {
+    if (
+      (this.#snapshot.phase !== "playable" &&
+        !this.#isHiddenLifecyclePause() &&
+        this.#localResign === null) ||
+      this.#snapshot.phase === "revalidating" ||
+      !this.#canSend()
+    ) {
       this.#lock("repair-required", "protocol-violation", true, message.seq, generation);
       return;
     }
@@ -1133,7 +1185,8 @@ export class OnlineMatchCoordinator {
       return;
     }
     if (message.expectedRevision !== before.revision || message.beforeHash !== before.hash) {
-      const code = message.expectedRevision !== before.revision ? "stale-revision" : "position-mismatch";
+      const code =
+        message.expectedRevision !== before.revision ? "stale-revision" : "position-mismatch";
       this.#lock("repair-required", code, true, message.seq, generation);
       return;
     }
@@ -1223,10 +1276,12 @@ export class OnlineMatchCoordinator {
     generation: number,
   ): Promise<void> {
     const pending = this.#pendingAcks.get(message.ackedMessageId);
-    if (!pending
-      || message.ackedSeq !== pending.messageSeq
-      || message.revision !== pending.afterRevision
-      || message.positionHash !== pending.afterHash) {
+    if (
+      !pending ||
+      message.ackedSeq !== pending.messageSeq ||
+      message.revision !== pending.afterRevision ||
+      message.positionHash !== pending.afterHash
+    ) {
       this.#lock("repair-required", "protocol-violation", true, message.seq, generation);
       return;
     }
@@ -1239,8 +1294,10 @@ export class OnlineMatchCoordinator {
     }
     if (pending.timer !== null) this.#timers.clearTimeout(pending.timer);
     this.#pendingAcks.delete(pending.messageId);
-    if (this.#snapshot.issue?.kind === "ack-timeout"
-      && this.#snapshot.issue.relatedId === pending.messageId) {
+    if (
+      this.#snapshot.issue?.kind === "ack-timeout" &&
+      this.#snapshot.issue.relatedId === pending.messageId
+    ) {
       this.#publish({ issue: null });
     }
     this.#publishFingerprint(current);
@@ -1255,19 +1312,18 @@ export class OnlineMatchCoordinator {
     }
   }
 
-  async #handleResignRequest(
-    message: ResignRequestMessageV1,
-    generation: number,
-  ): Promise<void> {
+  async #handleResignRequest(message: ResignRequestMessageV1, generation: number): Promise<void> {
     if (message.resigningSide !== oppositeSide(this.#identity.localSide)) {
       this.#lock("repair-required", "invalid-command", true, message.seq, generation);
       return;
     }
     if (this.#processedResignProposals.has(message.proposalId)) return;
-    if (!this.#canSend()
-      || (this.#snapshot.phase !== "playable"
-        && this.#snapshot.phase !== "awaiting-ack"
-        && !this.#isHiddenLifecyclePause())) {
+    if (
+      !this.#canSend() ||
+      (this.#snapshot.phase !== "playable" &&
+        this.#snapshot.phase !== "awaiting-ack" &&
+        !this.#isHiddenLifecyclePause())
+    ) {
       this.#rejectWithoutMutation("protocol-violation", message.seq, generation);
       return;
     }
@@ -1336,41 +1392,45 @@ export class OnlineMatchCoordinator {
       return;
     }
     this.#processedResignProposals.add(message.proposalId);
-    this.#addAckExpectation({
-      kind: "resign-commit",
-      messageId: commandId,
-      messageSeq: prepared.message.seq,
-      expectedRevision: before.revision,
-      afterRevision: actual.revision,
-      afterHash: actual.hash,
-      proposalId: message.proposalId,
-      resigningSide: message.resigningSide,
-      timer: null,
-      timedOut: false,
-    }, generation);
+    this.#addAckExpectation(
+      {
+        kind: "resign-commit",
+        messageId: commandId,
+        messageSeq: prepared.message.seq,
+        expectedRevision: before.revision,
+        afterRevision: actual.revision,
+        afterHash: actual.hash,
+        proposalId: message.proposalId,
+        resigningSide: message.resigningSide,
+        timer: null,
+        timedOut: false,
+      },
+      generation,
+    );
     this.#transmitAuthoritative(prepared, generation);
   }
 
-  async #handleResignCommit(
-    message: ResignCommitMessageV1,
-    generation: number,
-  ): Promise<void> {
+  async #handleResignCommit(message: ResignCommitMessageV1, generation: number): Promise<void> {
     if (this.#receipts.has(message.commandId)) {
       this.#replayCachedResignReceipt(message, generation);
       return;
     }
     const proposal = this.#localResign;
-    if (!proposal
-      || proposal.proposalId !== message.proposalId
-      || message.resigningSide !== this.#identity.localSide) {
+    if (
+      !proposal ||
+      proposal.proposalId !== message.proposalId ||
+      message.resigningSide !== this.#identity.localSide
+    ) {
       this.#lock("repair-required", "protocol-violation", true, message.seq, generation);
       return;
     }
     const before = await this.#fingerprint();
     if (!this.#isCurrent(generation)) return;
-    if (before.game.status.kind !== "playing"
-      || message.expectedRevision !== before.revision
-      || message.beforeHash !== before.hash) {
+    if (
+      before.game.status.kind !== "playing" ||
+      message.expectedRevision !== before.revision ||
+      message.beforeHash !== before.hash
+    ) {
       this.#lock(
         "repair-required",
         message.expectedRevision !== before.revision ? "stale-revision" : "position-mismatch",
@@ -1413,8 +1473,10 @@ export class OnlineMatchCoordinator {
       return;
     }
     this.#clearLocalResign();
-    if (this.#snapshot.issue?.kind === "ack-timeout"
-      && this.#snapshot.issue.relatedId === message.proposalId) {
+    if (
+      this.#snapshot.issue?.kind === "ack-timeout" &&
+      this.#snapshot.issue.relatedId === message.proposalId
+    ) {
       this.#publish({ issue: null });
     }
     this.#processedResignProposals.add(message.proposalId);
@@ -1458,11 +1520,13 @@ export class OnlineMatchCoordinator {
     message: SnapshotRequestMessageV1,
     generation: number,
   ): Promise<void> {
-    if (this.#snapshot.phase !== "syncing"
-      || this.#activeSnapshotRequest !== null
-      || this.#remoteHello === null
-      || message.knownRevision !== this.#remoteHello.revision
-      || message.knownHash !== this.#remoteHello.hash) {
+    if (
+      this.#snapshot.phase !== "syncing" ||
+      this.#activeSnapshotRequest !== null ||
+      this.#remoteHello === null ||
+      message.knownRevision !== this.#remoteHello.revision ||
+      message.knownHash !== this.#remoteHello.hash
+    ) {
       this.#lock("repair-required", "protocol-violation", true, message.seq, generation);
       return;
     }
@@ -1473,23 +1537,28 @@ export class OnlineMatchCoordinator {
       return;
     }
     this.#publishFingerprint(current);
-    const sent = this.#sendPayload({
-      type: "snapshot",
-      requestId: message.requestId,
-      revision: current.revision,
-      positionHash: current.hash,
-      serializedGame: current.serialized,
-    }, generation);
+    const sent = this.#sendPayload(
+      {
+        type: "snapshot",
+        requestId: message.requestId,
+        revision: current.revision,
+        positionHash: current.hash,
+        serializedGame: current.serialized,
+      },
+      generation,
+    );
     if (sent) this.#publish({ phase: "handshaking" });
   }
 
   async #handleSnapshot(message: SnapshotMessageV1, generation: number): Promise<void> {
     const request = this.#activeSnapshotRequest;
-    if (this.#snapshot.phase !== "syncing"
-      || request === null
-      || message.requestId !== request.requestId
-      || message.revision !== request.remoteRevision
-      || message.positionHash !== request.remoteHash) {
+    if (
+      this.#snapshot.phase !== "syncing" ||
+      request === null ||
+      message.requestId !== request.requestId ||
+      message.revision !== request.remoteRevision ||
+      message.positionHash !== request.remoteHash
+    ) {
       this.#lock("repair-required", "protocol-violation", true, message.seq, generation);
       return;
     }
@@ -1535,24 +1604,30 @@ export class OnlineMatchCoordinator {
     const current = await this.#fingerprint();
     if (!this.#isCurrent(generation)) return;
     this.#publishFingerprint(current);
-    const advertised = message.purpose === "revalidation"
-      ? current
-      : await this.#fingerprintAtRevision(current.game, message.revision);
+    const advertised =
+      message.purpose === "revalidation"
+        ? current
+        : await this.#fingerprintAtRevision(current.game, message.revision);
     if (!this.#isCurrent(generation)) return;
-    if (!advertised
-      || message.revision !== advertised.revision
-      || message.positionHash !== advertised.hash) {
+    if (
+      !advertised ||
+      message.revision !== advertised.revision ||
+      message.positionHash !== advertised.hash
+    ) {
       this.#lock("repair-required", "position-mismatch", true, message.seq, generation);
       return;
     }
     if (!this.#canSend()) return;
-    this.#sendPayload({
-      type: "pong",
-      nonce: message.nonce,
-      purpose: message.purpose,
-      revision: advertised.revision,
-      positionHash: advertised.hash,
-    }, generation);
+    this.#sendPayload(
+      {
+        type: "pong",
+        nonce: message.nonce,
+        purpose: message.purpose,
+        revision: advertised.revision,
+        positionHash: advertised.hash,
+      },
+      generation,
+    );
   }
 
   async #handlePong(
@@ -1560,27 +1635,30 @@ export class OnlineMatchCoordinator {
     generation: number,
   ): Promise<void> {
     const outstanding = this.#outstandingPing;
-    if (!outstanding
-      || message.nonce !== outstanding.nonce
-      || message.purpose !== outstanding.purpose
-      || message.revision !== outstanding.revision
-      || message.positionHash !== outstanding.hash) {
+    if (
+      !outstanding ||
+      message.nonce !== outstanding.nonce ||
+      message.purpose !== outstanding.purpose ||
+      message.revision !== outstanding.revision ||
+      message.positionHash !== outstanding.hash
+    ) {
       this.#lock("repair-required", "protocol-violation", true, message.seq, generation);
       return;
     }
     const current = await this.#fingerprint();
     if (!this.#isCurrent(generation)) return;
     this.#publishFingerprint(current);
-    if (outstanding.purpose === "revalidation"
-      && (current.revision !== outstanding.revision || current.hash !== outstanding.hash)) {
+    if (
+      outstanding.purpose === "revalidation" &&
+      (current.revision !== outstanding.revision || current.hash !== outstanding.hash)
+    ) {
       this.#lock("repair-required", "position-mismatch", true, message.seq, generation);
       return;
     }
     if (outstanding.timer !== null) this.#timers.clearTimeout(outstanding.timer);
     this.#outstandingPing = null;
     this.#publishControl();
-    if (this.#snapshot.issue?.kind === "pong-timeout"
-      || this.#snapshot.phase === "revalidating") {
+    if (this.#snapshot.issue?.kind === "pong-timeout" || this.#snapshot.phase === "revalidating") {
       this.#publish({ issue: null, error: null });
       this.#publishPending();
       this.#restartAckTimers(generation);
@@ -1598,8 +1676,11 @@ export class OnlineMatchCoordinator {
     if (!this.#canInteract() || expectation.timer !== null) return;
     expectation.timer = this.#timers.setTimeout(() => {
       void this.#enqueueVoid(async (currentGeneration) => {
-        if (currentGeneration !== generation
-          || this.#pendingAcks.get(expectation.messageId) !== expectation) return;
+        if (
+          currentGeneration !== generation ||
+          this.#pendingAcks.get(expectation.messageId) !== expectation
+        )
+          return;
         expectation.timer = null;
         expectation.timedOut = true;
         this.#publish({
@@ -1648,13 +1729,16 @@ export class OnlineMatchCoordinator {
       this.#timers.clearTimeout(this.#heartbeatTimer);
       this.#heartbeatTimer = null;
     }
-    if (!this.#canInteract()
-      || !this.#snapshot.localReady
-      || !this.#snapshot.remoteReady
-      || this.#outstandingPing
-      || this.#snapshot.phase === "failed"
-      || this.#snapshot.phase === "repair-required"
-      || this.#snapshot.phase === "disposed") return;
+    if (
+      !this.#canInteract() ||
+      !this.#snapshot.localReady ||
+      !this.#snapshot.remoteReady ||
+      this.#outstandingPing ||
+      this.#snapshot.phase === "failed" ||
+      this.#snapshot.phase === "repair-required" ||
+      this.#snapshot.phase === "disposed"
+    )
+      return;
     const generation = this.#generation;
     this.#heartbeatTimer = this.#timers.setTimeout(() => {
       this.#heartbeatTimer = null;
@@ -1669,16 +1753,18 @@ export class OnlineMatchCoordinator {
     const current = await this.#fingerprint();
     if (!this.#isCurrent(generation)) return;
     const nonce = this.#createId();
-    const purpose: OnlineLivenessPurposeV1 = this.#snapshot.phase === "revalidating"
-      ? "revalidation"
-      : "heartbeat";
-    const sent = this.#sendPayload({
-      type: "ping",
-      nonce,
-      purpose,
-      revision: current.revision,
-      positionHash: current.hash,
-    }, generation);
+    const purpose: OnlineLivenessPurposeV1 =
+      this.#snapshot.phase === "revalidating" ? "revalidation" : "heartbeat";
+    const sent = this.#sendPayload(
+      {
+        type: "ping",
+        nonce,
+        purpose,
+        revision: current.revision,
+        positionHash: current.hash,
+      },
+      generation,
+    );
     if (!sent) return;
     const outstanding: OutstandingPing = {
       nonce,
@@ -1790,9 +1876,11 @@ export class OnlineMatchCoordinator {
       return;
     }
     const active = this.#activeRematch;
-    if (!active
-      || active.proposalId !== message.proposalId
-      || !this.#sameRematchProposal(active, incoming)) {
+    if (
+      !active ||
+      active.proposalId !== message.proposalId ||
+      !this.#sameRematchProposal(active, incoming)
+    ) {
       this.#rejectWithoutMutation("protocol-violation", message.seq, generation);
       return;
     }
@@ -1824,7 +1912,12 @@ export class OnlineMatchCoordinator {
   #respondToRematch(action: "accept" | "decline"): Promise<OnlineCoordinatorActionResult> {
     return this.#enqueueAction(async (generation) => {
       const proposal = this.#activeRematch;
-      if (!this.#canUseRematch() || !proposal || proposal.owner !== "remote" || !this.#canInteract()) {
+      if (
+        !this.#canUseRematch() ||
+        !proposal ||
+        proposal.owner !== "remote" ||
+        !this.#canInteract()
+      ) {
         return actionFailure("invalid-phase");
       }
       if (!this.#sendRematch(action, proposal, generation)) return actionFailure("send-failed");
@@ -1839,9 +1932,11 @@ export class OnlineMatchCoordinator {
   }
 
   #canUseRematch(): boolean {
-    return this.#snapshot.phase === "terminal"
-      && this.#remoteHello?.rematchSupported === true
-      && this.#getGame().status.kind === "ended";
+    return (
+      this.#snapshot.phase === "terminal" &&
+      this.#remoteHello?.rematchSupported === true &&
+      this.#getGame().status.kind === "ended"
+    );
   }
 
   #currentHostSide(): Side {
@@ -1862,9 +1957,10 @@ export class OnlineMatchCoordinator {
       terminalRevision: current.revision,
       terminalHash: current.hash,
       owner,
-      ownerRole: owner === "local"
-        ? this.#identity.signalingRole
-        : oppositeRole(this.#identity.signalingRole),
+      ownerRole:
+        owner === "local"
+          ? this.#identity.signalingRole
+          : oppositeRole(this.#identity.signalingRole),
     });
   }
 
@@ -1880,30 +1976,32 @@ export class OnlineMatchCoordinator {
       terminalRevision: message.terminalRevision,
       terminalHash: message.terminalHash,
       owner,
-      ownerRole: owner === "local"
-        ? this.#identity.signalingRole
-        : oppositeRole(this.#identity.signalingRole),
+      ownerRole:
+        owner === "local"
+          ? this.#identity.signalingRole
+          : oppositeRole(this.#identity.signalingRole),
     });
   }
 
   #matchesExpectedRematch(message: RematchMessageV1): boolean {
-    return message.nextRematchIndex === (this.#identity.rematchIndex ?? 0) + 1
-      && message.nextMatchId !== this.#identity.matchId
-      && message.hostSide === oppositeSide(this.#currentHostSide())
-      && message.terminalRevision === this.#snapshot.revision
-      && message.terminalHash === this.#snapshot.hash;
+    return (
+      message.nextRematchIndex === (this.#identity.rematchIndex ?? 0) + 1 &&
+      message.nextMatchId !== this.#identity.matchId &&
+      message.hostSide === oppositeSide(this.#currentHostSide()) &&
+      message.terminalRevision === this.#snapshot.revision &&
+      message.terminalHash === this.#snapshot.hash
+    );
   }
 
-  #sameRematchProposal(
-    left: OnlineRematchProposal,
-    right: OnlineRematchProposal,
-  ): boolean {
-    return left.proposalId === right.proposalId
-      && left.nextMatchId === right.nextMatchId
-      && left.nextRematchIndex === right.nextRematchIndex
-      && left.hostSide === right.hostSide
-      && left.terminalRevision === right.terminalRevision
-      && left.terminalHash === right.terminalHash;
+  #sameRematchProposal(left: OnlineRematchProposal, right: OnlineRematchProposal): boolean {
+    return (
+      left.proposalId === right.proposalId &&
+      left.nextMatchId === right.nextMatchId &&
+      left.nextRematchIndex === right.nextRematchIndex &&
+      left.hostSide === right.hostSide &&
+      left.terminalRevision === right.terminalRevision &&
+      left.terminalHash === right.terminalHash
+    );
   }
 
   #sendRematch(
@@ -1911,16 +2009,21 @@ export class OnlineMatchCoordinator {
     proposal: OnlineRematchProposal,
     generation: number,
   ): boolean {
-    return this.#sendPayload({
-      type: "rematch",
-      action,
-      proposalId: proposal.proposalId,
-      nextMatchId: proposal.nextMatchId,
-      nextRematchIndex: proposal.nextRematchIndex,
-      hostSide: proposal.hostSide,
-      terminalRevision: proposal.terminalRevision,
-      terminalHash: proposal.terminalHash,
-    }, generation) !== null;
+    return (
+      this.#sendPayload(
+        {
+          type: "rematch",
+          action,
+          proposalId: proposal.proposalId,
+          nextMatchId: proposal.nextMatchId,
+          nextRematchIndex: proposal.nextRematchIndex,
+          hostSide: proposal.hostSide,
+          terminalRevision: proposal.terminalRevision,
+          terminalHash: proposal.terminalHash,
+        },
+        generation,
+      ) !== null
+    );
   }
 
   #publishRematch(

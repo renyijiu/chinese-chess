@@ -29,6 +29,7 @@
 小改动至少运行直接相关的测试以及：
 
 ```bash
+npm run format:check
 npm run typecheck
 npm run lint
 ```

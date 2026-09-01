@@ -7,11 +7,7 @@ import {
 export type BoardPoint = readonly [x: number, z: number];
 export type BoardSegment = readonly [start: BoardPoint, end: BoardPoint];
 
-export type BoardOrnamentKind =
-  | "brick-impression"
-  | "gate-cue"
-  | "tile-medallion"
-  | "water-swirl";
+export type BoardOrnamentKind = "brick-impression" | "gate-cue" | "tile-medallion" | "water-swirl";
 
 export type BoardOrnamentPlacement = Readonly<{
   footprintRadius: number;
@@ -43,8 +39,8 @@ const RANK_MAX = Math.max(...BOARD_RANK_POSITIONS);
 const ASCENDING_RANKS = [...BOARD_RANK_POSITIONS].sort((a, b) => a - b);
 const SOUTH_RIVER_BANK = ASCENDING_RANKS[4] ?? -BOARD_SPACING / 2;
 const NORTH_RIVER_BANK = ASCENDING_RANKS[5] ?? BOARD_SPACING / 2;
-const SOUTH_PALACE_RANK = ASCENDING_RANKS[2] ?? RANK_MIN + (2 * BOARD_SPACING);
-const NORTH_PALACE_RANK = ASCENDING_RANKS[7] ?? RANK_MAX - (2 * BOARD_SPACING);
+const SOUTH_PALACE_RANK = ASCENDING_RANKS[2] ?? RANK_MIN + 2 * BOARD_SPACING;
+const NORTH_PALACE_RANK = ASCENDING_RANKS[7] ?? RANK_MAX - 2 * BOARD_SPACING;
 
 function addCornerMark(
   segments: BoardSegment[],
@@ -57,32 +53,68 @@ function addCornerMark(
   const length = 0.12;
   const cornerX = x + xDirection * offset;
   const cornerZ = z + zDirection * offset;
-  segments.push([[cornerX, cornerZ], [cornerX - xDirection * length, cornerZ]]);
-  segments.push([[cornerX, cornerZ], [cornerX, cornerZ - zDirection * length]]);
+  segments.push([
+    [cornerX, cornerZ],
+    [cornerX - xDirection * length, cornerZ],
+  ]);
+  segments.push([
+    [cornerX, cornerZ],
+    [cornerX, cornerZ - zDirection * length],
+  ]);
 }
 
 /** Pure, rule-correct Xiangqi line topology in scene-space X/Z coordinates. */
 export function makeBoardSegments(): BoardSegment[] {
   const segments: BoardSegment[] = [];
-  ASCENDING_RANKS.forEach((z) => segments.push([[FILE_MIN, z], [FILE_MAX, z]]));
+  ASCENDING_RANKS.forEach((z) =>
+    segments.push([
+      [FILE_MIN, z],
+      [FILE_MAX, z],
+    ]),
+  );
   BOARD_FILE_POSITIONS.forEach((x, index) => {
     if (index === 0 || index === BOARD_FILE_POSITIONS.length - 1) {
-      segments.push([[x, RANK_MIN], [x, RANK_MAX]]);
+      segments.push([
+        [x, RANK_MIN],
+        [x, RANK_MAX],
+      ]);
       return;
     }
-    segments.push([[x, RANK_MIN], [x, SOUTH_RIVER_BANK]]);
-    segments.push([[x, NORTH_RIVER_BANK], [x, RANK_MAX]]);
+    segments.push([
+      [x, RANK_MIN],
+      [x, SOUTH_RIVER_BANK],
+    ]);
+    segments.push([
+      [x, NORTH_RIVER_BANK],
+      [x, RANK_MAX],
+    ]);
   });
   segments.push(
-    [[-BOARD_SPACING, RANK_MIN], [BOARD_SPACING, SOUTH_PALACE_RANK]],
-    [[BOARD_SPACING, RANK_MIN], [-BOARD_SPACING, SOUTH_PALACE_RANK]],
-    [[-BOARD_SPACING, NORTH_PALACE_RANK], [BOARD_SPACING, RANK_MAX]],
-    [[BOARD_SPACING, NORTH_PALACE_RANK], [-BOARD_SPACING, RANK_MAX]],
+    [
+      [-BOARD_SPACING, RANK_MIN],
+      [BOARD_SPACING, SOUTH_PALACE_RANK],
+    ],
+    [
+      [BOARD_SPACING, RANK_MIN],
+      [-BOARD_SPACING, SOUTH_PALACE_RANK],
+    ],
+    [
+      [-BOARD_SPACING, NORTH_PALACE_RANK],
+      [BOARD_SPACING, RANK_MAX],
+    ],
+    [
+      [BOARD_SPACING, NORTH_PALACE_RANK],
+      [-BOARD_SPACING, RANK_MAX],
+    ],
   );
 
   const markedIntersections = [
-    ...[-3, 3].flatMap((file) => [-2.5, 2.5].map((rank) => [file * BOARD_SPACING, rank * BOARD_SPACING])),
-    ...[-4, -2, 0, 2, 4].flatMap((file) => [-1.5, 1.5].map((rank) => [file * BOARD_SPACING, rank * BOARD_SPACING])),
+    ...[-3, 3].flatMap((file) =>
+      [-2.5, 2.5].map((rank) => [file * BOARD_SPACING, rank * BOARD_SPACING]),
+    ),
+    ...[-4, -2, 0, 2, 4].flatMap((file) =>
+      [-1.5, 1.5].map((rank) => [file * BOARD_SPACING, rank * BOARD_SPACING]),
+    ),
   ] as Array<[number, number]>;
 
   markedIntersections.forEach(([x, z]) => {

@@ -91,14 +91,20 @@ function readVec3Accessor(gltf, binary, accessorIndex) {
   }
   const view = gltf.bufferViews?.[accessor.bufferView];
   if (!view || view.extensions?.EXT_meshopt_compression) {
-    fail(`Root translation validation requires the uncompressed authoring GLB accessor ${accessorIndex}`);
+    fail(
+      `Root translation validation requires the uncompressed authoring GLB accessor ${accessorIndex}`,
+    );
   }
   const offset = (view.byteOffset ?? 0) + (accessor.byteOffset ?? 0);
   const stride = view.byteStride ?? 12;
   const values = [];
   for (let index = 0; index < accessor.count; index += 1) {
     const start = offset + index * stride;
-    values.push([binary.readFloatLE(start), binary.readFloatLE(start + 4), binary.readFloatLE(start + 8)]);
+    values.push([
+      binary.readFloatLE(start),
+      binary.readFloatLE(start + 4),
+      binary.readFloatLE(start + 8),
+    ]);
   }
   return values;
 }
@@ -118,9 +124,11 @@ function readColorAccessor(gltf, binary, accessorIndex) {
   const colors = [];
   for (let index = 0; index < accessor.count; index += 1) {
     const start = offset + index * stride;
-    colors.push(accessor.componentType === 5126
-      ? [binary.readFloatLE(start), binary.readFloatLE(start + 4), binary.readFloatLE(start + 8)]
-      : [binary[start] / 255, binary[start + 1] / 255, binary[start + 2] / 255]);
+    colors.push(
+      accessor.componentType === 5126
+        ? [binary.readFloatLE(start), binary.readFloatLE(start + 4), binary.readFloatLE(start + 8)]
+        : [binary[start] / 255, binary[start + 1] / 255, binary[start + 2] / 255],
+    );
   }
   return colors;
 }
@@ -138,15 +146,19 @@ function hexRgb(value, label) {
 }
 
 function factionTargetsFromManifest(manifest) {
-  return Object.fromEntries(["red", "black"].map((side) => {
-    const palette = manifest.factions?.[side]?.palette;
-    return [side, Object.fromEntries([
-      "faction_cloth_primary",
-      "faction_cloth_secondary",
-      "faction_trim",
-      "aged_bronze",
-    ].map((region) => [region, hexRgb(palette?.[region], `${side}.${region}`)]))];
-  }));
+  return Object.fromEntries(
+    ["red", "black"].map((side) => {
+      const palette = manifest.factions?.[side]?.palette;
+      return [
+        side,
+        Object.fromEntries(
+          ["faction_cloth_primary", "faction_cloth_secondary", "faction_trim", "aged_bronze"].map(
+            (region) => [region, hexRgb(palette?.[region], `${side}.${region}`)],
+          ),
+        ),
+      ];
+    }),
+  );
 }
 
 function classifySemantic(color) {
@@ -174,11 +186,15 @@ function validateFactionRemap(gltf, binary, role, lod, factionTargets) {
     if (!region) continue;
     counts[region] += 1;
     mapped += 1;
-    redBlackDistance += Math.sqrt(squaredDistance(factionTargets.red[region], factionTargets.black[region]));
+    redBlackDistance += Math.sqrt(
+      squaredDistance(factionTargets.red[region], factionTargets.black[region]),
+    );
   }
   const populatedRegions = Object.values(counts).filter((count) => count > 0).length;
   if (populatedRegions < 3 || counts.faction_cloth_primary === 0 || counts.faction_trim === 0) {
-    fail(`${role}/${lod}: authored COLOR_0 must cover at least three semantic regions including primary cloth and trim`);
+    fail(
+      `${role}/${lod}: authored COLOR_0 must cover at least three semantic regions including primary cloth and trim`,
+    );
   }
   const coverage = mapped / colors.length;
   const averageDistance = redBlackDistance / Math.max(1, mapped);
@@ -188,7 +204,9 @@ function validateFactionRemap(gltf, binary, role, lod, factionTargets) {
   // distance while preserving the Qin archaeological art direction. The LOD2
   // general retains 9.3%, so 7.5% is the hard floor across simplified meshes.
   if (coverage < 0.075 || averageDistance < 0.22) {
-    fail(`${role}/${lod}: faction RGB remap is not visually significant (coverage=${coverage.toFixed(3)}, distance=${averageDistance.toFixed(3)})`);
+    fail(
+      `${role}/${lod}: faction RGB remap is not visually significant (coverage=${coverage.toFixed(3)}, distance=${averageDistance.toFixed(3)})`,
+    );
   }
   return { averageDistance, coverage };
 }
@@ -224,7 +242,8 @@ function geometryBounds(gltf) {
 }
 
 function validateManifest(manifest) {
-  if (manifest.schema !== "xiangqi-piece-assets/v1") fail("Manifest schema must be xiangqi-piece-assets/v1");
+  if (manifest.schema !== "xiangqi-piece-assets/v1")
+    fail("Manifest schema must be xiangqi-piece-assets/v1");
   if (manifest.coordinateSystem?.units !== "meter") fail("Manifest units must be meter");
   if (manifest.coordinateSystem?.up !== "+Y" || manifest.coordinateSystem?.forward !== "+Z") {
     fail("Manifest coordinate system must be +Y up and +Z forward");
@@ -232,8 +251,13 @@ function validateManifest(manifest) {
   if (manifest.textureCompression?.status !== "not-applicable-no-bitmap-textures") {
     fail("This texture-free vertical slice must explicitly mark KTX2 as not applicable");
   }
-  if (manifest.vertexColorEncoding?.accessorType !== "VEC3" || manifest.vertexColorEncoding?.alpha) {
-    fail("Faction recoloring must declare COLOR_0 VEC3 RGB classification and must not depend on discarded alpha");
+  if (
+    manifest.vertexColorEncoding?.accessorType !== "VEC3" ||
+    manifest.vertexColorEncoding?.alpha
+  ) {
+    fail(
+      "Faction recoloring must declare COLOR_0 VEC3 RGB classification and must not depend on discarded alpha",
+    );
   }
   for (const faction of ["red", "black"]) {
     if (!manifest.factions?.[faction]?.palette) fail(`Missing ${faction} faction palette`);
@@ -266,7 +290,8 @@ function validateManifest(manifest) {
     const blackPaths = asset.variants?.black?.lods;
     if (!redPaths || !blackPaths) fail(`${role} must define red and black variants`);
     for (const lod of LODS) {
-      if (redPaths[lod] !== blackPaths[lod]) fail(`${role}/${lod} must share geometry between red and black variants`);
+      if (redPaths[lod] !== blackPaths[lod])
+        fail(`${role}/${lod} must share geometry between red and black variants`);
     }
   }
   return manifest.roles;
@@ -284,7 +309,9 @@ function validateNoRootMotion(relativePath, lod) {
         const sampler = animation.samplers?.[channel.sampler];
         const values = readVec3Accessor(gltf, binary, sampler.output);
         const [initialX, , initialZ] = values[0];
-        if (values.some(([x, , z]) => Math.abs(x - initialX) > 1e-5 || Math.abs(z - initialZ) > 1e-5)) {
+        if (
+          values.some(([x, , z]) => Math.abs(x - initialX) > 1e-5 || Math.abs(z - initialZ) > 1e-5)
+        ) {
           fail(`${lod}: clip ${animation.name} has horizontal root motion on ${nodeName}`);
         }
       }
@@ -292,7 +319,15 @@ function validateNoRootMotion(relativePath, lod) {
   }
 }
 
-async function validateGlb(relativePath, rawRelativePath, role, lod, budget, declaredFootprint, factionTargets) {
+async function validateGlb(
+  relativePath,
+  rawRelativePath,
+  role,
+  lod,
+  budget,
+  declaredFootprint,
+  factionTargets,
+) {
   const path = resolve(root, "public", relativePath.replace(/^\//, ""));
   const validator = await validateBytes(new Uint8Array(readFileSync(path)), {
     uri: path,
@@ -304,7 +339,9 @@ async function validateGlb(relativePath, rawRelativePath, role, lod, budget, dec
       .slice(0, 5)
       .map((issue) => `${issue.code}: ${issue.message}`)
       .join("; ");
-    fail(`${role}/${lod}: Khronos glTF Validator reported ${validator.issues.numErrors} errors: ${messages}`);
+    fail(
+      `${role}/${lod}: Khronos glTF Validator reported ${validator.issues.numErrors} errors: ${messages}`,
+    );
   }
   const gltf = readGlbJson(path);
   const nodeNames = new Set((gltf.nodes ?? []).map((node) => node.name));
@@ -314,17 +351,26 @@ async function validateGlb(relativePath, rawRelativePath, role, lod, budget, dec
   const animations = (gltf.animations ?? []).map((animation) => animation.name).sort();
   const expectedAnimations = [...requiredClips].sort();
   if (JSON.stringify(animations) !== JSON.stringify(expectedAnimations)) {
-    fail(`${role}/${lod}: animation clips differ; expected ${expectedAnimations.join(", ")}, got ${animations.join(", ")}`);
+    fail(
+      `${role}/${lod}: animation clips differ; expected ${expectedAnimations.join(", ")}, got ${animations.join(", ")}`,
+    );
   }
-  const skinnedNodes = (gltf.nodes ?? []).filter((node) => node.mesh !== undefined && node.skin !== undefined);
+  const skinnedNodes = (gltf.nodes ?? []).filter(
+    (node) => node.mesh !== undefined && node.skin !== undefined,
+  );
   if (skinnedNodes.length !== 1 || skinnedNodes[0].name !== "character_mesh") {
-    fail(`${role}/${lod}: expected exactly one skinned character_mesh node, found ${skinnedNodes.length}`);
+    fail(
+      `${role}/${lod}: expected exactly one skinned character_mesh node, found ${skinnedNodes.length}`,
+    );
   }
   const skin = gltf.skins?.[skinnedNodes[0].skin];
-  if (!skin || (skin.joints?.length ?? 0) < 10) fail(`${role}/${lod}: expected a preserved skeleton with at least 10 joints`);
+  if (!skin || (skin.joints?.length ?? 0) < 10)
+    fail(`${role}/${lod}: expected a preserved skeleton with at least 10 joints`);
   const primitives = (gltf.meshes ?? []).flatMap((mesh) => mesh.primitives ?? []);
-  if (primitives.length !== 1) fail(`${role}/${lod}: expected exactly one skinned mesh primitive, found ${primitives.length}`);
-  if (primitives[0].attributes?.COLOR_0 === undefined) fail(`${role}/${lod}: single-material primitive must contain COLOR_0`);
+  if (primitives.length !== 1)
+    fail(`${role}/${lod}: expected exactly one skinned mesh primitive, found ${primitives.length}`);
+  if (primitives[0].attributes?.COLOR_0 === undefined)
+    fail(`${role}/${lod}: single-material primitive must contain COLOR_0`);
   const runtimeColor = gltf.accessors?.[primitives[0].attributes.COLOR_0];
   if (runtimeColor?.type !== "VEC3") fail(`${role}/${lod}: runtime COLOR_0 must remain VEC3`);
   if ((gltf.materials?.length ?? 0) !== 1) fail(`${role}/${lod}: expected exactly one material`);
@@ -332,40 +378,52 @@ async function validateGlb(relativePath, rawRelativePath, role, lod, budget, dec
   if ((material.alphaMode ?? "OPAQUE") !== "OPAQUE" || material.doubleSided === true) {
     fail(`${role}/${lod}: vertex palette must be opaque and single-sided`);
   }
-  if (material.name !== `${role}_terracotta_vertex_palette`) fail(`${role}/${lod}: unexpected material ${material.name}`);
+  if (material.name !== `${role}_terracotta_vertex_palette`)
+    fail(`${role}/${lod}: unexpected material ${material.name}`);
   const extensions = new Set([...(gltf.extensionsUsed ?? []), ...(gltf.extensionsRequired ?? [])]);
-  if (!extensions.has("EXT_meshopt_compression")) fail(`${role}/${lod}: runtime GLB is not Meshopt-compressed`);
+  if (!extensions.has("EXT_meshopt_compression"))
+    fail(`${role}/${lod}: runtime GLB is not Meshopt-compressed`);
   if (extensions.has("KHR_draco_mesh_compression")) fail(`${role}/${lod}: Draco is prohibited`);
   if ((gltf.images?.length ?? 0) !== 0 || (gltf.textures?.length ?? 0) !== 0) {
     fail(`${role}/${lod}: bitmap textures require KTX2; this roster declares none`);
   }
   const triangles = triangleCount(gltf);
-  if (triangles <= 0 || triangles > budget) fail(`${role}/${lod}: ${triangles} triangles exceeds budget ${budget}`);
+  if (triangles <= 0 || triangles > budget)
+    fail(`${role}/${lod}: ${triangles} triangles exceeds budget ${budget}`);
   // Meshopt quantization stores integer accessor bounds plus a decode transform;
   // the uncompressed authoring GLB is the authoritative dimensional check.
   const { gltf: rawGltf, binary: rawBinary } = readGlb(resolve(root, rawRelativePath));
   const bounds = geometryBounds(rawGltf);
   const footprint = Math.max(bounds.max[0] - bounds.min[0], bounds.max[2] - bounds.min[2]);
   if (footprint < 0.88 || footprint >= 0.98) {
-    fail(`${role}/${lod}: footprint ${footprint.toFixed(4)}m must include the 0.89m base and stay below 0.98m`);
+    fail(
+      `${role}/${lod}: footprint ${footprint.toFixed(4)}m must include the 0.89m base and stay below 0.98m`,
+    );
   }
   if (footprint - declaredFootprint > 0.006) {
-    fail(`${role}/${lod}: measured footprint ${footprint.toFixed(4)}m exceeds manifest maximum ${declaredFootprint}m`);
+    fail(
+      `${role}/${lod}: measured footprint ${footprint.toFixed(4)}m exceeds manifest maximum ${declaredFootprint}m`,
+    );
   }
-  if (Math.abs(bounds.min[1]) > 0.006) fail(`${role}/${lod}: base bottom must sit at Y=0; got ${bounds.min[1]}`);
+  if (Math.abs(bounds.min[1]) > 0.006)
+    fail(`${role}/${lod}: base bottom must sit at Y=0; got ${bounds.min[1]}`);
   const runtimeBounds = geometryBounds(gltf);
   const runtimeFootprint = Math.max(
     runtimeBounds.max[0] - runtimeBounds.min[0],
     runtimeBounds.max[2] - runtimeBounds.min[2],
   );
   if (Math.abs(runtimeFootprint - footprint) > 0.006 || runtimeFootprint >= 0.98) {
-    fail(`${role}/${lod}: runtime static footprint ${runtimeFootprint.toFixed(4)}m must preserve raw ${footprint.toFixed(4)}m and stay below 0.98m`);
+    fail(
+      `${role}/${lod}: runtime static footprint ${runtimeFootprint.toFixed(4)}m must preserve raw ${footprint.toFixed(4)}m and stay below 0.98m`,
+    );
   }
   if (Math.abs(runtimeBounds.min[1]) > 0.006) {
     fail(`${role}/${lod}: runtime base bottom must sit at Y=0; got ${runtimeBounds.min[1]}`);
   }
   if (triangleCount(rawGltf) !== triangles) {
-    fail(`${role}/${lod}: runtime triangle count ${triangles} differs from authoring GLB ${triangleCount(rawGltf)}`);
+    fail(
+      `${role}/${lod}: runtime triangle count ${triangles} differs from authoring GLB ${triangleCount(rawGltf)}`,
+    );
   }
   const factionRemap = validateFactionRemap(rawGltf, rawBinary, role, lod, factionTargets);
   return {
@@ -405,33 +463,60 @@ async function main() {
       fail(`${role} metadata must come from the authoritative import pipeline`);
     }
     const lockedSource = sourceLock.roles?.[role];
-    if (!lockedSource?.visual || !lockedSource?.editableMaster) fail(`${role} is missing from the authoritative source lock`);
+    if (!lockedSource?.visual || !lockedSource?.editableMaster)
+      fail(`${role} is missing from the authoritative source lock`);
     const authoritativePath = metadata.authoritativeVisualSource?.path;
-    if (authoritativePath !== lockedSource.visual.path || metadata.authoritativeVisualSource?.sha256 !== lockedSource.visual.sha256) {
+    if (
+      authoritativePath !== lockedSource.visual.path ||
+      metadata.authoritativeVisualSource?.sha256 !== lockedSource.visual.sha256
+    ) {
       fail(`${role} metadata must identify the locked authoritative GLB and SHA-256`);
     }
     const editableMaster = metadata.authoritativeVisualSource?.editableMaster;
-    if (editableMaster !== lockedSource.editableMaster.path || metadata.authoritativeVisualSource?.editableMasterSha256 !== lockedSource.editableMaster.sha256) {
+    if (
+      editableMaster !== lockedSource.editableMaster.path ||
+      metadata.authoritativeVisualSource?.editableMasterSha256 !==
+        lockedSource.editableMaster.sha256
+    ) {
       fail(`${role} metadata must identify the locked editable master and SHA-256`);
     }
     for (const lod of LODS) {
       const rawRecord = metadata.derivedRawLods?.[lod];
       const lockedRaw = lockedSource.rawLods?.[lod];
-      if (rawRecord?.path !== asset.source.rawLods[lod] || rawRecord?.path !== lockedRaw?.path || rawRecord?.sha256 !== lockedRaw?.sha256) {
+      if (
+        rawRecord?.path !== asset.source.rawLods[lod] ||
+        rawRecord?.path !== lockedRaw?.path ||
+        rawRecord?.sha256 !== lockedRaw?.sha256
+      ) {
         fail(`${role}/${lod} metadata must bind the raw LOD path and SHA-256`);
       }
       validateNoRootMotion(asset.source.rawLods[lod], `${role}/${lod}`);
     }
-    const results = await Promise.all(LODS.map((lod) => validateGlb(
-      asset.variants.red.lods[lod], asset.source.rawLods[lod], role, lod,
-      asset.lodBudgets[lod].triangles, asset.dimensions.maxFootprint, factionTargets,
-    )));
-    if (!(results[0].triangles > results[1].triangles && results[1].triangles > results[2].triangles)) {
-      fail(`${role} triangle counts must decrease by LOD: ${results.map((result) => result.triangles).join(" > ")}`);
+    const results = await Promise.all(
+      LODS.map((lod) =>
+        validateGlb(
+          asset.variants.red.lods[lod],
+          asset.source.rawLods[lod],
+          role,
+          lod,
+          asset.lodBudgets[lod].triangles,
+          asset.dimensions.maxFootprint,
+          factionTargets,
+        ),
+      ),
+    );
+    if (
+      !(results[0].triangles > results[1].triangles && results[1].triangles > results[2].triangles)
+    ) {
+      fail(
+        `${role} triangle counts must decrease by LOD: ${results.map((result) => result.triangles).join(" > ")}`,
+      );
     }
     const maximumFootprint = Math.max(...results.map((result) => result.footprint));
     if (Math.abs(maximumFootprint - asset.dimensions.maxFootprint) > 0.006) {
-      fail(`${role} manifest maxFootprint ${asset.dimensions.maxFootprint}m differs from measured ${maximumFootprint.toFixed(4)}m`);
+      fail(
+        `${role} manifest maxFootprint ${asset.dimensions.maxFootprint}m differs from measured ${maximumFootprint.toFixed(4)}m`,
+      );
     }
     allResults.push(...results);
     for (const result of results) {
@@ -445,12 +530,18 @@ async function main() {
     }
   }
   const lod1Signatures = new Set(
-    allResults.filter((result) => result.lod === "lod1").map((result) => `${result.triangles}:${result.height.toFixed(3)}`),
+    allResults
+      .filter((result) => result.lod === "lod1")
+      .map((result) => `${result.triangles}:${result.height.toFixed(3)}`),
   );
   if (lod1Signatures.size !== ROLE_NAMES.length) {
-    fail(`Role silhouettes must have distinct LOD1 geometry summaries; found ${lod1Signatures.size}/${ROLE_NAMES.length}`);
+    fail(
+      `Role silhouettes must have distinct LOD1 geometry summaries; found ${lod1Signatures.size}/${ROLE_NAMES.length}`,
+    );
   }
-  console.log(`PASS asset contract: ${ROLE_NAMES.length} role families / 14 faction variants / ${allResults.length} runtime GLBs; red/black share geometry; KTX2 N/A (no bitmap textures)`);
+  console.log(
+    `PASS asset contract: ${ROLE_NAMES.length} role families / 14 faction variants / ${allResults.length} runtime GLBs; red/black share geometry; KTX2 N/A (no bitmap textures)`,
+  );
 }
 
 try {

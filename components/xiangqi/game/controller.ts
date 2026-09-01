@@ -27,16 +27,17 @@ export const EMPTY_SELECTION: GameSelection = Object.freeze({
   legalMoves: Object.freeze([]),
 });
 
-const KEYBOARD_DELTAS: Readonly<Record<string, readonly [file: number, rank: number]>> = Object.freeze({
-  arrowdown: [0, -1],
-  arrowleft: [-1, 0],
-  arrowright: [1, 0],
-  arrowup: [0, 1],
-  a: [-1, 0],
-  d: [1, 0],
-  s: [0, -1],
-  w: [0, 1],
-});
+const KEYBOARD_DELTAS: Readonly<Record<string, readonly [file: number, rank: number]>> =
+  Object.freeze({
+    arrowdown: [0, -1],
+    arrowleft: [-1, 0],
+    arrowright: [1, 0],
+    arrowup: [0, 1],
+    a: [-1, 0],
+    d: [1, 0],
+    s: [0, -1],
+    w: [0, 1],
+  });
 
 function sameSquare(left: Square, right: Square) {
   return left.file === right.file && left.rank === right.rank;
@@ -76,7 +77,7 @@ export function resolveBoardClick(
   }
 
   const selectedPiece = selection.pieceId
-    ? game.board.find((candidate) => candidate?.id === selection.pieceId) ?? null
+    ? (game.board.find((candidate) => candidate?.id === selection.pieceId) ?? null)
     : null;
 
   if (

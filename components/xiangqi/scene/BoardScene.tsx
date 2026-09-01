@@ -1,6 +1,14 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState, useSyncExternalStore, type ReactNode, type RefObject } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import { Selection } from "@react-three/postprocessing";
 
 import { AnimationDirector } from "../animation/AnimationDirector";
@@ -56,7 +64,12 @@ function PrototypePieceLayer() {
 
 function ConditionalBattlePostprocessing({ presentation }: { presentation: PresentationStore }) {
   const getCaptureSnapshot = useCallback(
-    () => Boolean(presentation.getSnapshot().active?.transition.events.some((event) => event.type === "PieceCaptured")),
+    () =>
+      Boolean(
+        presentation
+          .getSnapshot()
+          .active?.transition.events.some((event) => event.type === "PieceCaptured"),
+      ),
     [presentation],
   );
   const hasCapture = useSyncExternalStore(
@@ -141,11 +154,24 @@ export function BoardScene({
             {...(onEnvironmentStatusChange ? { onEnvironmentStatusChange } : {})}
           />
           <Suspense fallback={null}>{pieceLayer ?? <PrototypePieceLayer />}</Suspense>
-          <BoardCamera autoTour={autoTour} reducedMotion={reducedMotion} side={viewSide} view={view} />
-          <CameraFeedback presentation={presentation} quality={quality.postprocessing ? "high" : quality.dynamicEffectLights ? "medium" : "low"} reducedMotion={reducedMotion} />
+          <BoardCamera
+            autoTour={autoTour}
+            reducedMotion={reducedMotion}
+            side={viewSide}
+            view={view}
+          />
+          <CameraFeedback
+            presentation={presentation}
+            quality={
+              quality.postprocessing ? "high" : quality.dynamicEffectLights ? "medium" : "low"
+            }
+            reducedMotion={reducedMotion}
+          />
           <AudioListenerBridge audio={audio} />
           <PerformanceSummary drawCallsRef={drawCallsRef} />
-          {quality.postprocessing ? <ConditionalBattlePostprocessing presentation={presentation} /> : null}
+          {quality.postprocessing ? (
+            <ConditionalBattlePostprocessing presentation={presentation} />
+          ) : null}
         </PieceAssetLoaderProvider>
       </Selection>
     </FrameScheduler>

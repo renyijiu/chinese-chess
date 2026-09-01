@@ -47,11 +47,13 @@ function commandsEqual(left: ReplayCommand, right: ReplayCommand): boolean {
     case "resign":
       return right.type === "resign" && left.side === right.side;
     case "move":
-      return right.type === "move"
-        && left.from.file === right.from.file
-        && left.from.rank === right.from.rank
-        && left.to.file === right.to.file
-        && left.to.rank === right.to.rank;
+      return (
+        right.type === "move" &&
+        left.from.file === right.from.file &&
+        left.from.rank === right.from.rank &&
+        left.to.file === right.to.file &&
+        left.to.rank === right.to.rank
+      );
   }
 }
 
@@ -59,8 +61,10 @@ export function compareCommandLogs(
   local: ReadonlyArray<ReplayCommand>,
   remote: ReadonlyArray<ReplayCommand>,
 ): CommandLogComparison {
-  if (local.some((command) => command.type === "undo")
-    || remote.some((command) => command.type === "undo")) {
+  if (
+    local.some((command) => command.type === "undo") ||
+    remote.some((command) => command.type === "undo")
+  ) {
     return { status: "conflict" };
   }
   if (remote.length < local.length) return { status: "conflict" };
@@ -91,7 +95,8 @@ export async function validateSnapshotV1(
     return invalid("invalid-serialization");
   }
   if (serializeGame(game) !== decoded.value.serializedGame) return invalid("non-canonical");
-  if (game.commandLog.some((command) => command.type === "undo")) return invalid("undo-not-allowed");
+  if (game.commandLog.some((command) => command.type === "undo"))
+    return invalid("undo-not-allowed");
   if (game.revision !== decoded.value.revision) return invalid("revision-mismatch");
 
   let positionHash: string;

@@ -16,13 +16,20 @@ class FakeWorker implements OpponentWorkerLike {
     this.posted.push(message);
   }
 
-  addEventListener(type: "message" | "error", listener: ((event: MessageEvent<unknown>) => void) | (() => void)): void {
+  addEventListener(
+    type: "message" | "error",
+    listener: ((event: MessageEvent<unknown>) => void) | (() => void),
+  ): void {
     if (type === "message") this.messages.add(listener as (event: MessageEvent<unknown>) => void);
     else this.errors.add(listener as () => void);
   }
 
-  removeEventListener(type: "message" | "error", listener: ((event: MessageEvent<unknown>) => void) | (() => void)): void {
-    if (type === "message") this.messages.delete(listener as (event: MessageEvent<unknown>) => void);
+  removeEventListener(
+    type: "message" | "error",
+    listener: ((event: MessageEvent<unknown>) => void) | (() => void),
+  ): void {
+    if (type === "message")
+      this.messages.delete(listener as (event: MessageEvent<unknown>) => void);
     else this.errors.delete(listener as () => void);
   }
 
@@ -154,7 +161,9 @@ describe("LightweightWorkerProvider", () => {
     const firstStop = provider.stop(request);
     const secondStop = provider.stop(request);
     expect(firstStop).toBe(secondStop);
-    expect(worker.posted.filter((message) => (message as { type?: string }).type === "stop")).toHaveLength(1);
+    expect(
+      worker.posted.filter((message) => (message as { type?: string }).type === "stop"),
+    ).toHaveLength(1);
 
     worker.emit({
       protocolVersion: 1,

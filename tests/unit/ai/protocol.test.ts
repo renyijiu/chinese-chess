@@ -67,8 +67,9 @@ describe("opponent protocol v1", () => {
       request({ serializedGame: "not-json", positionFingerprint: sha256("not-json") }),
     ];
     for (const candidate of invalidCases) {
-      await expect(validateOpponentRequestPosition(candidate, async (value) => sha256(value)))
-        .resolves.toMatchObject({ ok: false });
+      await expect(
+        validateOpponentRequestPosition(candidate, async (value) => sha256(value)),
+      ).resolves.toMatchObject({ ok: false });
     }
   });
 
@@ -89,7 +90,12 @@ describe("opponent protocol v1", () => {
     };
     expect(decodeOpponentResultV1(validResult)).toEqual(validResult);
     expect(decodeOpponentResultV1({ ...validResult, score: Number.POSITIVE_INFINITY })).toBeNull();
-    expect(decodeOpponentResultV1({ ...validResult, candidate: { from: { file: 9, rank: 0 }, to: { file: 0, rank: 0 } } })).toBeNull();
+    expect(
+      decodeOpponentResultV1({
+        ...validResult,
+        candidate: { from: { file: 9, rank: 0 }, to: { file: 0, rank: 0 } },
+      }),
+    ).toBeNull();
     expect(decodeOpponentResultV1({ ...validResult, extra: 1 })).toBeNull();
 
     const stop = {

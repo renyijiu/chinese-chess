@@ -4,14 +4,14 @@ This document is the visual contract for the Qin terracotta diorama. The existin
 
 ## Palette and materials
 
-| Role | Direction |
-| --- | --- |
-| Fired clay | Dominant warm matte mass. Use light and shadow variants to describe form, not photographic texture noise. |
-| Black lacquer | Deep neutral for recessed structure, background separation, and HUD surfaces. Avoid featureless pure black. |
-| Aged bronze | Sparse borders, fittings, and selected-state emphasis. Keep metalness localized. |
-| Chalk | High-luminance linework, labels, and ordinary legal-move dots. |
+| Role                   | Direction                                                                                                                            |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Fired clay             | Dominant warm matte mass. Use light and shadow variants to describe form, not photographic texture noise.                            |
+| Black lacquer          | Deep neutral for recessed structure, background separation, and HUD surfaces. Avoid featureless pure black.                          |
+| Aged bronze            | Sparse borders, fittings, and selected-state emphasis. Keep metalness localized.                                                     |
+| Chalk                  | High-luminance linework, labels, and ordinary legal-move dots.                                                                       |
 | Cinnabar and verdigris | Restrained faction accents derived from the authoritative red and black piece palette. Do not invent replacement faction hex values. |
-| Mineral blue | A small cool counter-accent reserved for fill light and keyboard focus. |
+| Mineral blue           | A small cool counter-accent reserved for fill light and keyboard focus.                                                              |
 
 The canonical runtime values live in `components/xiangqi/scene/scene-theme.ts`. Do not add local scene or stylesheet palettes when a semantic token exists.
 
@@ -32,13 +32,13 @@ The canonical runtime values live in `components/xiangqi/scene/scene-theme.ts`. 
 
 Interaction states must remain recognizable in grayscale and without color alone:
 
-| State | Required indicator |
-| --- | --- |
-| Legal move | Chalk dot |
-| Capture | Cinnabar ring |
+| State          | Required indicator          |
+| -------------- | --------------------------- |
+| Legal move     | Chalk dot                   |
+| Capture        | Cinnabar ring               |
 | Keyboard focus | Mineral-blue double outline |
-| Selected piece | Aged-bronze halo |
-| Check | Faction-energy seal |
+| Selected piece | Aged-bronze halo            |
+| Check          | Faction-energy seal         |
 
 Preserve existing labels, focus order, input behavior, and mobile control layout. Color can reinforce a state but never be its only signal.
 

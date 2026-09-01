@@ -80,8 +80,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function hasExactKeys(value: Record<string, unknown>, expected: ReadonlyArray<string>): boolean {
   const actual = Object.keys(value).sort();
   const sortedExpected = [...expected].sort();
-  return actual.length === sortedExpected.length
-    && actual.every((key, index) => key === sortedExpected[index]);
+  return (
+    actual.length === sortedExpected.length &&
+    actual.every((key, index) => key === sortedExpected[index])
+  );
 }
 
 function isNonemptyString(value: unknown): value is string {
@@ -127,27 +129,30 @@ function decodeCandidate(value: unknown): CandidateMove | null {
 }
 
 function hasValidIdentity(value: Record<string, unknown>): boolean {
-  return isNonemptyString(value.matchId)
-    && isIntegerAtLeast(value.generation, 0)
-    && isNonemptyString(value.requestId);
+  return (
+    isNonemptyString(value.matchId) &&
+    isIntegerAtLeast(value.generation, 0) &&
+    isNonemptyString(value.requestId)
+  );
 }
 
 export function decodeOpponentRequestV1(value: unknown): OpponentRequestV1 | null {
   if (!isRecord(value) || !hasExactKeys(value, REQUEST_KEYS)) return null;
   if (
-    value.protocolVersion !== OPPONENT_PROTOCOL_VERSION
-    || value.type !== "search"
-    || !hasValidIdentity(value)
-    || !isIntegerAtLeast(value.positionRevision, 0)
-    || !isNonemptyString(value.serializedGame)
-    || !isFingerprint(value.positionFingerprint)
-    || !isSide(value.sideToMove)
-    || !isTier(value.tier)
-    || !isNonemptyString(value.seed)
-    || !isIntegerAtLeast(value.nodeBudget, 1)
-    || !isIntegerAtLeast(value.depthCeiling, 1)
-    || !isFinitePositive(value.safetyDeadlineMs)
-  ) return null;
+    value.protocolVersion !== OPPONENT_PROTOCOL_VERSION ||
+    value.type !== "search" ||
+    !hasValidIdentity(value) ||
+    !isIntegerAtLeast(value.positionRevision, 0) ||
+    !isNonemptyString(value.serializedGame) ||
+    !isFingerprint(value.positionFingerprint) ||
+    !isSide(value.sideToMove) ||
+    !isTier(value.tier) ||
+    !isNonemptyString(value.seed) ||
+    !isIntegerAtLeast(value.nodeBudget, 1) ||
+    !isIntegerAtLeast(value.depthCeiling, 1) ||
+    !isFinitePositive(value.safetyDeadlineMs)
+  )
+    return null;
   return {
     protocolVersion: OPPONENT_PROTOCOL_VERSION,
     type: "search",
@@ -170,18 +175,19 @@ export function decodeOpponentResultV1(value: unknown): OpponentResultV1 | null 
   if (!isRecord(value) || !hasExactKeys(value, RESULT_KEYS)) return null;
   const candidate = decodeCandidate(value.candidate);
   if (
-    value.protocolVersion !== OPPONENT_PROTOCOL_VERSION
-    || value.type !== "result"
-    || !hasValidIdentity(value)
-    || !isIntegerAtLeast(value.positionRevision, 0)
-    || !isFingerprint(value.positionFingerprint)
-    || !isSide(value.sideToMove)
-    || !candidate
-    || !isIntegerAtLeast(value.completedDepth, 0)
-    || !isIntegerAtLeast(value.nodes, 0)
-    || typeof value.score !== "number"
-    || !Number.isFinite(value.score)
-  ) return null;
+    value.protocolVersion !== OPPONENT_PROTOCOL_VERSION ||
+    value.type !== "result" ||
+    !hasValidIdentity(value) ||
+    !isIntegerAtLeast(value.positionRevision, 0) ||
+    !isFingerprint(value.positionFingerprint) ||
+    !isSide(value.sideToMove) ||
+    !candidate ||
+    !isIntegerAtLeast(value.completedDepth, 0) ||
+    !isIntegerAtLeast(value.nodes, 0) ||
+    typeof value.score !== "number" ||
+    !Number.isFinite(value.score)
+  )
+    return null;
   return {
     protocolVersion: OPPONENT_PROTOCOL_VERSION,
     type: "result",
@@ -200,12 +206,13 @@ export function decodeOpponentResultV1(value: unknown): OpponentResultV1 | null 
 
 export function decodeOpponentStopV1(value: unknown): OpponentStopV1 | null {
   if (
-    !isRecord(value)
-    || !hasExactKeys(value, STOP_KEYS)
-    || value.protocolVersion !== OPPONENT_PROTOCOL_VERSION
-    || value.type !== "stop"
-    || !hasValidIdentity(value)
-  ) return null;
+    !isRecord(value) ||
+    !hasExactKeys(value, STOP_KEYS) ||
+    value.protocolVersion !== OPPONENT_PROTOCOL_VERSION ||
+    value.type !== "stop" ||
+    !hasValidIdentity(value)
+  )
+    return null;
   return {
     protocolVersion: OPPONENT_PROTOCOL_VERSION,
     type: "stop",
@@ -217,12 +224,13 @@ export function decodeOpponentStopV1(value: unknown): OpponentStopV1 | null {
 
 export function decodeOpponentStoppedV1(value: unknown): OpponentStoppedV1 | null {
   if (
-    !isRecord(value)
-    || !hasExactKeys(value, STOP_KEYS)
-    || value.protocolVersion !== OPPONENT_PROTOCOL_VERSION
-    || value.type !== "stopped"
-    || !hasValidIdentity(value)
-  ) return null;
+    !isRecord(value) ||
+    !hasExactKeys(value, STOP_KEYS) ||
+    value.protocolVersion !== OPPONENT_PROTOCOL_VERSION ||
+    value.type !== "stopped" ||
+    !hasValidIdentity(value)
+  )
+    return null;
   return {
     protocolVersion: OPPONENT_PROTOCOL_VERSION,
     type: "stopped",
@@ -234,15 +242,16 @@ export function decodeOpponentStoppedV1(value: unknown): OpponentStoppedV1 | nul
 
 export function decodeOpponentErrorV1(value: unknown): OpponentErrorV1 | null {
   if (
-    !isRecord(value)
-    || !hasExactKeys(value, ERROR_KEYS)
-    || value.protocolVersion !== OPPONENT_PROTOCOL_VERSION
-    || value.type !== "error"
-    || !hasValidIdentity(value)
-    || typeof value.code !== "string"
-    || !ERROR_CODES.has(value.code as OpponentErrorCode)
-    || !isNonemptyString(value.message)
-  ) return null;
+    !isRecord(value) ||
+    !hasExactKeys(value, ERROR_KEYS) ||
+    value.protocolVersion !== OPPONENT_PROTOCOL_VERSION ||
+    value.type !== "error" ||
+    !hasValidIdentity(value) ||
+    typeof value.code !== "string" ||
+    !ERROR_CODES.has(value.code as OpponentErrorCode) ||
+    !isNonemptyString(value.message)
+  )
+    return null;
   return {
     protocolVersion: OPPONENT_PROTOCOL_VERSION,
     type: "error",
@@ -271,9 +280,9 @@ export function createOpponentErrorV1(
 }
 
 export function decodeOpponentOutputV1(value: unknown): OpponentOutputV1 | null {
-  return decodeOpponentResultV1(value)
-    ?? decodeOpponentStoppedV1(value)
-    ?? decodeOpponentErrorV1(value);
+  return (
+    decodeOpponentResultV1(value) ?? decodeOpponentStoppedV1(value) ?? decodeOpponentErrorV1(value)
+  );
 }
 
 export type PositionDigest = (canonicalSerializedGame: string) => string | Promise<string>;
@@ -282,7 +291,11 @@ export type PositionValidationResult =
   | Readonly<{ ok: true } & ValidatedOpponentPosition>
   | Readonly<{
       ok: false;
-      code: "fingerprint-mismatch" | "invalid-serialization" | "non-canonical" | "identity-mismatch";
+      code:
+        | "fingerprint-mismatch"
+        | "invalid-serialization"
+        | "non-canonical"
+        | "identity-mismatch";
     }>;
 
 export async function validateOpponentRequestPosition(

@@ -211,17 +211,20 @@ describe("local game persistence", () => {
   it("recovers a valid legacy backup", () => {
     const storage = new MemoryStorage();
     storage.setItem(LEGACY_GAME_SAVE_KEY, "broken");
-    storage.setItem(LEGACY_GAME_SAVE_BACKUP_KEY, JSON.stringify({
-      kind: "xiangqi-game-save",
-      version: 1,
-      savedAt: 5,
-      serialized: JSON.stringify({
-        schemaVersion: 1,
-        rulesetId: "popular-v1",
-        initialPosition: "standard",
-        commands: [],
+    storage.setItem(
+      LEGACY_GAME_SAVE_BACKUP_KEY,
+      JSON.stringify({
+        kind: "xiangqi-game-save",
+        version: 1,
+        savedAt: 5,
+        serialized: JSON.stringify({
+          schemaVersion: 1,
+          rulesetId: "popular-v1",
+          initialPosition: "standard",
+          commands: [],
+        }),
       }),
-    }));
+    );
 
     expect(loadGameSnapshot(storage)).toMatchObject({
       source: "backup",
@@ -292,11 +295,21 @@ describe("local game persistence", () => {
     const valid = JSON.parse(storage.getItem(GAME_SAVE_KEY) ?? "{}") as MutableSaveEnvelope;
 
     for (const mutate of [
-      (value: MutableSaveEnvelope) => { value.revision = 12; },
-      (value: MutableSaveEnvelope) => { value.extra = true; },
-      (value: MutableSaveEnvelope) => { delete value.match.seed; },
-      (value: MutableSaveEnvelope) => { value.match.humanSide = "red"; },
-      (value: MutableSaveEnvelope) => { value.match.effectiveTier = "lightweight-normal"; },
+      (value: MutableSaveEnvelope) => {
+        value.revision = 12;
+      },
+      (value: MutableSaveEnvelope) => {
+        value.extra = true;
+      },
+      (value: MutableSaveEnvelope) => {
+        delete value.match.seed;
+      },
+      (value: MutableSaveEnvelope) => {
+        value.match.humanSide = "red";
+      },
+      (value: MutableSaveEnvelope) => {
+        value.match.effectiveTier = "lightweight-normal";
+      },
     ]) {
       const corrupted = structuredClone(valid);
       mutate(corrupted);
@@ -364,13 +377,16 @@ describe("game settings persistence", () => {
 
   it("loads v1 settings written before per-bus volume controls", () => {
     const storage = new MemoryStorage();
-    storage.setItem(GAME_SETTINGS_KEY, JSON.stringify({
-      version: 1,
-      quality: "medium",
-      masterVolume: 0.5,
-      muted: false,
-      reducedMotion: false,
-    }));
+    storage.setItem(
+      GAME_SETTINGS_KEY,
+      JSON.stringify({
+        version: 1,
+        quality: "medium",
+        masterVolume: 0.5,
+        muted: false,
+        reducedMotion: false,
+      }),
+    );
 
     expect(loadGameSettings(storage)).toEqual({
       ...DEFAULT_GAME_SETTINGS,

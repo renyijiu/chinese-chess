@@ -25,7 +25,9 @@ function run(command, commandArgs, label) {
   if (result.stdout) process.stdout.write(result.stdout);
   if (result.stderr) process.stderr.write(result.stderr);
   if (result.error || result.status !== 0) {
-    throw new Error(`${label} failed${result.error ? `: ${result.error.message}` : ` with exit ${result.status}`}`);
+    throw new Error(
+      `${label} failed${result.error ? `: ${result.error.message}` : ` with exit ${result.status}`}`,
+    );
   }
 }
 
@@ -53,7 +55,8 @@ function rawGeometrySummary(gltf, path) {
       }
     }
   }
-  if (![...min, ...max].every(Number.isFinite)) throw new Error(`Cannot read geometry bounds from ${path}`);
+  if (![...min, ...max].every(Number.isFinite))
+    throw new Error(`Cannot read geometry bounds from ${path}`);
   return {
     height: Number((max[1] - min[1]).toFixed(4)),
     maxFootprint: Number(Math.max(max[0] - min[0], max[2] - min[2]).toFixed(4)),
@@ -76,7 +79,9 @@ try {
   verifyAuthoritativeSources(root, sourceLock, ROLE_NAMES);
   if (skipBlender) verifyRawLods(root, sourceLock, ROLE_NAMES, LODS);
   if (!toolAvailable("blender") && !skipBlender) {
-    throw new Error("Blender 5.2 is required. Install it or rerun with --skip-blender after raw GLBs are generated.");
+    throw new Error(
+      "Blender 5.2 is required. Install it or rerun with --skip-blender after raw GLBs are generated.",
+    );
   }
   if (!toolAvailable("npx", ["--no-install", "gltf-transform", "--version"])) {
     throw new Error("glTF Transform CLI is missing. Run npm install before building piece assets.");
@@ -114,7 +119,9 @@ try {
       }
       console.log(`${role}/${lod}: KTX2 not applicable — GLB contains no bitmap textures`);
       if (role === "marshal") {
-        console.log(`marshal/${lod}: preserving accepted hero geometry while applying meter-stable Meshopt filtering`);
+        console.log(
+          `marshal/${lod}: preserving accepted hero geometry while applying meter-stable Meshopt filtering`,
+        );
       }
       mkdirSync(dirname(runtime), { recursive: true });
       run(

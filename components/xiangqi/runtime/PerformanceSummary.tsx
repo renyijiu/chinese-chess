@@ -42,7 +42,10 @@ export function PerformanceSummary({
 
   useFrame(({ clock, gl: frameGl }, deltaSeconds) => {
     const drawCalls = Math.max(0, frameGl.info.render.calls - lastRendererTotals.current.drawCalls);
-    const triangles = Math.max(0, frameGl.info.render.triangles - lastRendererTotals.current.triangles);
+    const triangles = Math.max(
+      0,
+      frameGl.info.render.triangles - lastRendererTotals.current.triangles,
+    );
     lastRendererTotals.current = {
       drawCalls: frameGl.info.render.calls,
       triangles: frameGl.info.render.triangles,

@@ -18,22 +18,10 @@
     "accessorType": "VEC3",
     "classifier": "nearest authored RGB reference within squared distance 0.00018",
     "referenceColors": {
-      "faction_cloth_primary": [
-        "#400503",
-        "#300402"
-      ],
-      "faction_cloth_secondary": [
-        "#110202",
-        "#0e0202"
-      ],
-      "faction_trim": [
-        "#612e09",
-        "#472409"
-      ],
-      "aged_bronze": [
-        "#291406",
-        "#1d1107"
-      ]
+      "faction_cloth_primary": ["#400503", "#300402"],
+      "faction_cloth_secondary": ["#110202", "#0e0202"],
+      "faction_trim": ["#612e09", "#472409"],
+      "aged_bronze": ["#291406", "#1d1107"]
     },
     "nonFactionPolicy": "RGB values outside the semantic tolerance remain unchanged",
     "materialPattern": "{role}_terracotta_vertex_palette"

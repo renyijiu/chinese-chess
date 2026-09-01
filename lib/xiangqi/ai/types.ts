@@ -2,10 +2,7 @@ import type { GameState, Side, Square } from "../types";
 
 export const OPPONENT_PROTOCOL_VERSION = 1 as const;
 
-export type LightweightTier =
-  | "lightweight-easy"
-  | "lightweight-normal"
-  | "lightweight-hard";
+export type LightweightTier = "lightweight-easy" | "lightweight-normal" | "lightweight-hard";
 
 export type OpponentTier = LightweightTier | "fairy-master";
 

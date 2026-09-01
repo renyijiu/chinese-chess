@@ -1,7 +1,9 @@
 import type { Side } from "../../../lib/xiangqi/index";
 import type { AudioRole } from "./audio-types";
 
-export const ROLE_VOICE_LINES: Readonly<Record<AudioRole, Readonly<Record<Side, readonly string[]>>>> = Object.freeze({
+export const ROLE_VOICE_LINES: Readonly<
+  Record<AudioRole, Readonly<Record<Side, readonly string[]>>>
+> = Object.freeze({
   marshal: {
     red: ["令行如山！", "护我山河！", "将士听令！"],
     black: ["玄甲听令！", "此阵必破！", "全军进击！"],

@@ -37,27 +37,31 @@ function hasOneApplicationMediaSection(sdp: unknown): sdp is string {
   if (typeof sdp !== "string" || sdp.length === 0) return false;
   const mediaLines = sdp.split(/\r\n|\n|\r/).filter((line) => line.startsWith("m="));
   const mediaLine = mediaLines[0];
-  return mediaLines.length === 1
-    && mediaLine !== undefined
-    && /^m=application(?:\s|$)/.test(mediaLine);
+  return (
+    mediaLines.length === 1 && mediaLine !== undefined && /^m=application(?:\s|$)/.test(mediaLine)
+  );
 }
 
 function hasValidDescription(value: unknown, kind: SignalingKind): boolean {
-  return isRecord(value)
-    && hasExactKeys(value, ["type", "sdp"])
-    && value.type === kind
-    && hasOneApplicationMediaSection(value.sdp);
+  return (
+    isRecord(value) &&
+    hasExactKeys(value, ["type", "sdp"]) &&
+    value.type === kind &&
+    hasOneApplicationMediaSection(value.sdp)
+  );
 }
 
 function hasValidCommonFields(value: Record<string, unknown>): boolean {
-  return isBoundedId(value.sessionId)
-    && isBoundedId(value.pairingId)
-    && isBoundedId(value.matchId)
-    && isBoundedId(value.hostPeerId)
-    && (value.intent === "new" || value.intent === "resume")
-    && isSafeNonnegativeInteger(value.createdAt)
-    && isSafeNonnegativeInteger(value.expiresAt)
-    && value.expiresAt > value.createdAt;
+  return (
+    isBoundedId(value.sessionId) &&
+    isBoundedId(value.pairingId) &&
+    isBoundedId(value.matchId) &&
+    isBoundedId(value.hostPeerId) &&
+    (value.intent === "new" || value.intent === "resume") &&
+    isSafeNonnegativeInteger(value.createdAt) &&
+    isSafeNonnegativeInteger(value.expiresAt) &&
+    value.expiresAt > value.createdAt
+  );
 }
 
 export function decodeSignalingMessageValueV1(
@@ -74,16 +78,15 @@ export function decodeSignalingMessageValueV1(
   if (value.kind !== "offer" && value.kind !== "answer") return failure("schema");
   if (expectedKind !== undefined && value.kind !== expectedKind) return failure("kind");
 
-  const valid = value.kind === "offer"
-    ? hasExactKeys(value, OFFER_KEYS) && hasValidDescription(value.description, "offer")
-    : hasExactKeys(value, ANSWER_KEYS)
-      && isBoundedId(value.guestPeerId)
-      && value.guestPeerId !== value.hostPeerId
-      && hasValidDescription(value.description, "answer");
+  const valid =
+    value.kind === "offer"
+      ? hasExactKeys(value, OFFER_KEYS) && hasValidDescription(value.description, "offer")
+      : hasExactKeys(value, ANSWER_KEYS) &&
+        isBoundedId(value.guestPeerId) &&
+        value.guestPeerId !== value.hostPeerId &&
+        hasValidDescription(value.description, "answer");
 
-  return valid
-    ? { ok: true, value: value as unknown as SignalingMessageV1 }
-    : failure("schema");
+  return valid ? { ok: true, value: value as unknown as SignalingMessageV1 } : failure("schema");
 }
 
 export function decodeSignalingMessageV1(

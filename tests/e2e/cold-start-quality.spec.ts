@@ -14,18 +14,21 @@ for (const quality of SAVED_QUALITIES) {
       if (path.startsWith("/background/qin-diorama-panorama-v1-")) panoramaRequests.push(path);
     });
     await page.addInitScript((savedQuality) => {
-      window.localStorage.setItem("xiangqi3d:settings:v1", JSON.stringify({
-        ambientVolume: 0.55,
-        masterVolume: 0.8,
-        musicVolume: 0.42,
-        muted: false,
-        quality: savedQuality,
-        reducedMotion: false,
-        sfxVolume: 0.8,
-        uiVolume: 0.72,
-        version: 1,
-        voiceVolume: 0.75,
-      }));
+      window.localStorage.setItem(
+        "xiangqi3d:settings:v1",
+        JSON.stringify({
+          ambientVolume: 0.55,
+          masterVolume: 0.8,
+          musicVolume: 0.42,
+          muted: false,
+          quality: savedQuality,
+          reducedMotion: false,
+          sfxVolume: 0.8,
+          uiVolume: 0.72,
+          version: 1,
+          voiceVolume: 0.75,
+        }),
+      );
     }, quality);
 
     await page.goto("/", { waitUntil: "domcontentloaded" });

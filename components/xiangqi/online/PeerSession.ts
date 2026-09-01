@@ -285,8 +285,8 @@ export class PeerSession {
       const encoded = encodeSignalingMessageV1(message);
       if (!encoded.ok) throw new PeerSessionError("invalid-signal");
       if (
-        peerConnection.connectionState === "connecting"
-        || peerConnection.connectionState === "connected"
+        peerConnection.connectionState === "connecting" ||
+        peerConnection.connectionState === "connected"
       ) {
         this.beginConnecting(generation);
       } else {
@@ -336,7 +336,10 @@ export class PeerSession {
     }
 
     if (this.sendQueue.length > 0 || channel.bufferedAmount >= this.maxBufferedAmountBytes) {
-      if (this.sendQueue.length >= MAX_QUEUED_FRAMES || this.queuedBytes + bytes > MAX_QUEUED_BYTES) {
+      if (
+        this.sendQueue.length >= MAX_QUEUED_FRAMES ||
+        this.queuedBytes + bytes > MAX_QUEUED_BYTES
+      ) {
         return { ok: false, reason: "queue-full" };
       }
       this.sendQueue.push({ frame, bytes });
@@ -495,10 +498,7 @@ export class PeerSession {
       }, this.disconnectGraceMs);
       return;
     }
-    if (
-      this.phase === "answer-ready"
-      && (state === "connecting" || state === "connected")
-    ) {
+    if (this.phase === "answer-ready" && (state === "connecting" || state === "connected")) {
       this.beginConnecting(generation);
       return;
     }
@@ -541,15 +541,15 @@ export class PeerSession {
       this.inboundFrameHead += 1;
     }
     if (
-      this.inboundFrameHead > 0
-      && (this.inboundFrameHead >= 64 || this.inboundFrameHead * 2 >= this.inboundFrameTimes.length)
+      this.inboundFrameHead > 0 &&
+      (this.inboundFrameHead >= 64 || this.inboundFrameHead * 2 >= this.inboundFrameTimes.length)
     ) {
       this.inboundFrameTimes.splice(0, this.inboundFrameHead);
       this.inboundFrameHead = 0;
     }
     if (
-      this.inboundFrameTimes.length - this.inboundFrameHead
-      >= this.inboundRateLimit.maximumFrames
+      this.inboundFrameTimes.length - this.inboundFrameHead >=
+      this.inboundRateLimit.maximumFrames
     ) {
       this.inboundRateLimitedUntil = now + this.inboundRateLimit.windowMs;
       this.onFrameRejected?.("rate-limit");
@@ -604,12 +604,12 @@ export class PeerSession {
 
   private assertOfferIdentity(offer: SignalingOfferV1): void {
     if (
-      offer.sessionId !== this.identity.sessionId
-      || offer.pairingId !== this.identity.pairingId
-      || offer.matchId !== this.identity.matchId
-      || (this.remotePeerId !== null && offer.hostPeerId !== this.remotePeerId)
-      || offer.intent !== this.identity.intent
-      || offer.hostPeerId === this.identity.localPeerId
+      offer.sessionId !== this.identity.sessionId ||
+      offer.pairingId !== this.identity.pairingId ||
+      offer.matchId !== this.identity.matchId ||
+      (this.remotePeerId !== null && offer.hostPeerId !== this.remotePeerId) ||
+      offer.intent !== this.identity.intent ||
+      offer.hostPeerId === this.identity.localPeerId
     ) {
       throw new PeerSessionError("identity-mismatch");
     }
@@ -618,13 +618,13 @@ export class PeerSession {
 
   private assertAnswerIdentity(answer: SignalingAnswerV1, offer: SignalingOfferV1): void {
     if (
-      answer.sessionId !== offer.sessionId
-      || answer.pairingId !== offer.pairingId
-      || answer.matchId !== offer.matchId
-      || answer.hostPeerId !== offer.hostPeerId
-      || answer.hostPeerId !== this.identity.localPeerId
-      || (this.remotePeerId !== null && answer.guestPeerId !== this.remotePeerId)
-      || answer.intent !== offer.intent
+      answer.sessionId !== offer.sessionId ||
+      answer.pairingId !== offer.pairingId ||
+      answer.matchId !== offer.matchId ||
+      answer.hostPeerId !== offer.hostPeerId ||
+      answer.hostPeerId !== this.identity.localPeerId ||
+      (this.remotePeerId !== null && answer.guestPeerId !== this.remotePeerId) ||
+      answer.intent !== offer.intent
     ) {
       throw new PeerSessionError("identity-mismatch");
     }

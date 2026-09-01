@@ -9,7 +9,13 @@ import type { AudioTransientCueId } from "../../../components/xiangqi/audio/audi
 import { handlePresentationAudioCue } from "../../../components/xiangqi/audio/presentation-audio";
 import type { GameActionTransition } from "../../../components/xiangqi/game/actions";
 import { squareToWorld } from "../../../components/xiangqi/runtime/board-coordinates";
-import { createInitialGame, dispatch, type DomainEvent, type GameState, type Side } from "../../../lib/xiangqi/index";
+import {
+  createInitialGame,
+  dispatch,
+  type DomainEvent,
+  type GameState,
+  type Side,
+} from "../../../lib/xiangqi/index";
 
 afterEach(() => vi.useRealTimers());
 
@@ -54,7 +60,14 @@ function transition({
     if (moved.error) throw new Error(moved.error.message);
     const undone = dispatch(moved.state, { expectedRevision: moved.state.revision, type: "undo" });
     if (undone.error) throw new Error(undone.error.message);
-    return { actionId, after: undone.state, before: moved.state, events: undone.events, reducedMotion: false, viewSide };
+    return {
+      actionId,
+      after: undone.state,
+      before: moved.state,
+      events: undone.events,
+      reducedMotion: false,
+      viewSide,
+    };
   }
   const after = winner === undefined ? createInitialGame() : endedGame(winner);
   const events: DomainEvent[] = [];
@@ -62,16 +75,32 @@ function transition({
     events.push({
       byPieceId: "red:soldier:0",
       eventId: "1:1",
-      piece: { id: "black:soldier:0", role: "soldier", side: "black", square: { file: 0, rank: 6 } },
+      piece: {
+        id: "black:soldier:0",
+        role: "soldier",
+        side: "black",
+        square: { file: 0, rank: 6 },
+      },
       revision: 1,
       type: "PieceCaptured",
     });
   }
   if (check) {
-    events.push({ byPieceId: "red:chariot:0", eventId: "1:2", revision: 1, side: "black", type: "CheckDeclared" });
+    events.push({
+      byPieceId: "red:chariot:0",
+      eventId: "1:2",
+      revision: 1,
+      side: "black",
+      type: "CheckDeclared",
+    });
   }
   if (winner !== undefined) {
-    events.push({ eventId: "1:3", revision: 1, status: endedGame(winner).status, type: "GameEnded" });
+    events.push({
+      eventId: "1:3",
+      revision: 1,
+      status: endedGame(winner).status,
+      type: "GameEnded",
+    });
   }
   return { actionId, after, before, events, reducedMotion: false, viewSide };
 }
@@ -89,7 +118,9 @@ function harness(eligible = true) {
   return {
     director,
     played,
-    setEligible(next: boolean) { canPlay = next; },
+    setEligible(next: boolean) {
+      canPlay = next;
+    },
   };
 }
 
@@ -99,11 +130,17 @@ describe("semantic audio event selection", () => {
       capture: "system.capture",
       completion: "system.check",
     });
-    expect(deriveSemanticCuePlan(transition({ capture: true, check: true, viewSide: "red", winner: "red" }))).toEqual({
+    expect(
+      deriveSemanticCuePlan(
+        transition({ capture: true, check: true, viewSide: "red", winner: "red" }),
+      ),
+    ).toEqual({
       capture: "system.capture",
       completion: "system.victory",
     });
-    expect(deriveSemanticCuePlan(transition({ check: true, viewSide: "black", winner: "red" }))).toEqual({
+    expect(
+      deriveSemanticCuePlan(transition({ check: true, viewSide: "black", winner: "red" })),
+    ).toEqual({
       capture: null,
       completion: "system.defeat",
     });
@@ -114,7 +151,10 @@ describe("semantic audio event selection", () => {
   });
 
   it("does not create semantic cues for undo", () => {
-    expect(deriveSemanticCuePlan(transition({ undo: true }))).toEqual({ capture: null, completion: null });
+    expect(deriveSemanticCuePlan(transition({ undo: true }))).toEqual({
+      capture: null,
+      completion: null,
+    });
   });
 
   it("leaves check and result playback out of the role-marker audio handler", () => {
@@ -267,7 +307,9 @@ describe("SemanticAudioDirector", () => {
   it("contains transient playback failures inside the audio boundary", () => {
     const director = new SemanticAudioDirector({
       isTransientEligible: () => true,
-      playTransient: () => { throw new Error("source start failed"); },
+      playTransient: () => {
+        throw new Error("source start failed");
+      },
     });
     const action = transition({ capture: true, check: true });
     director.begin(action);

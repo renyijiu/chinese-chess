@@ -30,10 +30,9 @@ function move(from: MoveRecord["from"], to: MoveRecord["to"]): MoveRecord {
 
 describe("last move marker geometry", () => {
   it("connects the authoritative source and destination without overshoot", () => {
-    const geometry = resolveLastMoveMarkerGeometry(move(
-      { file: 1, rank: 7 },
-      { file: 1, rank: 0 },
-    ));
+    const geometry = resolveLastMoveMarkerGeometry(
+      move({ file: 1, rank: 7 }, { file: 1, rank: 0 }),
+    );
     expect(geometry).not.toBeNull();
     if (!geometry) throw new Error("expected a visible last-move marker");
 
@@ -50,9 +49,8 @@ describe("last move marker geometry", () => {
   });
 
   it("returns null for a zero-distance defensive input", () => {
-    expect(resolveLastMoveMarkerGeometry(move(
-      { file: 4, rank: 4 },
-      { file: 4, rank: 4 },
-    ))).toBeNull();
+    expect(
+      resolveLastMoveMarkerGeometry(move({ file: 4, rank: 4 }, { file: 4, rank: 4 })),
+    ).toBeNull();
   });
 });

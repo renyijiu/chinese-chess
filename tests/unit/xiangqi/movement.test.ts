@@ -54,10 +54,7 @@ describe("popular-v1 piece movement", () => {
       piece("red:soldier:eye", "red", "soldier", 3, 3),
     ]);
 
-    expect(squareKeys(getLegalMoves(state, "red:elephant:0"))).toEqual([
-      "0,0",
-      "0,4",
-    ]);
+    expect(squareKeys(getLegalMoves(state, "red:elephant:0"))).toEqual(["0,0", "0,4"]);
 
     const riverState = makeState([
       ...guardedGenerals(),
@@ -79,11 +76,7 @@ describe("popular-v1 piece movement", () => {
     ]);
 
     const generalState = makeState(guardedGenerals());
-    expect(squareKeys(getLegalMoves(generalState, "red:general:0"))).toEqual([
-      "3,0",
-      "4,1",
-      "5,0",
-    ]);
+    expect(squareKeys(getLegalMoves(generalState, "red:general:0"))).toEqual(["3,0", "4,1", "5,0"]);
   });
 
   it("adds sideways soldier moves only after crossing the river", () => {
@@ -93,14 +86,7 @@ describe("popular-v1 piece movement", () => {
     ]);
     expect(squareKeys(getLegalMoves(before, "red:soldier:0"))).toEqual(["2,5"]);
 
-    const after = makeState([
-      ...guardedGenerals(),
-      piece("red:soldier:0", "red", "soldier", 2, 5),
-    ]);
-    expect(squareKeys(getLegalMoves(after, "red:soldier:0"))).toEqual([
-      "1,5",
-      "2,6",
-      "3,5",
-    ]);
+    const after = makeState([...guardedGenerals(), piece("red:soldier:0", "red", "soldier", 2, 5)]);
+    expect(squareKeys(getLegalMoves(after, "red:soldier:0"))).toEqual(["1,5", "2,6", "3,5"]);
   });
 });

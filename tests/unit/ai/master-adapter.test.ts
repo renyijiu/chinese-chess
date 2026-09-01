@@ -24,13 +24,20 @@ class FakeMasterWorker implements MasterHostWorkerLike {
     this.posted.push(message);
   }
 
-  addEventListener(type: "message" | "error", listener: ((event: MessageEvent<unknown>) => void) | (() => void)): void {
+  addEventListener(
+    type: "message" | "error",
+    listener: ((event: MessageEvent<unknown>) => void) | (() => void),
+  ): void {
     if (type === "message") this.messages.add(listener as (event: MessageEvent<unknown>) => void);
     else this.errors.add(listener as () => void);
   }
 
-  removeEventListener(type: "message" | "error", listener: ((event: MessageEvent<unknown>) => void) | (() => void)): void {
-    if (type === "message") this.messages.delete(listener as (event: MessageEvent<unknown>) => void);
+  removeEventListener(
+    type: "message" | "error",
+    listener: ((event: MessageEvent<unknown>) => void) | (() => void),
+  ): void {
+    if (type === "message")
+      this.messages.delete(listener as (event: MessageEvent<unknown>) => void);
     else this.errors.delete(listener as () => void);
   }
 
@@ -101,11 +108,16 @@ async function initialize(
   await flush();
   expect(worker.posted.at(-1)).toEqual({ type: "command", line: "uci" });
   worker.emit({ type: "line", line: "info string harmless noise" });
-  worker.emit({ type: "line", line: "option name UCI_Variant type combo default chess var xiangqi" });
+  worker.emit({
+    type: "line",
+    line: "option name UCI_Variant type combo default chess var xiangqi",
+  });
   worker.emit({ type: "line", line: "option name EvalFile type string default <empty>" });
   worker.emit({ type: "line", line: "uciok" });
   worker.emit({ type: "line", line: "uciok" });
-  await vi.waitFor(() => expect(worker.posted.at(-1)).toEqual({ type: "command", line: "isready" }));
+  await vi.waitFor(() =>
+    expect(worker.posted.at(-1)).toEqual({ type: "command", line: "isready" }),
+  );
   expect(worker.posted.slice(-3)).toEqual([
     { type: "command", line: "setoption name UCI_Variant value xiangqi" },
     { type: "command", line: "setoption name EvalFile value /xiangqi-c07e94a5c7cb.nnue" },
@@ -140,8 +152,13 @@ describe("Master UCI adapter", () => {
     expect(worker.posted.at(-2)).toEqual({ type: "command", line: "ucinewgame" });
     expect(worker.posted.at(-1)).toEqual({ type: "command", line: "isready" });
     worker.emit({ type: "line", line: "readyok" });
-    await vi.waitFor(() => expect(worker.posted.at(-1)).toEqual({ type: "command", line: "go depth 2 nodes 50" }));
-    expect(worker.posted.at(-2)).toMatchObject({ type: "command", line: expect.stringMatching(/^position fen /) });
+    await vi.waitFor(() =>
+      expect(worker.posted.at(-1)).toEqual({ type: "command", line: "go depth 2 nodes 50" }),
+    );
+    expect(worker.posted.at(-2)).toMatchObject({
+      type: "command",
+      line: expect.stringMatching(/^position fen /),
+    });
     expect(worker.posted.at(-1)).toEqual({ type: "command", line: "go depth 2 nodes 50" });
     worker.emit({ type: "line", line: "info depth 2 score cp 17 nodes 41 pv b1c3" });
     worker.emit({ type: "line", line: "bestmove b1c3 ponder h10g8" });
@@ -182,7 +199,9 @@ describe("Master UCI adapter", () => {
     await new Promise((resolve) => setTimeout(resolve, 5));
     expect(worker.posted.at(-1)).toEqual({ type: "command", line: "isready" });
     worker.emit({ type: "line", line: "readyok" });
-    await vi.waitFor(() => expect(worker.posted.at(-1)).toMatchObject({ line: expect.stringMatching(/^go /) }));
+    await vi.waitFor(() =>
+      expect(worker.posted.at(-1)).toMatchObject({ line: expect.stringMatching(/^go /) }),
+    );
     worker.emit({ type: "line", line: "bestmove b1c3" });
     await expect(outcome).resolves.toMatchObject({ ok: true });
   });
@@ -210,7 +229,9 @@ describe("Master UCI adapter", () => {
     await vi.waitFor(() => expect(worker.posted.length).toBeGreaterThanOrEqual(beforeSearch + 2));
     expect(worker.posted.at(-1)).toEqual({ type: "command", line: "isready" });
     worker.emit({ type: "line", line: "readyok" });
-    await vi.waitFor(() => expect(worker.posted.at(-1)).toMatchObject({ line: expect.stringMatching(/^go /) }));
+    await vi.waitFor(() =>
+      expect(worker.posted.at(-1)).toMatchObject({ line: expect.stringMatching(/^go /) }),
+    );
     worker.emit({ type: "line", line: "bestmove a1a10" });
 
     await expect(outcome).resolves.toMatchObject({ ok: false, failure: { code: "failed" } });
@@ -265,17 +286,21 @@ describe("Master UCI adapter", () => {
     first.emit({ type: "line", line: "option name UCI_Variant type combo var xiangqi" });
     first.emit({ type: "line", line: "option name EvalFile type string" });
     first.emit({ type: "line", line: "uciok" });
-    await vi.waitFor(() => expect(first.posted.at(-1)).toEqual({ type: "command", line: "isready" }));
+    await vi.waitFor(() =>
+      expect(first.posted.at(-1)).toEqual({ type: "command", line: "isready" }),
+    );
     first.emit({ type: "line", line: "readyok" });
     await initialization;
     const beforeSearch = first.posted.length;
     const search = adapter.search(request);
     await vi.waitFor(() => expect(first.posted.length).toBeGreaterThanOrEqual(beforeSearch + 2));
     first.emit({ type: "line", line: "readyok" });
-    await vi.waitFor(() => expect(first.posted.at(-1)).toMatchObject({
-      type: "command",
-      line: expect.stringMatching(/^go /),
-    }));
+    await vi.waitFor(() =>
+      expect(first.posted.at(-1)).toMatchObject({
+        type: "command",
+        line: expect.stringMatching(/^go /),
+      }),
+    );
     const stopped = adapter.stop(request);
     expect(first.posted.at(-1)).toEqual({ type: "command", line: "stop" });
     await new Promise((resolve) => setTimeout(resolve, 5));
@@ -291,24 +316,41 @@ describe("Master UCI adapter", () => {
   });
 
   it("rejects unsupported capability sets before downloading or starting a Worker", async () => {
-    expect(assessMasterCapabilities({
-      cacheStorage: undefined,
-      crossOriginIsolated: false,
-      isSecureContext: false,
-      sharedArrayBuffer: undefined,
-      validateWasm: () => false,
-      webAssembly: undefined,
-    })).toEqual({
+    expect(
+      assessMasterCapabilities({
+        cacheStorage: undefined,
+        crossOriginIsolated: false,
+        isSecureContext: false,
+        sharedArrayBuffer: undefined,
+        validateWasm: () => false,
+        webAssembly: undefined,
+      }),
+    ).toEqual({
       supported: false,
-      missing: ["secure-context", "cross-origin-isolation", "shared-array-buffer", "webassembly", "wasm-simd", "cache-storage"],
+      missing: [
+        "secure-context",
+        "cross-origin-isolation",
+        "shared-array-buffer",
+        "webassembly",
+        "wasm-simd",
+        "cache-storage",
+      ],
     });
-    expect(assessMasterCapabilities({
-      cacheStorage: { delete: async () => true, keys: async () => [], open: async () => { throw new Error("unused"); } },
-      crossOriginIsolated: true,
-      isSecureContext: true,
-      sharedArrayBuffer: SharedArrayBuffer,
-      validateWasm: (bytes) => WebAssembly.validate(bytes),
-      webAssembly: WebAssembly,
-    })).toEqual({ supported: true, missing: [] });
+    expect(
+      assessMasterCapabilities({
+        cacheStorage: {
+          delete: async () => true,
+          keys: async () => [],
+          open: async () => {
+            throw new Error("unused");
+          },
+        },
+        crossOriginIsolated: true,
+        isSecureContext: true,
+        sharedArrayBuffer: SharedArrayBuffer,
+        validateWasm: (bytes) => WebAssembly.validate(bytes),
+        webAssembly: WebAssembly,
+      }),
+    ).toEqual({ supported: true, missing: [] });
   });
 });

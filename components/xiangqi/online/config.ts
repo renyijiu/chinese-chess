@@ -12,12 +12,13 @@ export function parseStunUrls(value: string | undefined): ReadonlyArray<string> 
   for (const candidate of value.split(",")) {
     const url = candidate.trim();
     if (
-      unique.size >= MAX_STUN_SERVERS
-      || url.length === 0
-      || url.length > MAX_STUN_URL_LENGTH
-      || !url.toLowerCase().startsWith("stun:")
-      || /\s/.test(url)
-    ) continue;
+      unique.size >= MAX_STUN_SERVERS ||
+      url.length === 0 ||
+      url.length > MAX_STUN_URL_LENGTH ||
+      !url.toLowerCase().startsWith("stun:") ||
+      /\s/.test(url)
+    )
+      continue;
     unique.add(url);
   }
   return [...unique];

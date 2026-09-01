@@ -33,10 +33,19 @@ describe("combat VFX layout", () => {
     const start = squareToWorld(from);
     const end = squareToWorld(to);
     const samples = [0, 0.25, 0.5, 0.75, 1].map((progress) =>
-      resolveCombatPayloadWorldPosition(from, to, progress));
+      resolveCombatPayloadWorldPosition(from, to, progress),
+    );
 
-    expect(samples[0]).toEqual([start[0], BOARD_SURFACE_Y + COMBAT_VFX_PAYLOAD_BASE_HEIGHT, start[2]]);
-    expect(samples.at(-1)).toEqual([end[0], BOARD_SURFACE_Y + COMBAT_VFX_PAYLOAD_BASE_HEIGHT, end[2]]);
+    expect(samples[0]).toEqual([
+      start[0],
+      BOARD_SURFACE_Y + COMBAT_VFX_PAYLOAD_BASE_HEIGHT,
+      start[2],
+    ]);
+    expect(samples.at(-1)).toEqual([
+      end[0],
+      BOARD_SURFACE_Y + COMBAT_VFX_PAYLOAD_BASE_HEIGHT,
+      end[2],
+    ]);
     samples.forEach((position) => {
       expect(position[1]).toBeGreaterThanOrEqual(BOARD_SURFACE_Y + COMBAT_VFX_PAYLOAD_BASE_HEIGHT);
       expect(position[2]).toBeGreaterThanOrEqual(Math.min(start[2], end[2]));

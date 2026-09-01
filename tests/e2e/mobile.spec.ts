@@ -34,29 +34,47 @@ test("390 × 844 touch layout keeps game controls usable", async ({ page }) => {
     "mobile-low-settings.png",
     screenshotOptions,
   );
-  const undersizedSettingsTargets = await page.locator(".game-settings select:visible, .game-settings input:visible").evaluateAll(
-    (controls) => controls.flatMap((control) => {
-      const rect = control.getBoundingClientRect();
-      return rect.width < 24 || rect.height < 24
-        ? [{ height: rect.height, label: control.getAttribute("aria-label") ?? control.textContent?.trim(), width: rect.width }]
-        : [];
-    }),
-  );
+  const undersizedSettingsTargets = await page
+    .locator(".game-settings select:visible, .game-settings input:visible")
+    .evaluateAll((controls) =>
+      controls.flatMap((control) => {
+        const rect = control.getBoundingClientRect();
+        return rect.width < 24 || rect.height < 24
+          ? [
+              {
+                height: rect.height,
+                label: control.getAttribute("aria-label") ?? control.textContent?.trim(),
+                width: rect.width,
+              },
+            ]
+          : [];
+      }),
+    );
   expect(undersizedSettingsTargets).toEqual([]);
   await page.getByRole("button", { name: "设置" }).click();
 
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - window.innerWidth,
+  );
   expect(overflow).toBeLessThanOrEqual(1);
   await expect(page.getByRole("button", { name: "悔棋" })).toBeVisible();
   await expect(page.getByRole("button", { name: /切换到黑方视角/ })).toBeVisible();
-  const undersizedTargets = await page.locator(".viewer-shell button:visible").evaluateAll(
-    (controls) => controls.flatMap((control) => {
-      const rect = control.getBoundingClientRect();
-      return rect.width < 24 || rect.height < 24
-        ? [{ height: rect.height, label: control.getAttribute("aria-label") ?? control.textContent?.trim(), width: rect.width }]
-        : [];
-    }),
-  );
+  const undersizedTargets = await page
+    .locator(".viewer-shell button:visible")
+    .evaluateAll((controls) =>
+      controls.flatMap((control) => {
+        const rect = control.getBoundingClientRect();
+        return rect.width < 24 || rect.height < 24
+          ? [
+              {
+                height: rect.height,
+                label: control.getAttribute("aria-label") ?? control.textContent?.trim(),
+                width: rect.width,
+              },
+            ]
+          : [];
+      }),
+    );
   expect(undersizedTargets).toEqual([]);
 
   await page.getByRole("button", { name: "俯视棋盘" }).click();

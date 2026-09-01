@@ -1,6 +1,6 @@
 "use client";
 
-/* eslint-disable react/no-unknown-property -- R3F scene graph props are valid custom JSX properties. */
+/* oxlint-disable react/no-unknown-property -- R3F scene graph props are valid custom JSX properties. */
 
 import { EffectComposer, SelectiveBloom } from "@react-three/postprocessing";
 import { useMemo } from "react";

@@ -11,13 +11,16 @@ export default defineConfig({
     ...baseConfig.use,
     baseURL,
   },
-  ...(process.env.PLAYWRIGHT_SKIP_WEB_SERVER === "1" ? {} : {
-    webServer: {
-      command: process.env.PLAYWRIGHT_SERVER_COMMAND
-        ?? `npm run start:production:test -- --port ${port} --name chinese-chess-3d-web-release-test`,
-      reuseExistingServer: false,
-      timeout: 120_000,
-      url: baseURL,
-    },
-  }),
+  ...(process.env.PLAYWRIGHT_SKIP_WEB_SERVER === "1"
+    ? {}
+    : {
+        webServer: {
+          command:
+            process.env.PLAYWRIGHT_SERVER_COMMAND ??
+            `npm run start:production:test -- --port ${port} --name chinese-chess-3d-web-release-test`,
+          reuseExistingServer: false,
+          timeout: 120_000,
+          url: baseURL,
+        },
+      }),
 });

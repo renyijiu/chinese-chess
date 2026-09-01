@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  createInitialGame,
-  getLegalMoves,
-  getPieceAt,
-} from "../../../lib/xiangqi/index";
+import { createInitialGame, getLegalMoves, getPieceAt } from "../../../lib/xiangqi/index";
 
 describe("popular-v1 initial position", () => {
   it("starts with 32 stable pieces, red to move, and legal opening moves", () => {
@@ -18,9 +14,7 @@ describe("popular-v1 initial position", () => {
       role: "general",
       side: "red",
     });
-    expect(getLegalMoves(state, "red:soldier:0")).toEqual([
-      { file: 0, rank: 4 },
-    ]);
+    expect(getLegalMoves(state, "red:soldier:0")).toEqual([{ file: 0, rank: 4 }]);
     expect(getPieceAt(state, { file: 7, rank: 7 })?.id).toBe("black:cannon:1");
     expect(getPieceAt(state, { file: 8, rank: 9 })?.id).toBe("black:chariot:1");
   });

@@ -1,6 +1,7 @@
 export const MASTER_ENGINE_MANIFEST_URL = "/engines/fairy-stockfish-nnue/1.1.12/manifest.json";
 export const MASTER_ENGINE_CACHE_PREFIX = "xiangqi-master:";
-export const MASTER_ENGINE_MANIFEST_SHA256 = "e12efd8c9f9e28ac2dc8257bc47e16800b5ec4c0d95e28bde45132d01034edd6";
+export const MASTER_ENGINE_MANIFEST_SHA256 =
+  "e12efd8c9f9e28ac2dc8257bc47e16800b5ec4c0d95e28bde45132d01034edd6";
 
 const REQUIRED_ENGINE_FILES = [
   "stockfish.js",
@@ -63,8 +64,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function exactKeys(value: Record<string, unknown>, expected: readonly string[]): boolean {
   const actual = Object.keys(value).sort();
   const wanted = [...expected].sort();
-  return actual.length === wanted.length
-    && actual.every((key, index) => key === wanted[index]);
+  return actual.length === wanted.length && actual.every((key, index) => key === wanted[index]);
 }
 
 function parseRuntimeFile(value: unknown): MasterRuntimeFile {
@@ -72,17 +72,18 @@ function parseRuntimeFile(value: unknown): MasterRuntimeFile {
     throw new Error("Master manifest contains an invalid runtime file record.");
   }
   if (
-    typeof value.name !== "string"
-    || value.name.includes("/")
-    || value.name.includes("\\")
-    || value.name.includes("..")
-    || typeof value.role !== "string"
-    || typeof value.mimeType !== "string"
-    || !Number.isInteger(value.bytes)
-    || (value.bytes as number) <= 0
-    || typeof value.sha256 !== "string"
-    || !SHA256.test(value.sha256)
-  ) throw new Error("Master manifest contains unsafe runtime metadata.");
+    typeof value.name !== "string" ||
+    value.name.includes("/") ||
+    value.name.includes("\\") ||
+    value.name.includes("..") ||
+    typeof value.role !== "string" ||
+    typeof value.mimeType !== "string" ||
+    !Number.isInteger(value.bytes) ||
+    (value.bytes as number) <= 0 ||
+    typeof value.sha256 !== "string" ||
+    !SHA256.test(value.sha256)
+  )
+    throw new Error("Master manifest contains unsafe runtime metadata.");
   return Object.freeze({
     name: value.name,
     role: value.role,
@@ -105,22 +106,27 @@ export function parseMasterEngineManifest(value: unknown): MasterEngineManifest 
     "runtimeFiles",
     "provenance",
   ];
-  if (!exactKeys(value, requiredKeys)) throw new Error("Master engine manifest fields differ from v1.");
+  if (!exactKeys(value, requiredKeys))
+    throw new Error("Master engine manifest fields differ from v1.");
   if (
-    value.schema !== "xiangqi-engine-assets/v1"
-    || value.engineId !== "fairy-stockfish-nnue"
-    || value.version !== "1.1.12"
-    || value.license !== "GPL-3.0-only"
-    || value.variant !== "xiangqi"
-    || value.runtimeBaseUrl !== "/engines/fairy-stockfish-nnue/1.1.12/"
-    || !isRecord(value.requirements)
-    || Object.values(value.requirements).some((requirement) => requirement !== true)
-    || !Array.isArray(value.runtimeFiles)
-  ) throw new Error("Master engine manifest identity or capability contract is invalid.");
+    value.schema !== "xiangqi-engine-assets/v1" ||
+    value.engineId !== "fairy-stockfish-nnue" ||
+    value.version !== "1.1.12" ||
+    value.license !== "GPL-3.0-only" ||
+    value.variant !== "xiangqi" ||
+    value.runtimeBaseUrl !== "/engines/fairy-stockfish-nnue/1.1.12/" ||
+    !isRecord(value.requirements) ||
+    Object.values(value.requirements).some((requirement) => requirement !== true) ||
+    !Array.isArray(value.runtimeFiles)
+  )
+    throw new Error("Master engine manifest identity or capability contract is invalid.");
 
   const runtimeFiles = value.runtimeFiles.map(parseRuntimeFile);
   const names = new Set(runtimeFiles.map((file) => file.name));
-  if (names.size !== runtimeFiles.length || REQUIRED_ENGINE_FILES.some((name) => !names.has(name))) {
+  if (
+    names.size !== runtimeFiles.length ||
+    REQUIRED_ENGINE_FILES.some((name) => !names.has(name))
+  ) {
     throw new Error("Master engine manifest is missing a required runtime file.");
   }
   return Object.freeze({
@@ -138,7 +144,12 @@ async function defaultDigest(bytes: ArrayBuffer): Promise<string> {
 }
 
 function normalizedMime(value: string | null): string {
-  return value?.trim().toLowerCase().replace(/\s*;\s*/g, "; ") ?? "";
+  return (
+    value
+      ?.trim()
+      .toLowerCase()
+      .replace(/\s*;\s*/g, "; ") ?? ""
+  );
 }
 
 async function fetchWithTimeout(
@@ -156,10 +167,7 @@ async function fetchWithTimeout(
     }, timeoutMs);
   });
   try {
-    return await Promise.race([
-      fetcher(input, { ...init, signal: controller.signal }),
-      timeout,
-    ]);
+    return await Promise.race([fetcher(input, { ...init, signal: controller.signal }), timeout]);
   } finally {
     if (timer !== undefined) clearTimeout(timer);
   }
@@ -176,13 +184,17 @@ async function verifyRuntimeResponse(
     throw new Error(`${record.name} fell through to application HTML.`);
   }
   if (actualMime !== normalizedMime(record.mimeType)) {
-    throw new Error(`${record.name} MIME differs: expected ${record.mimeType}; got ${actualMime || "missing"}.`);
+    throw new Error(
+      `${record.name} MIME differs: expected ${record.mimeType}; got ${actualMime || "missing"}.`,
+    );
   }
   const bytes = await response.arrayBuffer();
   if (bytes.byteLength !== record.bytes) {
-    throw new Error(`${record.name} byte count differs: expected ${record.bytes}; got ${bytes.byteLength}.`);
+    throw new Error(
+      `${record.name} byte count differs: expected ${record.bytes}; got ${bytes.byteLength}.`,
+    );
   }
-  if (await digest(bytes) !== record.sha256) throw new Error(`${record.name} SHA-256 differs.`);
+  if ((await digest(bytes)) !== record.sha256) throw new Error(`${record.name} SHA-256 differs.`);
   return bytes;
 }
 
@@ -201,9 +213,11 @@ async function deleteEngineCaches(
   keep: string | null,
 ): Promise<void> {
   const cacheNames = await cacheStorage.keys();
-  await Promise.all(cacheNames
-    .filter((name) => name.startsWith(MASTER_ENGINE_CACHE_PREFIX) && name !== keep)
-    .map((name) => cacheStorage.delete(name)));
+  await Promise.all(
+    cacheNames
+      .filter((name) => name.startsWith(MASTER_ENGINE_CACHE_PREFIX) && name !== keep)
+      .map((name) => cacheStorage.delete(name)),
+  );
 }
 
 async function readCompleteCache(
@@ -249,11 +263,17 @@ async function loadVerifiedMasterAssetsUnshared(
   if (!cacheStorage) throw new Error("Cache Storage is unavailable for Master engine assets.");
 
   const manifestUrl = new URL(MASTER_ENGINE_MANIFEST_URL, origin).href;
-  const manifestResponse = await fetchWithTimeout(fetcher, manifestUrl, {
-    cache: "no-cache",
-    credentials: "same-origin",
-  }, fetchTimeoutMs);
-  if (!manifestResponse.ok) throw new Error(`Master manifest returned HTTP ${manifestResponse.status}.`);
+  const manifestResponse = await fetchWithTimeout(
+    fetcher,
+    manifestUrl,
+    {
+      cache: "no-cache",
+      credentials: "same-origin",
+    },
+    fetchTimeoutMs,
+  );
+  if (!manifestResponse.ok)
+    throw new Error(`Master manifest returned HTTP ${manifestResponse.status}.`);
   const manifestMime = normalizedMime(manifestResponse.headers.get("content-type"));
   if (manifestMime !== "application/json; charset=utf-8" && manifestMime !== "application/json") {
     throw new Error(`Master manifest MIME differs: ${manifestMime || "missing"}.`);
@@ -299,9 +319,12 @@ async function loadVerifiedMasterAssetsUnshared(
     for (const record of manifest.runtimeFiles) {
       const url = new URL(record.name, new URL(manifest.runtimeBaseUrl, origin)).href;
       const bytes = fetched.get(record.name)!;
-      await cache.put(url, new Response(bytes.slice(0), {
-        headers: { "content-type": record.mimeType },
-      }));
+      await cache.put(
+        url,
+        new Response(bytes.slice(0), {
+          headers: { "content-type": record.mimeType },
+        }),
+      );
     }
   } catch (error) {
     await cacheStorage.delete(name);
@@ -314,9 +337,9 @@ function cloneVerifiedAssets(assets: VerifiedMasterAssets): VerifiedMasterAssets
   return Object.freeze({
     cacheName: assets.cacheName,
     manifest: assets.manifest,
-    files: Object.freeze(Object.fromEntries(
-      REQUIRED_ENGINE_FILES.map((name) => [name, assets.files[name].slice(0)]),
-    )) as VerifiedMasterAssets["files"],
+    files: Object.freeze(
+      Object.fromEntries(REQUIRED_ENGINE_FILES.map((name) => [name, assets.files[name].slice(0)])),
+    ) as VerifiedMasterAssets["files"],
   });
 }
 
@@ -335,9 +358,11 @@ export async function loadVerifiedMasterAssets(
   if (!pending) {
     pending = loadVerifiedMasterAssetsUnshared({ ...options, cacheStorage });
     loads.set(key, pending);
-    void pending.finally(() => {
-      if (loads?.get(key) === pending) loads.delete(key);
-    }).catch(() => undefined);
+    void pending
+      .finally(() => {
+        if (loads?.get(key) === pending) loads.delete(key);
+      })
+      .catch(() => undefined);
   }
   return cloneVerifiedAssets(await pending);
 }

@@ -11,10 +11,7 @@ import { BoardScene } from "../components/xiangqi/scene/BoardScene";
 import type { BoardView, BoardViewSide } from "../components/xiangqi/scene/BoardCamera";
 import type { EnvironmentStatus } from "../components/xiangqi/scene/diorama-environment";
 import { SceneErrorBoundary } from "../components/xiangqi/runtime/SceneErrorBoundary";
-import {
-  getQualityProfile,
-  type QualityTier,
-} from "../components/xiangqi/runtime/quality";
+import { getQualityProfile, type QualityTier } from "../components/xiangqi/runtime/quality";
 import { detectWebGL2 } from "../components/xiangqi/runtime/webgl";
 
 const QUALITY_LABELS: Record<QualityTier, string> = {
@@ -69,16 +66,14 @@ export function BoardViewer({
 
   const handleSceneError = useCallback(() => setError(true), []);
   const handleEnvironmentStatusChange = useCallback(
-    (status: EnvironmentStatus) => setEnvironmentState((current) => (
-      current.quality === quality && current.status === status
-        ? current
-        : { quality, status }
-    )),
+    (status: EnvironmentStatus) =>
+      setEnvironmentState((current) =>
+        current.quality === quality && current.status === status ? current : { quality, status },
+      ),
     [quality],
   );
-  const environmentStatus = environmentState.quality === quality
-    ? environmentState.status
-    : "loading";
+  const environmentStatus =
+    environmentState.quality === quality ? environmentState.status : "loading";
   const runtimeStatus = !webglAvailable
     ? "WebGL2 三维预览不可用"
     : error
@@ -94,7 +89,11 @@ export function BoardViewer({
       <div className="viewer-canvas">
         {webglAvailable ? (
           <SceneErrorBoundary
-            fallback={<p className="viewer-fallback" role="status">棋盘场景加载失败。</p>}
+            fallback={
+              <p className="viewer-fallback" role="status">
+                棋盘场景加载失败。
+              </p>
+            }
             onError={handleSceneError}
           >
             <Canvas
@@ -102,7 +101,11 @@ export function BoardViewer({
               dpr={[qualityProfile.dpr[0], qualityProfile.dpr[1]]}
               fallback={<p className="viewer-fallback">此设备无法启动三维预览。</p>}
               frameloop="demand"
-              gl={{ antialias: quality !== "low", alpha: false, powerPreference: "high-performance" }}
+              gl={{
+                antialias: quality !== "low",
+                alpha: false,
+                powerPreference: "high-performance",
+              }}
               shadows={qualityProfile.shadows ? "percentage" : false}
               onCreated={({ gl }) => {
                 gl.info.autoReset = false;
@@ -146,7 +149,14 @@ export function BoardViewer({
       <div className="viewer-hud">
         <span className="viewer-stat">
           {runtimeStatus}
-          {webglAvailable && !error ? <>{" · "}<span data-testid="runtime-performance" ref={drawCallsRef}>— 绘制调用</span></> : null}
+          {webglAvailable && !error ? (
+            <>
+              {" · "}
+              <span data-testid="runtime-performance" ref={drawCallsRef}>
+                — 绘制调用
+              </span>
+            </>
+          ) : null}
         </span>
         <div className="viewer-controls">
           <button

@@ -95,19 +95,19 @@ execution: code
 
 ### Sources / Research
 
-| Source | Planning impact |
-| --- | --- |
-| `assets/characters/reviews/roster-contact-sheet-qin-terracotta.png` | 现有角色的轮廓、比例、陶土质感和阵营点缀色是视觉权威。 |
-| `docs/validation.md` | 当前 87 次静止绘制和 17.8–18.7 ms p95 决定了混合背景和严格性能收口。 |
-| [秦始皇帝陵博物院：真彩秦俑](https://bmy.com.cn/news/news/993.html) | 朱砂、石绿、石青、白和黑漆等矿物彩绘，以及对比色勾边，决定场景不能做成单色陶土。 |
-| [UNESCO：秦始皇陵](https://whc.unesco.org/en/list/441) | 矩形双重城垣、南北轴线和地下城市微缩结构决定棋盘外轮廓。 |
-| [中国国家博物馆：大瓦当](https://www.chnmuseum.cn/zp/zpml/kgfjp/202110/t20211027_251884.shtml) | 夔凤纹、朱白彩饰、四门和角楼为装饰与边界提供依据。 |
-| [中国国家博物馆：葵纹瓦当](https://www.chnmuseum.cn/zp/zpml/kgfjp/202110/t20211027_251883.shtml) | 葵纹、动物纹、叶纹、树纹和水涡纹可用于低密度压印与河界装饰。 |
-| [Unity：FANTASIAN case study](https://unity.com/resources/case-study/fantasian) | 绘制细节配合简化承载几何，证明微缩质感可以在移动端以混合方案保留。 |
-| [Unity：Warpforge scenario pipeline](https://unity.com/blog/games/stunning-scenarios-in-warhammer-40000-warpforge) | 2D、完整 3D和投影/绘景的取舍支持近中景 3D、远景绘景的选择。 |
-| [Blender Studio：Chunkification](https://studio.blender.org/blog/chunkification-creating-a-design-language-for-sprite-fright/) | 大体块、圆角、选择性细节和避免写实噪声用于把环境比例统一到 Q 版角色。 |
-| [React Three Fiber performance](https://r3f.docs.pmnd.rs/advanced/scaling-performance) | 按需渲染、实例化、复用材质和 LOD 是新增环境层的实现约束。 |
-| [WCAG 2.2 contrast](https://www.w3.org/WAI/WCAG22/Understanding/non-text-contrast) | HUD、焦点环和状态图形需要可测的文字与非文字对比度。 |
+| Source                                                                                                                         | Planning impact                                                                  |
+| ------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| `assets/characters/reviews/roster-contact-sheet-qin-terracotta.png`                                                            | 现有角色的轮廓、比例、陶土质感和阵营点缀色是视觉权威。                           |
+| `docs/validation.md`                                                                                                           | 当前 87 次静止绘制和 17.8–18.7 ms p95 决定了混合背景和严格性能收口。             |
+| [秦始皇帝陵博物院：真彩秦俑](https://bmy.com.cn/news/news/993.html)                                                            | 朱砂、石绿、石青、白和黑漆等矿物彩绘，以及对比色勾边，决定场景不能做成单色陶土。 |
+| [UNESCO：秦始皇陵](https://whc.unesco.org/en/list/441)                                                                         | 矩形双重城垣、南北轴线和地下城市微缩结构决定棋盘外轮廓。                         |
+| [中国国家博物馆：大瓦当](https://www.chnmuseum.cn/zp/zpml/kgfjp/202110/t20211027_251884.shtml)                                 | 夔凤纹、朱白彩饰、四门和角楼为装饰与边界提供依据。                               |
+| [中国国家博物馆：葵纹瓦当](https://www.chnmuseum.cn/zp/zpml/kgfjp/202110/t20211027_251883.shtml)                               | 葵纹、动物纹、叶纹、树纹和水涡纹可用于低密度压印与河界装饰。                     |
+| [Unity：FANTASIAN case study](https://unity.com/resources/case-study/fantasian)                                                | 绘制细节配合简化承载几何，证明微缩质感可以在移动端以混合方案保留。               |
+| [Unity：Warpforge scenario pipeline](https://unity.com/blog/games/stunning-scenarios-in-warhammer-40000-warpforge)             | 2D、完整 3D和投影/绘景的取舍支持近中景 3D、远景绘景的选择。                      |
+| [Blender Studio：Chunkification](https://studio.blender.org/blog/chunkification-creating-a-design-language-for-sprite-fright/) | 大体块、圆角、选择性细节和避免写实噪声用于把环境比例统一到 Q 版角色。            |
+| [React Three Fiber performance](https://r3f.docs.pmnd.rs/advanced/scaling-performance)                                         | 按需渲染、实例化、复用材质和 LOD 是新增环境层的实现约束。                        |
+| [WCAG 2.2 contrast](https://www.w3.org/WAI/WCAG22/Understanding/non-text-contrast)                                             | HUD、焦点环和状态图形需要可测的文字与非文字对比度。                              |
 
 ---
 
@@ -175,14 +175,14 @@ flowchart TB
 
 ### Quality Matrix
 
-| Dimension | High | Medium | Low | Reduced motion override |
-| --- | --- | --- | --- | --- |
-| Far field | Highest approved panoramic variant | Mid-resolution panoramic variant | Smallest approved panoramic variant | Same active variant, static |
-| Near and mid field | Full approved prop clusters | Reduced cluster density | Core silhouette props only | Static props only |
-| Shadows | Existing high-tier static shadow strategy | Reduced existing shadow strategy | No environment shadows | No additional animation-driven updates |
-| River | Low-amplitude glazed color motion | Lower-rate glazed color motion | Static glazed surface | Static glazed surface |
-| Ambient motion | Scheduled flags and sparse dust | Lower cadence and density | Disabled | Disabled |
-| Failure fallback | Theme gradient plus fog, optional props omitted | Same | Same | Same |
+| Dimension          | High                                            | Medium                           | Low                                 | Reduced motion override                |
+| ------------------ | ----------------------------------------------- | -------------------------------- | ----------------------------------- | -------------------------------------- |
+| Far field          | Highest approved panoramic variant              | Mid-resolution panoramic variant | Smallest approved panoramic variant | Same active variant, static            |
+| Near and mid field | Full approved prop clusters                     | Reduced cluster density          | Core silhouette props only          | Static props only                      |
+| Shadows            | Existing high-tier static shadow strategy       | Reduced existing shadow strategy | No environment shadows              | No additional animation-driven updates |
+| River              | Low-amplitude glazed color motion               | Lower-rate glazed color motion   | Static glazed surface               | Static glazed surface                  |
+| Ambient motion     | Scheduled flags and sparse dust                 | Lower cadence and density        | Disabled                            | Disabled                               |
+| Failure fallback   | Theme gradient plus fog, optional props omitted | Same                             | Same                                | Same                                   |
 
 Final panorama pixel dimensions and compressed byte targets are selected during U3 after visual comparison and browser memory evidence. R10 remains the owning total download and frame-time gate.
 
@@ -204,15 +204,15 @@ Final panorama pixel dimensions and compressed byte targets are selected during 
 
 ### Risks & Dependencies
 
-| Risk or dependency | Impact | Mitigation |
-| --- | --- | --- |
-| Existing p95 already misses 16.7 ms | New scene can deepen the performance deficit | Measure after each environment layer; merge or instance props; remove old passes before adding new ones; keep R10 as a hard exit gate. |
-| 360° panorama seam or wrong horizon | Black-side view and巡游 reveal the backdrop trick | Review both sides and controlled rotation before approving the source; keep major landmarks away from the seam. |
-| Warm palette reduces faction or marker contrast | Players misread pieces and legal states | Reserve cinnabar and verdigris for factions; use luminance and shape differences for markers; verify grayscale and WCAG contrast. |
-| Decorative geometry intercepts raycasts | Valid board clicks fail intermittently | Disable raycast on environment nodes and rerun red/black desktop and touch pointer flows. |
-| Quality switching retains multiple environments | GPU resources grow during a long match | Load active variants on demand, dispose replaced textures and geometry, and assert high→low→high resource stability. |
-| Optional asset failure reaches Canvas boundary | A decorative problem hides the whole game | Apply KTD5 and add route-failure browser tests before visual sign-off. |
-| External historical references are over-literal or copied | Art direction becomes museum reconstruction or creates licensing risk | Translate only shapes, layouts and palettes into original assets; keep source and authorization records per R12. |
+| Risk or dependency                                        | Impact                                                                | Mitigation                                                                                                                             |
+| --------------------------------------------------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Existing p95 already misses 16.7 ms                       | New scene can deepen the performance deficit                          | Measure after each environment layer; merge or instance props; remove old passes before adding new ones; keep R10 as a hard exit gate. |
+| 360° panorama seam or wrong horizon                       | Black-side view and巡游 reveal the backdrop trick                     | Review both sides and controlled rotation before approving the source; keep major landmarks away from the seam.                        |
+| Warm palette reduces faction or marker contrast           | Players misread pieces and legal states                               | Reserve cinnabar and verdigris for factions; use luminance and shape differences for markers; verify grayscale and WCAG contrast.      |
+| Decorative geometry intercepts raycasts                   | Valid board clicks fail intermittently                                | Disable raycast on environment nodes and rerun red/black desktop and touch pointer flows.                                              |
+| Quality switching retains multiple environments           | GPU resources grow during a long match                                | Load active variants on demand, dispose replaced textures and geometry, and assert high→low→high resource stability.                   |
+| Optional asset failure reaches Canvas boundary            | A decorative problem hides the whole game                             | Apply KTD5 and add route-failure browser tests before visual sign-off.                                                                 |
+| External historical references are over-literal or copied | Art direction becomes museum reconstruction or creates licensing risk | Translate only shapes, layouts and palettes into original assets; keep source and authorization records per R12.                       |
 
 ---
 
@@ -402,17 +402,17 @@ Final panorama pixel dimensions and compressed byte targets are selected during 
 
 ## Verification Contract
 
-| Command | Purpose | Exit gate |
-| --- | --- | --- |
-| `npm run typecheck` | Validate TypeScript contracts across theme, quality and scene composition. | No type errors. |
-| `npm run lint` | Validate React, hooks, JSX and accessibility conventions. | No lint errors or new ignored rules. |
-| `npm run test:unit` | Regress rules, game and presentation behavior. | All existing suites pass without changed rule expectations. |
-| `npm run test:runtime` | Validate palette, quality, coordinates, board geometry and resource lifecycle contracts. | All runtime suites pass, including monotonic environment tiers and stable coordinate mapping. |
-| `npm test` | Build the production worker and run SSR/scene wiring smoke checks. | Production build succeeds and HTML names the Qin diorama while preserving controls. |
-| `npm run test:e2e` | Exercise full browser gameplay, input, save, resilience and mobile flows. | All Chromium projects pass, including optional environment degradation. |
-| `npm run test:visual:update` followed by `npm run test:visual` | Approve intentional baselines, then prove deterministic rendering. | Clean comparison passes at the repository pixel threshold after review. |
-| `npm run test:budget` | Measure runtime character and environment assets. | Character budgets stay intact and active environment assets keep first playable within R10. |
-| `npm run test:performance:headed` | Measure visible production Chromium rendering. | Stationary draw calls ≤100, peak ≤160, p95 frame interval ≤16.7 ms, and first playable ≤12 MiB. |
+| Command                                                        | Purpose                                                                                  | Exit gate                                                                                       |
+| -------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `npm run typecheck`                                            | Validate TypeScript contracts across theme, quality and scene composition.               | No type errors.                                                                                 |
+| `npm run lint`                                                 | Validate React, hooks, JSX and accessibility conventions.                                | No lint errors or new ignored rules.                                                            |
+| `npm run test:unit`                                            | Regress rules, game and presentation behavior.                                           | All existing suites pass without changed rule expectations.                                     |
+| `npm run test:runtime`                                         | Validate palette, quality, coordinates, board geometry and resource lifecycle contracts. | All runtime suites pass, including monotonic environment tiers and stable coordinate mapping.   |
+| `npm test`                                                     | Build the production worker and run SSR/scene wiring smoke checks.                       | Production build succeeds and HTML names the Qin diorama while preserving controls.             |
+| `npm run test:e2e`                                             | Exercise full browser gameplay, input, save, resilience and mobile flows.                | All Chromium projects pass, including optional environment degradation.                         |
+| `npm run test:visual:update` followed by `npm run test:visual` | Approve intentional baselines, then prove deterministic rendering.                       | Clean comparison passes at the repository pixel threshold after review.                         |
+| `npm run test:budget`                                          | Measure runtime character and environment assets.                                        | Character budgets stay intact and active environment assets keep first playable within R10.     |
+| `npm run test:performance:headed`                              | Measure visible production Chromium rendering.                                           | Stationary draw calls ≤100, peak ≤160, p95 frame interval ≤16.7 ms, and first playable ≤12 MiB. |
 
 Target-device follow-up remains required for a modern mid/high-end phone: 390 × 844 layout, p95 frame interval ≤33.3 ms, stable touch picking, and no GPU-context instability during quality switching.
 
@@ -432,11 +432,11 @@ Target-device follow-up remains required for a modern mid/high-end phone: 390 ×
 
 ### Per-Unit Completion
 
-| Unit | Done signal |
-| --- | --- |
-| U1 | One tested theme and environment-quality contract drives scene and UI semantics. |
-| U2 | The Qin terracotta board passes topology/coordinate tests and the board-only visual slice is approved. |
-| U3 | The hybrid environment works from both sides, degrades locally and stays inside the interim rendering budget. |
-| U4 | Camera, markers and VFX fit the new scene while pointer, touch and presentation behavior stay unchanged. |
-| U5 | Every HUD state and public page surface uses the new theme without functional or accessibility regression. |
-| U6 | Behavioral, visual, resilience, lifecycle, download and headed performance gates pass with final evidence recorded. |
+| Unit | Done signal                                                                                                         |
+| ---- | ------------------------------------------------------------------------------------------------------------------- |
+| U1   | One tested theme and environment-quality contract drives scene and UI semantics.                                    |
+| U2   | The Qin terracotta board passes topology/coordinate tests and the board-only visual slice is approved.              |
+| U3   | The hybrid environment works from both sides, degrades locally and stays inside the interim rendering budget.       |
+| U4   | Camera, markers and VFX fit the new scene while pointer, touch and presentation behavior stay unchanged.            |
+| U5   | Every HUD state and public page surface uses the new theme without functional or accessibility regression.          |
+| U6   | Behavioral, visual, resilience, lifecycle, download and headed performance gates pass with final evidence recorded. |

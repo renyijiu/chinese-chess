@@ -17,7 +17,8 @@ const io = new NodeIO()
   .registerDependencies({ "meshopt.encoder": MeshoptEncoder });
 const document = await io.read(input);
 await document.transform(reorder({ encoder: MeshoptEncoder, target: "size" }));
-document.createExtension(EXTMeshoptCompression)
+document
+  .createExtension(EXTMeshoptCompression)
   .setRequired(true)
   // QUANTIZE here names Meshopt's lossless byte-stream path; this script does
   // not run glTF Transform's quantize() transform, so meter-scale POSITION and

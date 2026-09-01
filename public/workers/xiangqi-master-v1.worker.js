@@ -28,7 +28,8 @@ async function boot(message) {
   const pthreadUrl = assetUrl(message.assets.pthread, "text/javascript");
   try {
     importScripts(glueUrl);
-    if (typeof self.Stockfish !== "function") throw new Error("Stockfish factory was not installed.");
+    if (typeof self.Stockfish !== "function")
+      throw new Error("Stockfish factory was not installed.");
     engine = await self.Stockfish({
       // Pthread workers must import the same verified glue bytes. Without this,
       // Emscripten sees an importScripts-loaded blob with no document script URL

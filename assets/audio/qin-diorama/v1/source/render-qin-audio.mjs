@@ -47,16 +47,26 @@ function interleave(channels) {
 }
 
 function encodeFlac(channels, outputPath) {
-  runFfmpeg([
-    "-f", "f32le",
-    "-ar", String(SAMPLE_RATE),
-    "-ac", String(channels.length),
-    "-i", "pipe:0",
-    "-map_metadata", "-1",
-    "-c:a", "flac",
-    "-compression_level", "8",
-    outputPath,
-  ], interleave(channels));
+  runFfmpeg(
+    [
+      "-f",
+      "f32le",
+      "-ar",
+      String(SAMPLE_RATE),
+      "-ac",
+      String(channels.length),
+      "-i",
+      "pipe:0",
+      "-map_metadata",
+      "-1",
+      "-c:a",
+      "flac",
+      "-compression_level",
+      "8",
+      outputPath,
+    ],
+    interleave(channels),
+  );
 }
 
 function writePcm16Wav(samples, outputPath) {
@@ -111,24 +121,38 @@ function fadeOut(time, duration, tail = 0.05) {
 
 function addClay(target, start, frequency, amplitude = 0.16, decay = 1.45) {
   const duration = Math.min(3.2, decay * 4.4);
-  const modes = [[1, 1], [2.18, 0.42], [3.07, 0.22], [4.73, 0.1]];
+  const modes = [
+    [1, 1],
+    [2.18, 0.42],
+    [3.07, 0.22],
+    [4.73, 0.1],
+  ];
   addLoopEvent(target, start, duration, (time) => {
     const envelope = strikeEnvelope(time, 0.0035, decay) * fadeOut(time, duration);
-    const body = modes.reduce((sum, [ratio, weight], index) => (
-      sum + Math.sin(TAU * frequency * ratio * time + index * 0.37) * weight
-    ), 0);
+    const body = modes.reduce(
+      (sum, [ratio, weight], index) =>
+        sum + Math.sin(TAU * frequency * ratio * time + index * 0.37) * weight,
+      0,
+    );
     return amplitude * envelope * body;
   });
 }
 
 function addBronze(target, start, frequency, amplitude = 0.08, decay = 1.8) {
   const duration = Math.min(4, decay * 4.5);
-  const modes = [[1, 0.8], [2.67, 0.42], [4.13, 0.21], [5.71, 0.09]];
+  const modes = [
+    [1, 0.8],
+    [2.67, 0.42],
+    [4.13, 0.21],
+    [5.71, 0.09],
+  ];
   addLoopEvent(target, start, duration, (time) => {
     const envelope = strikeEnvelope(time, 0.002, decay) * fadeOut(time, duration);
-    const body = modes.reduce((sum, [ratio, weight], index) => (
-      sum + Math.sin(TAU * frequency * ratio * time + index * 0.81) * weight
-    ), 0);
+    const body = modes.reduce(
+      (sum, [ratio, weight], index) =>
+        sum + Math.sin(TAU * frequency * ratio * time + index * 0.81) * weight,
+      0,
+    );
     return amplitude * envelope * body;
   });
 }
@@ -141,8 +165,9 @@ function addBreathTone(target, start, duration, frequency, amplitude = 0.055, se
     const exit = Math.min(1, (duration - time) / 0.4);
     const envelope = Math.max(0, Math.min(entrance, exit));
     const vibrato = 0.018 * Math.sin(TAU * 4.4 * time);
-    const tone = Math.sin(TAU * frequency * time + vibrato)
-      + 0.22 * Math.sin(TAU * frequency * 2.01 * time + 0.4);
+    const tone =
+      Math.sin(TAU * frequency * time + vibrato) +
+      0.22 * Math.sin(TAU * frequency * 2.01 * time + 0.4);
     return amplitude * envelope * (tone + smoothedNoise * 0.38);
   });
 }
@@ -158,11 +183,16 @@ function addDrum(target, start, amplitude = 0.15, pitch = 58) {
 }
 
 function addWood(target, start, amplitude = 0.065) {
-  addLoopEvent(target, start, 0.16, (time, frame) => (
-    amplitude * Math.exp(-time * 34)
-      * (Math.sin(TAU * 710 * time) + deterministicNoise(frame, 73) * 0.24)
-      * fadeOut(time, 0.16, 0.02)
-  ));
+  addLoopEvent(
+    target,
+    start,
+    0.16,
+    (time, frame) =>
+      amplitude *
+      Math.exp(-time * 34) *
+      (Math.sin(TAU * 710 * time) + deterministicNoise(frame, 73) * 0.24) *
+      fadeOut(time, 0.16, 0.02),
+  );
 }
 
 function renderMusicLoops() {
@@ -174,10 +204,44 @@ function renderMusicLoops() {
   };
   const scale = [73.42, 87.31, 98, 110, 130.81];
   const phrases = [
-    { clay: [0, 2, 1, 3, 2, 4, 1], bronze: [[6, 2], [14, 3]], breath: [[10, 3.6, 2]], notes: [0, 1, 2, 0, 3, 2, 1] },
-    { clay: [2, 4, 3, 1, 4, 2, 0], bronze: [[1, 4], [7, 3], [13, 2]], breath: [[4, 4.2, 3]], notes: [2, 3, 4, 2, 1, 3, 0] },
-    { clay: [1, 3, 0, 2, 4, 1, 2], bronze: [[12, 1]], breath: [[1, 5.5, 4], [9, 4.8, 2]], notes: [1, 2, 0, 1, 3, 4, 2] },
-    { clay: [0, 2, 4, 3, 1, 2, 0], bronze: [[4, 0], [10, 2], [15, 0]], breath: [[6, 3.8, 1]], notes: [0, 1, 3, 2, 0, 1, 0] },
+    {
+      clay: [0, 2, 1, 3, 2, 4, 1],
+      bronze: [
+        [6, 2],
+        [14, 3],
+      ],
+      breath: [[10, 3.6, 2]],
+      notes: [0, 1, 2, 0, 3, 2, 1],
+    },
+    {
+      clay: [2, 4, 3, 1, 4, 2, 0],
+      bronze: [
+        [1, 4],
+        [7, 3],
+        [13, 2],
+      ],
+      breath: [[4, 4.2, 3]],
+      notes: [2, 3, 4, 2, 1, 3, 0],
+    },
+    {
+      clay: [1, 3, 0, 2, 4, 1, 2],
+      bronze: [[12, 1]],
+      breath: [
+        [1, 5.5, 4],
+        [9, 4.8, 2],
+      ],
+      notes: [1, 2, 0, 1, 3, 4, 2],
+    },
+    {
+      clay: [0, 2, 4, 3, 1, 2, 0],
+      bronze: [
+        [4, 0],
+        [10, 2],
+        [15, 0],
+      ],
+      breath: [[6, 3.8, 1]],
+      notes: [0, 1, 3, 2, 0, 1, 0],
+    },
   ];
   const beatPositions = [0, 2, 4, 7, 9, 12, 14];
 
@@ -187,15 +251,39 @@ function renderMusicLoops() {
     for (let index = 0; index < beatPositions.length; index += 1) {
       const start = phraseStart + beatPositions[index];
       const frequency = scale[phrase.notes[index]];
-      addClay(stems.clay, start, frequency, phraseIndex === 2 ? 0.11 : 0.145, 1.2 + (index % 3) * 0.16);
+      addClay(
+        stems.clay,
+        start,
+        frequency,
+        phraseIndex === 2 ? 0.11 : 0.145,
+        1.2 + (index % 3) * 0.16,
+      );
     }
     for (const [beat, note] of phrase.bronze) {
-      addBronze(stems.bronze, phraseStart + beat, scale[note] * 2, phraseIndex === 1 ? 0.078 : 0.055, 1.5);
+      addBronze(
+        stems.bronze,
+        phraseStart + beat,
+        scale[note] * 2,
+        phraseIndex === 1 ? 0.078 : 0.055,
+        1.5,
+      );
     }
     for (const [beat, duration, note] of phrase.breath) {
-      addBreathTone(stems.breath, phraseStart + beat, duration, scale[note] * 2, 0.047, phraseIndex * 17 + note);
+      addBreathTone(
+        stems.breath,
+        phraseStart + beat,
+        duration,
+        scale[note] * 2,
+        0.047,
+        phraseIndex * 17 + note,
+      );
     }
-    addDrum(stems.ritual, phraseStart, phraseIndex === 3 ? 0.17 : 0.135, phraseIndex === 3 ? 52 : 58);
+    addDrum(
+      stems.ritual,
+      phraseStart,
+      phraseIndex === 3 ? 0.17 : 0.135,
+      phraseIndex === 3 ? 52 : 58,
+    );
     addDrum(stems.ritual, phraseStart + 8, 0.095, 62);
     addWood(stems.ritual, phraseStart + 4);
     addWood(stems.ritual, phraseStart + 12, 0.05);
@@ -227,14 +315,26 @@ function renderStereoMaster(stems) {
     const bronze = stems.bronze[phase];
     const breath = stems.breath[phase];
     const ritual = stems.ritual[phase];
-    left[frame] = Math.tanh((clay * 0.88 + delayed(stems.clay, phase, 19) * 0.12
-      + bronze * 0.78 + delayed(stems.bronze, phase, 43) * 0.2
-      + breath * 0.7 + delayed(stems.breath, phase, 97) * 0.28
-      + ritual * 0.92) * 0.84);
-    right[frame] = Math.tanh((clay * 0.76 + delayed(stems.clay, phase, 31) * 0.22
-      + bronze * 0.9 + delayed(stems.bronze, phase, 17) * 0.1
-      + breath * 0.82 + delayed(stems.breath, phase, 137) * 0.2
-      + ritual * 0.92) * 0.84);
+    left[frame] = Math.tanh(
+      (clay * 0.88 +
+        delayed(stems.clay, phase, 19) * 0.12 +
+        bronze * 0.78 +
+        delayed(stems.bronze, phase, 43) * 0.2 +
+        breath * 0.7 +
+        delayed(stems.breath, phase, 97) * 0.28 +
+        ritual * 0.92) *
+        0.84,
+    );
+    right[frame] = Math.tanh(
+      (clay * 0.76 +
+        delayed(stems.clay, phase, 31) * 0.22 +
+        bronze * 0.9 +
+        delayed(stems.bronze, phase, 17) * 0.1 +
+        breath * 0.82 +
+        delayed(stems.breath, phase, 137) * 0.2 +
+        ritual * 0.92) *
+        0.84,
+    );
   }
   return [left, right];
 }
@@ -253,9 +353,11 @@ function addCueResonator(target, start, duration, frequency, amplitude, ratios, 
   for (let frame = 0; frame < frames; frame += 1) {
     const time = frame / SAMPLE_RATE;
     const envelope = strikeEnvelope(time, 0.0025, decay) * fadeOut(time, duration, 0.04);
-    const value = ratios.reduce((sum, ratio, index) => (
-      sum + Math.sin(TAU * frequency * ratio * time + index * 0.52) / (1 + index * 0.8)
-    ), 0);
+    const value = ratios.reduce(
+      (sum, ratio, index) =>
+        sum + Math.sin(TAU * frequency * ratio * time + index * 0.52) / (1 + index * 0.8),
+      0,
+    );
     target[startFrame + frame] += amplitude * envelope * value;
   }
 }
@@ -273,11 +375,12 @@ function renderCue(id) {
     addCueResonator(output, 0, 0.72, 392, 0.25, [1, 2.67, 4.11], 0.2);
     addCueResonator(output, 0.18, 0.55, 523.25, 0.19, [1, 2.72, 4.03], 0.18);
   } else {
-    const notes = id === "victory"
-      ? [146.83, 174.61, 220, 261.63]
-      : id === "defeat"
-        ? [220, 196, 146.83, 110]
-        : [146.83, 196, 174.61, 146.83];
+    const notes =
+      id === "victory"
+        ? [146.83, 174.61, 220, 261.63]
+        : id === "defeat"
+          ? [220, 196, 146.83, 110]
+          : [146.83, 196, 174.61, 146.83];
     const starts = [0, 0.42, 0.86, 1.34];
     for (let index = 0; index < notes.length; index += 1) {
       addCueResonator(output, starts[index], 0.82, notes[index], 0.15, [1, 2.18, 3.08], 0.3);
@@ -294,11 +397,21 @@ function renderCue(id) {
 }
 
 function measureLoudness(path) {
-  const result = spawnSync("ffmpeg", [
-    "-hide_banner", "-nostats", "-i", path,
-    "-filter_complex", "ebur128=peak=true",
-    "-f", "null", "-",
-  ], { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
+  const result = spawnSync(
+    "ffmpeg",
+    [
+      "-hide_banner",
+      "-nostats",
+      "-i",
+      path,
+      "-filter_complex",
+      "ebur128=peak=true",
+      "-f",
+      "null",
+      "-",
+    ],
+    { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 },
+  );
   const output = `${result.stdout ?? ""}\n${result.stderr ?? ""}`;
   const integratedMatches = [...output.matchAll(/I:\s*(-?\d+(?:\.\d+)?) LUFS/g)];
   const peakMatches = [...output.matchAll(/Peak:\s*(-?\d+(?:\.\d+)?) dBFS/g)];
@@ -315,7 +428,9 @@ function render() {
   const temporaryDir = mkdtempSync(resolve(tmpdir(), "qin-audio-render-"));
   try {
     const stems = renderMusicLoops();
-    const expandedStems = Object.fromEntries(Object.entries(stems).map(([name, loop]) => [name, expandLoop(loop)]));
+    const expandedStems = Object.fromEntries(
+      Object.entries(stems).map(([name, loop]) => [name, expandLoop(loop)]),
+    );
     for (const [name, samples] of Object.entries(expandedStems)) {
       encodeFlac([samples], resolve(EXPORT_DIR, `qin-procession-v1-${name}.flac`));
     }
@@ -326,27 +441,44 @@ function render() {
     const gainDb = Math.min(-18 - initial.integratedLufs, -1 - initial.truePeakDb);
     const masterPath = resolve(EXPORT_DIR, "qin-procession-v1-master.flac");
     runFfmpeg([
-      "-i", premasterPath,
-      "-map_metadata", "-1",
-      "-af", `volume=${gainDb.toFixed(3)}dB`,
-      "-ar", String(SAMPLE_RATE),
-      "-ac", "2",
-      "-c:a", "flac",
-      "-compression_level", "8",
+      "-i",
+      premasterPath,
+      "-map_metadata",
+      "-1",
+      "-af",
+      `volume=${gainDb.toFixed(3)}dB`,
+      "-ar",
+      String(SAMPLE_RATE),
+      "-ac",
+      "2",
+      "-c:a",
+      "flac",
+      "-compression_level",
+      "8",
       masterPath,
     ]);
 
     runFfmpeg([
-      "-i", masterPath,
-      "-map_metadata", "-1",
-      "-c:a", "libmp3lame",
-      "-b:a", "128k",
-      "-ar", String(SAMPLE_RATE),
-      "-ac", "2",
-      "-id3v2_version", "3",
-      "-metadata", "title=Terracotta Procession",
-      "-metadata", "artist=Chinese Chess 3D project",
-      "-metadata", "comment=Qin-inspired visual fantasy; not historical reconstruction",
+      "-i",
+      masterPath,
+      "-map_metadata",
+      "-1",
+      "-c:a",
+      "libmp3lame",
+      "-b:a",
+      "128k",
+      "-ar",
+      String(SAMPLE_RATE),
+      "-ac",
+      "2",
+      "-id3v2_version",
+      "3",
+      "-metadata",
+      "title=Terracotta Procession",
+      "-metadata",
+      "artist=Chinese Chess 3D project",
+      "-metadata",
+      "comment=Qin-inspired visual fantasy; not historical reconstruction",
       resolve(RUNTIME_DIR, "qin-procession-v1.mp3"),
     ]);
 
@@ -367,7 +499,9 @@ function render() {
     const report = {
       schema: "xiangqi-audio-render-report/v1",
       renderer: "render-qin-audio.mjs",
-      sessionSha256: createHash("sha256").update(readFileSync(resolve(SOURCE_DIR, "session.json"))).digest("hex"),
+      sessionSha256: createHash("sha256")
+        .update(readFileSync(resolve(SOURCE_DIR, "session.json")))
+        .digest("hex"),
       sampleRate: SAMPLE_RATE,
       durationSeconds: DURATION_SECONDS,
       loop: { startSeconds: LOOP_START_SECONDS, endSeconds: LOOP_START_SECONDS + LOOP_SECONDS },
@@ -375,7 +509,10 @@ function render() {
       appliedStaticGainDb: Number(gainDb.toFixed(3)),
       note: "Automated meter evidence only; human listening approval remains required.",
     };
-    writeFileSync(resolve(SOURCE_DIR, "render-report.json"), `${JSON.stringify(report, null, 2)}\n`);
+    writeFileSync(
+      resolve(SOURCE_DIR, "render-report.json"),
+      `${JSON.stringify(report, null, 2)}\n`,
+    );
     console.log(JSON.stringify(report, null, 2));
   } finally {
     rmSync(temporaryDir, { force: true, recursive: true });

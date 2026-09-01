@@ -17,9 +17,18 @@
     "editableMasterSha256": "cd9437f2fc140aafeb0f0869b6ba1e28ccd561fb430fd47a6133f5c9f02fe9ba"
   },
   "derivedRawLods": {
-    "lod0": { "path": "assets/characters/soldier/exports/soldier-lod0-raw.glb", "sha256": "f958e432a635c76cf9fa0c1aac6e461a95974a646c2d90c96268c9598f9df7d9" },
-    "lod1": { "path": "assets/characters/soldier/exports/soldier-lod1-raw.glb", "sha256": "3c59a73e2ec1abae77b89fe42291f58538d59e68e647a46b8780031c6ecde539" },
-    "lod2": { "path": "assets/characters/soldier/exports/soldier-lod2-raw.glb", "sha256": "bbc39ca7082cd7a35864edeb2fbf4715d577be199e06b495ba86e0f3db8e5311" }
+    "lod0": {
+      "path": "assets/characters/soldier/exports/soldier-lod0-raw.glb",
+      "sha256": "f958e432a635c76cf9fa0c1aac6e461a95974a646c2d90c96268c9598f9df7d9"
+    },
+    "lod1": {
+      "path": "assets/characters/soldier/exports/soldier-lod1-raw.glb",
+      "sha256": "3c59a73e2ec1abae77b89fe42291f58538d59e68e647a46b8780031c6ecde539"
+    },
+    "lod2": {
+      "path": "assets/characters/soldier/exports/soldier-lod2-raw.glb",
+      "sha256": "bbc39ca7082cd7a35864edeb2fbf4715d577be199e06b495ba86e0f3db8e5311"
+    }
   },
   "sourceCommit": "96cadeb",
   "derivationMode": "authoritative-import",

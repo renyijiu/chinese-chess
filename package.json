@@ -1,8 +1,8 @@
 {
   "name": "chinese-chess-3d-web",
   "version": "0.1.0",
-  "description": "Browser-based 3D Xiangqi with local play, client-side AI, and optional WebRTC friend matches.",
   "private": true,
+  "description": "Browser-based 3D Xiangqi with local play, client-side AI, and optional WebRTC friend matches.",
   "keywords": [
     "chinese-chess",
     "react",
@@ -12,18 +12,16 @@
     "webrtc",
     "xiangqi"
   ],
+  "homepage": "https://github.com/renyijiu/chinese-chess#readme",
+  "bugs": {
+    "url": "https://github.com/renyijiu/chinese-chess/issues"
+  },
   "license": "GPL-3.0-only",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/renyijiu/chinese-chess.git"
   },
-  "bugs": {
-    "url": "https://github.com/renyijiu/chinese-chess/issues"
-  },
-  "homepage": "https://github.com/renyijiu/chinese-chess#readme",
-  "engines": {
-    "node": ">=22.13.0"
-  },
+  "type": "module",
   "scripts": {
     "dev": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext dev",
     "prebuild": "npm run assets:ai:validate && npm run security:metadata",
@@ -66,7 +64,9 @@
     "test:performance:headed": "RUN_RENDER_PERFORMANCE=1 PLAYWRIGHT_MEASUREMENT_MODE='Visible Chromium rendered-frame interval; not CPU time or GPU render duration' playwright test tests/e2e/performance.spec.ts --config playwright.performance.config.ts --project desktop-chromium --headed",
     "test:budget": "node scripts/verify-runtime-budgets.mjs && node scripts/verify-audio-assets.mjs && node scripts/verify-ai-engine-assets.mjs",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern output"
+    "lint": "oxlint",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.8",
@@ -80,9 +80,7 @@
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.54.1",
-    "@eslint/js": "9.39.4",
     "@gltf-transform/cli": "^4.4.2",
-    "@next/eslint-plugin-next": "16.3.3",
     "@openai/sites-vite-plugin": "0.2.0",
     "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "4.3.3",
@@ -92,15 +90,12 @@
     "@types/react-dom": "19.2.5",
     "@vitejs/plugin-react": "6.1.1",
     "@vitejs/plugin-rsc": "0.5.34",
-    "eslint": "9.39.4",
-    "eslint-plugin-jsx-a11y": "6.10.2",
-    "eslint-plugin-react": "7.37.5",
-    "eslint-plugin-react-hooks": "7.1.1",
-    "globals": "16.4.0",
+    "oxfmt": "0.65.0",
+    "oxlint": "1.80.0",
+    "oxlint-tsgolint": "7.0.2001",
     "react-server-dom-webpack": "19.2.8",
     "tailwindcss": "4.3.3",
-    "typescript": "5.9.3",
-    "typescript-eslint": "8.68.0",
+    "typescript": "7.0.2",
     "vinext": "1.0.0-beta.8",
     "vite": "8.2.2",
     "vitest": "^4.0.18",
@@ -111,5 +106,7 @@
       "sharp": "0.35.3"
     }
   },
-  "type": "module"
+  "engines": {
+    "node": ">=22.13.0"
+  }
 }

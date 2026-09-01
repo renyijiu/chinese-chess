@@ -5,14 +5,16 @@ import { describe, expect, it } from "vitest";
 import { GameMenu } from "../../../components/xiangqi/hud/GameHud";
 
 function renderMenu(onlineEnabled: boolean, resumeMode?: "online") {
-  return renderToStaticMarkup(createElement(GameMenu, {
-    hasSave: Boolean(resumeMode),
-    loading: false,
-    onlineEnabled,
-    resumeMode,
-    onContinue: () => undefined,
-    onStart: () => undefined,
-  }));
+  return renderToStaticMarkup(
+    createElement(GameMenu, {
+      hasSave: Boolean(resumeMode),
+      loading: false,
+      onlineEnabled,
+      resumeMode,
+      onContinue: () => undefined,
+      onStart: () => undefined,
+    }),
+  );
 }
 
 describe("GameMenu online entry", () => {

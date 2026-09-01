@@ -15,10 +15,7 @@ if (COMBAT_VFX_RING_OUTER_RADIUS >= BOARD_SPACING / 2) {
   throw new Error("Combat VFX must not cover an adjacent board intersection");
 }
 
-export function elevatedSquareToWorld(
-  square: BoardSquare,
-  height: number,
-): WorldPosition {
+export function elevatedSquareToWorld(square: BoardSquare, height: number): WorldPosition {
   const [x, y, z] = squareToWorld(square);
   return [x, y + Math.max(0, height), z];
 }

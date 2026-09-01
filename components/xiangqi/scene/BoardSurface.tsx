@@ -1,17 +1,21 @@
 "use client";
 
-/* eslint-disable react/no-unknown-property -- R3F scene graph props are valid custom JSX properties. */
+/* oxlint-disable react/no-unknown-property -- R3F scene graph props are valid custom JSX properties. */
 
 import { RoundedBox } from "@react-three/drei";
-import { Component, useCallback, useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
+import {
+  Component,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  type ReactNode,
+} from "react";
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 
-import {
-  BOARD_FILE_POSITIONS,
-  BOARD_SPACING,
-  BOARD_SURFACE_Y,
-} from "../runtime/board-coordinates";
+import { BOARD_FILE_POSITIONS, BOARD_SPACING, BOARD_SURFACE_Y } from "../runtime/board-coordinates";
 import { useScheduledFrame } from "../runtime/FrameScheduler";
 import { isTestFaultEnabled } from "../runtime/test-faults";
 import {
@@ -32,13 +36,8 @@ const TILE_TOP_Y = BOARD_SURFACE_Y - 0.035;
 function QinClayTiles({ castShadow = true }: { castShadow?: boolean }) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const geometry = useMemo(
-    () => new RoundedBoxGeometry(
-      BOARD_SPACING - 0.065,
-      TILE_HEIGHT,
-      BOARD_SPACING - 0.065,
-      2,
-      0.075,
-    ),
+    () =>
+      new RoundedBoxGeometry(BOARD_SPACING - 0.065, TILE_HEIGHT, BOARD_SPACING - 0.065, 2, 0.075),
     [],
   );
   const tiles = useMemo(() => makeClayTilePlacements(), []);
@@ -68,10 +67,7 @@ function QinClayTiles({ castShadow = true }: { castShadow?: boolean }) {
       raycast={() => null}
       receiveShadow
     >
-      <meshStandardMaterial
-        color={QIN_DIORAMA_THEME.materials.firedClay}
-        roughness={0.92}
-      />
+      <meshStandardMaterial color={QIN_DIORAMA_THEME.materials.firedClay} roughness={0.92} />
     </instancedMesh>
   );
 }
@@ -155,10 +151,13 @@ const glazeFragmentShader = `
   }
 `;
 
-class OptionalRiverBoundary extends Component<{
-  children: ReactNode;
-  onStatus: (status: EnvironmentLayerStatus) => void;
-}, { failed: boolean }> {
+class OptionalRiverBoundary extends Component<
+  {
+    children: ReactNode;
+    onStatus: (status: EnvironmentLayerStatus) => void;
+  },
+  { failed: boolean }
+> {
   state = { failed: false };
 
   static getDerivedStateFromError() {
@@ -220,10 +219,7 @@ function GlazedRiver({
       },
       uGlintColor: { value: new THREE.Color(materials.chalk) },
       uShallowColor: {
-        value: new THREE.Color(accents.mineralBlue).lerp(
-          new THREE.Color(accents.verdigris),
-          0.38,
-        ),
+        value: new THREE.Color(accents.mineralBlue).lerp(new THREE.Color(accents.verdigris), 0.38),
       },
       uTime: { value: 0 },
     };
@@ -271,7 +267,13 @@ function GlazedRiver({
   );
 }
 
-function RiverInscription({ position, text }: { position: [number, number, number]; text: string }) {
+function RiverInscription({
+  position,
+  text,
+}: {
+  position: [number, number, number];
+  text: string;
+}) {
   const materialRef = useRef<THREE.MeshBasicMaterial>(null);
   useEffect(() => {
     const canvas = document.createElement("canvas");
@@ -367,10 +369,7 @@ function QinDoubleEnclosure({ castShadow }: { castShadow: boolean }) {
         raycast={() => null}
         receiveShadow
       >
-        <meshStandardMaterial
-          color={QIN_DIORAMA_THEME.materials.firedClayLight}
-          roughness={0.93}
-        />
+        <meshStandardMaterial color={QIN_DIORAMA_THEME.materials.firedClayLight} roughness={0.93} />
       </instancedMesh>
     </group>
   );

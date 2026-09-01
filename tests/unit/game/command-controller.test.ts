@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  createInitialGame,
-  dispatch,
-  type GameCommand,
-} from "../../../lib/xiangqi/index";
+import { createInitialGame, dispatch, type GameCommand } from "../../../lib/xiangqi/index";
 import {
   canIssueHumanCommand,
   deriveBoardCommandsLocked,
@@ -24,7 +20,9 @@ import {
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((next) => { resolve = next; });
+  const promise = new Promise<T>((next) => {
+    resolve = next;
+  });
   return { promise, resolve };
 }
 
@@ -60,8 +58,12 @@ function gateHarness(initial: SavedMatch, settle?: (commit: CommandCommit) => Pr
     gate,
     commits,
     busy,
-    get current() { return current; },
-    replace(next: SavedMatch) { current = next; },
+    get current() {
+      return current;
+    },
+    replace(next: SavedMatch) {
+      current = next;
+    },
   };
 }
 
@@ -77,7 +79,9 @@ describe("AuthoritativeCommandGate", () => {
     expect(harness.gate.busy).toBe(true);
 
     let receiptSettled = false;
-    void receiptPromise.then(() => { receiptSettled = true; });
+    void receiptPromise.then(() => {
+      receiptSettled = true;
+    });
     await Promise.resolve();
     expect(receiptSettled).toBe(false);
 
@@ -93,14 +97,18 @@ describe("AuthoritativeCommandGate", () => {
   it("rejects illegal and stale commands without exposing a commit or lock", async () => {
     const harness = gateHarness(createLocalMatch());
 
-    await expect(harness.gate.execute({
-      type: "move",
-      expectedRevision: 0,
-      from: { file: 0, rank: 3 },
-      to: { file: 1, rank: 4 },
-    })).resolves.toMatchObject({ status: "rejected", error: { code: "illegal-move" } });
-    await expect(harness.gate.execute(redSoldierMove(9)))
-      .resolves.toMatchObject({ status: "rejected", error: { code: "stale-revision" } });
+    await expect(
+      harness.gate.execute({
+        type: "move",
+        expectedRevision: 0,
+        from: { file: 0, rank: 3 },
+        to: { file: 1, rank: 4 },
+      }),
+    ).resolves.toMatchObject({ status: "rejected", error: { code: "illegal-move" } });
+    await expect(harness.gate.execute(redSoldierMove(9))).resolves.toMatchObject({
+      status: "rejected",
+      error: { code: "stale-revision" },
+    });
     expect(harness.commits).toHaveLength(0);
     expect(harness.busy).toEqual([]);
   });
@@ -111,12 +119,14 @@ describe("AuthoritativeCommandGate", () => {
     if (moved.error) throw new Error("fixture move must be legal");
     harness.replace(createLocalMatch(moved.state));
 
-    await expect(harness.gate.execute({
-      type: "move",
-      expectedRevision: 1,
-      from: { file: 0, rank: 6 },
-      to: { file: 0, rank: 5 },
-    })).resolves.toMatchObject({ status: "committed", beforeRevision: 1, afterRevision: 2 });
+    await expect(
+      harness.gate.execute({
+        type: "move",
+        expectedRevision: 1,
+        from: { file: 0, rank: 6 },
+        to: { file: 0, rank: 5 },
+      }),
+    ).resolves.toMatchObject({ status: "committed", beforeRevision: 1, afterRevision: 2 });
     expect(harness.current.game.revision).toBe(2);
   });
 
@@ -155,7 +165,9 @@ describe("AuthoritativeCommandGate", () => {
     await Promise.resolve();
 
     let idle = false;
-    const wait = harness.gate.whenIdle().then(() => { idle = true; });
+    const wait = harness.gate.whenIdle().then(() => {
+      idle = true;
+    });
     await Promise.resolve();
     expect(idle).toBe(false);
     settled.resolve();
@@ -183,8 +195,7 @@ describe("AuthoritativeCommandGate", () => {
     expect(harness.commits).toHaveLength(3);
     const captureCommit = harness.commits[2];
     if (!captureCommit) throw new Error("Expected the third commit to capture a piece");
-    expect(captureCommit.events.filter((event) => event.type === "PieceCaptured"))
-      .toHaveLength(1);
+    expect(captureCommit.events.filter((event) => event.type === "PieceCaptured")).toHaveLength(1);
   });
 });
 
@@ -222,17 +233,25 @@ describe("computer controller policy", () => {
     expect(canIssueHumanCommand(computer, { type: "undo", expectedRevision: 0 })).toBe(false);
     const afterHuman = dispatch(computer.game, redSoldierMove());
     if (afterHuman.error) throw new Error("fixture move must be legal");
-    const opponentTurn = { ...computer, game: afterHuman.state, revision: afterHuman.state.revision };
-    expect(canIssueHumanCommand(opponentTurn, {
-      type: "resign",
-      expectedRevision: opponentTurn.revision,
-    })).toBe(false);
-    expect(canIssueHumanCommand(opponentTurn, {
-      type: "move",
-      expectedRevision: opponentTurn.revision,
-      from: { file: 0, rank: 6 },
-      to: { file: 0, rank: 5 },
-    })).toBe(false);
+    const opponentTurn = {
+      ...computer,
+      game: afterHuman.state,
+      revision: afterHuman.state.revision,
+    };
+    expect(
+      canIssueHumanCommand(opponentTurn, {
+        type: "resign",
+        expectedRevision: opponentTurn.revision,
+      }),
+    ).toBe(false);
+    expect(
+      canIssueHumanCommand(opponentTurn, {
+        type: "move",
+        expectedRevision: opponentTurn.revision,
+        from: { file: 0, rank: 6 },
+        to: { file: 0, rank: 5 },
+      }),
+    ).toBe(false);
   });
 
   it("gates online commands to the local side and forbids undo", () => {
@@ -257,39 +276,49 @@ describe("computer controller policy", () => {
       game: afterLocal.state,
       revision: afterLocal.state.revision,
     };
-    expect(canIssueHumanCommand(afterOnlineLocal, {
-      type: "resign",
-      expectedRevision: afterLocal.state.revision,
-      side: "red",
-    })).toBe(true);
-    expect(canIssueHumanCommand(afterOnlineLocal, {
-      type: "resign",
-      expectedRevision: afterLocal.state.revision,
-      side: "black",
-    })).toBe(false);
+    expect(
+      canIssueHumanCommand(afterOnlineLocal, {
+        type: "resign",
+        expectedRevision: afterLocal.state.revision,
+        side: "red",
+      }),
+    ).toBe(true);
+    expect(
+      canIssueHumanCommand(afterOnlineLocal, {
+        type: "resign",
+        expectedRevision: afterLocal.state.revision,
+        side: "black",
+      }),
+    ).toBe(false);
   });
 
   it("derives board-only locking without treating a ready human turn as locked", () => {
-    expect(deriveBoardCommandsLocked({
-      phase: "playing",
-      commandBusy: false,
-      computerOwnsTurn: false,
-      confirmationOpen: false,
-      terminal: false,
-    })).toBe(false);
-    expect(deriveBoardCommandsLocked({
-      phase: "playing",
-      commandBusy: false,
-      computerOwnsTurn: true,
-      confirmationOpen: false,
-      terminal: false,
-    })).toBe(true);
-    expect(deriveBoardCommandsLocked({
-      phase: "menu",
-      commandBusy: false,
-      computerOwnsTurn: false,
-      confirmationOpen: false,
-      terminal: false,
-    })).toBe(true);
+    expect(
+      deriveBoardCommandsLocked({
+        phase: "playing",
+        commandBusy: false,
+        computerOwnsTurn: false,
+        confirmationOpen: false,
+        terminal: false,
+      }),
+    ).toBe(false);
+    expect(
+      deriveBoardCommandsLocked({
+        phase: "playing",
+        commandBusy: false,
+        computerOwnsTurn: true,
+        confirmationOpen: false,
+        terminal: false,
+      }),
+    ).toBe(true);
+    expect(
+      deriveBoardCommandsLocked({
+        phase: "menu",
+        commandBusy: false,
+        computerOwnsTurn: false,
+        confirmationOpen: false,
+        terminal: false,
+      }),
+    ).toBe(true);
   });
 });

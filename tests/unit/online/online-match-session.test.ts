@@ -5,12 +5,7 @@ import {
   type OnlineMatchSessionOptions,
 } from "../../../components/xiangqi/online/OnlineMatchSession";
 import type { PeerConnectionPort } from "../../../components/xiangqi/online/PeerSession";
-import {
-  createInitialGame,
-  dispatch,
-  sha256Hex,
-  type GameState,
-} from "../../../lib/xiangqi/index";
+import { createInitialGame, dispatch, sha256Hex, type GameState } from "../../../lib/xiangqi/index";
 import {
   decodeOnlineMessageV1,
   encodeOnlineMessageV1,
@@ -47,8 +42,7 @@ class FakeEventTarget {
   }
 
   listenerCount(): number {
-    return [...this.#listeners.values()]
-      .reduce((total, listeners) => total + listeners.size, 0);
+    return [...this.#listeners.values()].reduce((total, listeners) => total + listeners.size, 0);
   }
 }
 
@@ -190,14 +184,18 @@ function createPair(hostInstallRematchGate?: Promise<void>): {
   host: SessionHarness;
   guest: SessionHarness;
 } {
-  const host = createSessionHarness({
-    role: "host",
-    sessionId: "session-1",
-    pairingId: "pairing-1",
-    matchId: "match-1",
-    localPeerId: "peer-host",
-    intent: "new",
-  }, true, hostInstallRematchGate);
+  const host = createSessionHarness(
+    {
+      role: "host",
+      sessionId: "session-1",
+      pairingId: "pairing-1",
+      matchId: "match-1",
+      localPeerId: "peer-host",
+      intent: "new",
+    },
+    true,
+    hostInstallRematchGate,
+  );
   const guest = createSessionHarness({
     role: "guest",
     sessionId: "session-1",
@@ -242,18 +240,22 @@ describe("OnlineMatchSession", () => {
     try {
       await exchangeSignals(host, guest);
 
-      expect(host.bindMatch).toHaveBeenCalledWith(expect.objectContaining({
-        localPeerId: "peer-host",
-        remotePeerId: "peer-guest",
-        signalingRole: "host",
-        localSide: "red",
-      }));
-      expect(guest.bindMatch).toHaveBeenCalledWith(expect.objectContaining({
-        localPeerId: "peer-guest",
-        remotePeerId: "peer-host",
-        signalingRole: "guest",
-        localSide: "black",
-      }));
+      expect(host.bindMatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          localPeerId: "peer-host",
+          remotePeerId: "peer-guest",
+          signalingRole: "host",
+          localSide: "red",
+        }),
+      );
+      expect(guest.bindMatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          localPeerId: "peer-guest",
+          remotePeerId: "peer-host",
+          signalingRole: "guest",
+          localSide: "black",
+        }),
+      );
       expect(host.session.getSnapshot().identity).toMatchObject({
         remotePeerId: "peer-guest",
         localSide: "red",
@@ -276,19 +278,23 @@ describe("OnlineMatchSession", () => {
       host.channel.open();
       guest.channel.open();
 
-      await expect.poll(() => [
-        host.session.getSnapshot().coordinator?.phase,
-        guest.session.getSnapshot().coordinator?.phase,
-      ]).toEqual(["awaiting-ready", "awaiting-ready"]);
+      await expect
+        .poll(() => [
+          host.session.getSnapshot().coordinator?.phase,
+          guest.session.getSnapshot().coordinator?.phase,
+        ])
+        .toEqual(["awaiting-ready", "awaiting-ready"]);
       expect(messages(host.channel).filter((message) => message.type === "hello")).toHaveLength(1);
       expect(messages(guest.channel).filter((message) => message.type === "hello")).toHaveLength(1);
 
       await expect(host.session.setLocalReady()).resolves.toEqual({ ok: true });
       await expect(guest.session.setLocalReady()).resolves.toEqual({ ok: true });
-      await expect.poll(() => [
-        host.session.getSnapshot().coordinator?.phase,
-        guest.session.getSnapshot().coordinator?.phase,
-      ]).toEqual(["playable", "playable"]);
+      await expect
+        .poll(() => [
+          host.session.getSnapshot().coordinator?.phase,
+          guest.session.getSnapshot().coordinator?.phase,
+        ])
+        .toEqual(["playable", "playable"]);
       expect(messages(host.channel).filter((message) => message.type === "ready")).toHaveLength(1);
       expect(messages(guest.channel).filter((message) => message.type === "ready")).toHaveLength(1);
     } finally {
@@ -304,40 +310,47 @@ describe("OnlineMatchSession", () => {
       guest.peerConnection.receiveDataChannel();
       host.channel.open();
       guest.channel.open();
-      await expect.poll(() => [
-        host.session.getSnapshot().coordinator?.phase,
-        guest.session.getSnapshot().coordinator?.phase,
-      ]).toEqual(["awaiting-ready", "awaiting-ready"]);
+      await expect
+        .poll(() => [
+          host.session.getSnapshot().coordinator?.phase,
+          guest.session.getSnapshot().coordinator?.phase,
+        ])
+        .toEqual(["awaiting-ready", "awaiting-ready"]);
       await host.session.setLocalReady();
       await guest.session.setLocalReady();
       await expect.poll(() => host.session.getSnapshot().coordinator?.phase).toBe("playable");
 
       host.peerConnection.setConnectionState("disconnected");
-      await expect.poll(() => host.session.getSnapshot()).toMatchObject({
-        peer: { phase: "disconnected-grace" },
-        coordinator: {
-          phase: "stalled",
-          control: { transportAvailable: false },
-          issue: { kind: "transport-unavailable" },
-        },
-        reconnectRequired: false,
-      });
+      await expect
+        .poll(() => host.session.getSnapshot())
+        .toMatchObject({
+          peer: { phase: "disconnected-grace" },
+          coordinator: {
+            phase: "stalled",
+            control: { transportAvailable: false },
+            issue: { kind: "transport-unavailable" },
+          },
+          reconnectRequired: false,
+        });
 
       host.peerConnection.setConnectionState("connected");
-      await expect.poll(() => host.session.getSnapshot().coordinator?.control.transportAvailable)
+      await expect
+        .poll(() => host.session.getSnapshot().coordinator?.control.transportAvailable)
         .toBe(true);
       await expect.poll(() => host.session.getSnapshot().coordinator?.phase).toBe("playable");
       expect(host.peerConnection.closeCalls).toBe(0);
 
       host.peerConnection.setConnectionState("failed");
-      await expect.poll(() => host.session.getSnapshot()).toMatchObject({
-        peer: { phase: "failed" },
-        coordinator: {
-          phase: "stalled",
-          control: { transportAvailable: false },
-        },
-        reconnectRequired: true,
-      });
+      await expect
+        .poll(() => host.session.getSnapshot())
+        .toMatchObject({
+          peer: { phase: "failed" },
+          coordinator: {
+            phase: "stalled",
+            control: { transportAvailable: false },
+          },
+          reconnectRequired: true,
+        });
     } finally {
       host.session.dispose();
       guest.session.dispose();
@@ -351,10 +364,12 @@ describe("OnlineMatchSession", () => {
       guest.peerConnection.receiveDataChannel();
       host.channel.open();
       guest.channel.open();
-      await expect.poll(() => [
-        host.session.getSnapshot().coordinator?.phase,
-        guest.session.getSnapshot().coordinator?.phase,
-      ]).toEqual(["awaiting-ready", "awaiting-ready"]);
+      await expect
+        .poll(() => [
+          host.session.getSnapshot().coordinator?.phase,
+          guest.session.getSnapshot().coordinator?.phase,
+        ])
+        .toEqual(["awaiting-ready", "awaiting-ready"]);
       await host.session.setLocalReady();
       await guest.session.setLocalReady();
       await expect.poll(() => host.session.getSnapshot().coordinator?.phase).toBe("playable");
@@ -365,31 +380,53 @@ describe("OnlineMatchSession", () => {
       expect(retiredFrame).toBeTruthy();
 
       await expect(guest.session.submitLocalResign()).resolves.toEqual({ ok: true });
-      await expect.poll(() => [
-        host.session.getSnapshot().coordinator?.phase,
-        guest.session.getSnapshot().coordinator?.phase,
-      ]).toEqual(["terminal", "terminal"]);
+      await expect
+        .poll(() => [
+          host.session.getSnapshot().coordinator?.phase,
+          guest.session.getSnapshot().coordinator?.phase,
+        ])
+        .toEqual(["terminal", "terminal"]);
       await expect(host.session.requestRematch()).resolves.toEqual({ ok: true });
-      await expect.poll(() => guest.session.getSnapshot().coordinator?.rematch.status).toBe("received");
+      await expect
+        .poll(() => guest.session.getSnapshot().coordinator?.rematch.status)
+        .toBe("received");
       await expect(guest.session.acceptRematch()).resolves.toEqual({ ok: true });
 
-      await expect.poll(() => [
-        host.session.getSnapshot().identity?.matchId,
-        guest.session.getSnapshot().identity?.matchId,
-      ]).toEqual([expect.stringMatching(/^id-/), expect.stringMatching(/^id-/)]);
+      await expect
+        .poll(() => [
+          host.session.getSnapshot().identity?.matchId,
+          guest.session.getSnapshot().identity?.matchId,
+        ])
+        .toEqual([expect.stringMatching(/^id-/), expect.stringMatching(/^id-/)]);
       const nextMatchId = host.session.getSnapshot().identity?.matchId;
       expect(guest.session.getSnapshot().identity?.matchId).toBe(nextMatchId);
-      expect(host.session.getSnapshot().identity).toMatchObject({ rematchIndex: 1, localSide: "black" });
-      expect(guest.session.getSnapshot().identity).toMatchObject({ rematchIndex: 1, localSide: "red" });
+      expect(host.session.getSnapshot().identity).toMatchObject({
+        rematchIndex: 1,
+        localSide: "black",
+      });
+      expect(guest.session.getSnapshot().identity).toMatchObject({
+        rematchIndex: 1,
+        localSide: "red",
+      });
       expect(host.installRematch).toHaveBeenCalledOnce();
       expect(guest.installRematch).toHaveBeenCalledOnce();
 
-      await expect.poll(() => messages(host.channel).some((message) => (
-        message.matchId === nextMatchId && message.type === "hello" && message.seq === 1
-      ))).toBe(true);
-      await expect.poll(() => messages(guest.channel).some((message) => (
-        message.matchId === nextMatchId && message.type === "hello" && message.seq === 1
-      ))).toBe(true);
+      await expect
+        .poll(() =>
+          messages(host.channel).some(
+            (message) =>
+              message.matchId === nextMatchId && message.type === "hello" && message.seq === 1,
+          ),
+        )
+        .toBe(true);
+      await expect
+        .poll(() =>
+          messages(guest.channel).some(
+            (message) =>
+              message.matchId === nextMatchId && message.type === "hello" && message.seq === 1,
+          ),
+        )
+        .toBe(true);
       const snapshotBeforeLateFrame = guest.session.getSnapshot().coordinator;
       guest.channel.message(retiredFrame);
       await flushMicrotasks();
@@ -413,17 +450,21 @@ describe("OnlineMatchSession", () => {
       guest.peerConnection.receiveDataChannel();
       host.channel.open();
       guest.channel.open();
-      await expect.poll(() => [
-        host.session.getSnapshot().coordinator?.phase,
-        guest.session.getSnapshot().coordinator?.phase,
-      ]).toEqual(["awaiting-ready", "awaiting-ready"]);
+      await expect
+        .poll(() => [
+          host.session.getSnapshot().coordinator?.phase,
+          guest.session.getSnapshot().coordinator?.phase,
+        ])
+        .toEqual(["awaiting-ready", "awaiting-ready"]);
       await host.session.setLocalReady();
       await guest.session.setLocalReady();
       await expect.poll(() => host.session.getSnapshot().coordinator?.phase).toBe("playable");
       await guest.session.submitLocalResign();
       await expect.poll(() => host.session.getSnapshot().coordinator?.phase).toBe("terminal");
       await host.session.requestRematch();
-      await expect.poll(() => guest.session.getSnapshot().coordinator?.rematch.status).toBe("received");
+      await expect
+        .poll(() => guest.session.getSnapshot().coordinator?.rematch.status)
+        .toBe("received");
       await guest.session.acceptRematch();
       await expect.poll(() => host.session.getSnapshot().rotatingToMatchId).toMatch(/^id-/);
       const nextMatchId = host.session.getSnapshot().rotatingToMatchId;
@@ -431,33 +472,45 @@ describe("OnlineMatchSession", () => {
       host.peerConnection.setConnectionState("disconnected");
       releaseInstall();
 
-      await expect.poll(() => host.session.getSnapshot()).toMatchObject({
-        peer: { phase: "disconnected-grace" },
-        identity: { matchId: nextMatchId },
-        coordinator: {
-          phase: "stalled",
-          control: { transportAvailable: false },
-        },
-        rotatingToMatchId: null,
-      });
-      expect(messages(host.channel).filter((message) => (
-        message.matchId === nextMatchId && message.type === "hello"
-      ))).toHaveLength(0);
+      await expect
+        .poll(() => host.session.getSnapshot())
+        .toMatchObject({
+          peer: { phase: "disconnected-grace" },
+          identity: { matchId: nextMatchId },
+          coordinator: {
+            phase: "stalled",
+            control: { transportAvailable: false },
+          },
+          rotatingToMatchId: null,
+        });
+      expect(
+        messages(host.channel).filter(
+          (message) => message.matchId === nextMatchId && message.type === "hello",
+        ),
+      ).toHaveLength(0);
 
       host.peerConnection.setConnectionState("connected");
-      await expect.poll(() => messages(host.channel).filter((message) => (
-        message.matchId === nextMatchId && message.type === "hello"
-      ))).toHaveLength(1);
-      await expect.poll(() => host.session.getSnapshot().coordinator).toMatchObject({
-        phase: "awaiting-ready",
-        control: { transportAvailable: true },
-      });
+      await expect
+        .poll(() =>
+          messages(host.channel).filter(
+            (message) => message.matchId === nextMatchId && message.type === "hello",
+          ),
+        )
+        .toHaveLength(1);
+      await expect
+        .poll(() => host.session.getSnapshot().coordinator)
+        .toMatchObject({
+          phase: "awaiting-ready",
+          control: { transportAvailable: true },
+        });
 
       host.peerConnection.setConnectionState("connected");
       await flushMicrotasks();
-      expect(messages(host.channel).filter((message) => (
-        message.matchId === nextMatchId && message.type === "hello"
-      ))).toHaveLength(1);
+      expect(
+        messages(host.channel).filter(
+          (message) => message.matchId === nextMatchId && message.type === "hello",
+        ),
+      ).toHaveLength(1);
       expect(host.session.getSnapshot().error).toBeNull();
     } finally {
       releaseInstall();
@@ -473,7 +526,9 @@ describe("OnlineMatchSession", () => {
       guest.peerConnection.receiveDataChannel();
       host.channel.open();
       guest.channel.open();
-      await expect.poll(() => guest.session.getSnapshot().coordinator?.phase).toBe("awaiting-ready");
+      await expect
+        .poll(() => guest.session.getSnapshot().coordinator?.phase)
+        .toBe("awaiting-ready");
 
       const hello = messages(host.channel).find((message) => message.type === "hello");
       if (!hello) throw new Error("host hello fixture is missing");
@@ -481,10 +536,12 @@ describe("OnlineMatchSession", () => {
       if (!unrelated.ok) throw new Error(unrelated.error.code);
       guest.channel.message(unrelated.value);
 
-      await expect.poll(() => guest.session.getSnapshot().coordinator).toMatchObject({
-        phase: "failed",
-        error: { code: "identity-mismatch", fatal: true },
-      });
+      await expect
+        .poll(() => guest.session.getSnapshot().coordinator)
+        .toMatchObject({
+          phase: "failed",
+          error: { code: "identity-mismatch", fatal: true },
+        });
     } finally {
       host.session.dispose();
       guest.session.dispose();
@@ -499,26 +556,32 @@ describe("OnlineMatchSession", () => {
       guest.peerConnection.receiveDataChannel();
       host.channel.open();
       guest.channel.open();
-      await expect.poll(() => [
-        host.session.getSnapshot().coordinator?.phase,
-        guest.session.getSnapshot().coordinator?.phase,
-      ]).toEqual(["awaiting-ready", "awaiting-ready"]);
+      await expect
+        .poll(() => [
+          host.session.getSnapshot().coordinator?.phase,
+          guest.session.getSnapshot().coordinator?.phase,
+        ])
+        .toEqual(["awaiting-ready", "awaiting-ready"]);
       await host.session.setLocalReady();
       await guest.session.setLocalReady();
       await expect.poll(() => host.session.getSnapshot().coordinator?.phase).toBe("playable");
       await guest.session.submitLocalResign();
       await expect.poll(() => host.session.getSnapshot().coordinator?.phase).toBe("terminal");
       await host.session.requestRematch();
-      await expect.poll(() => guest.session.getSnapshot().coordinator?.rematch.status).toBe("received");
+      await expect
+        .poll(() => guest.session.getSnapshot().coordinator?.rematch.status)
+        .toBe("received");
       await guest.session.acceptRematch();
 
-      await expect.poll(() => host.session.getSnapshot()).toMatchObject({
-        identity: { matchId: "match-1", rematchIndex: 0, localSide: "red" },
-        coordinator: { phase: "terminal" },
-        error: "rematch-install-failed",
-        reconnectRequired: true,
-        rotatingToMatchId: null,
-      });
+      await expect
+        .poll(() => host.session.getSnapshot())
+        .toMatchObject({
+          identity: { matchId: "match-1", rematchIndex: 0, localSide: "red" },
+          coordinator: { phase: "terminal" },
+          error: "rematch-install-failed",
+          reconnectRequired: true,
+          rotatingToMatchId: null,
+        });
       expect(host.getGame().status.kind).toBe("ended");
     } finally {
       host.session.dispose();
@@ -533,16 +596,19 @@ describe("OnlineMatchSession", () => {
       guest.peerConnection.receiveDataChannel();
 
       guest.channel.open();
-      await expect.poll(() => messages(guest.channel).some((message) => message.type === "hello"))
+      await expect
+        .poll(() => messages(guest.channel).some((message) => message.type === "hello"))
         .toBe(true);
       expect(host.session.getSnapshot().coordinator?.phase).toBe("idle");
       expect(host.session.getSnapshot().error).toBeNull();
 
       host.channel.open();
-      await expect.poll(() => [
-        host.session.getSnapshot().coordinator?.phase,
-        guest.session.getSnapshot().coordinator?.phase,
-      ]).toEqual(["awaiting-ready", "awaiting-ready"]);
+      await expect
+        .poll(() => [
+          host.session.getSnapshot().coordinator?.phase,
+          guest.session.getSnapshot().coordinator?.phase,
+        ])
+        .toEqual(["awaiting-ready", "awaiting-ready"]);
       expect(host.session.getSnapshot().error).toBeNull();
       expect(messages(host.channel).filter((message) => message.type === "hello")).toHaveLength(1);
     } finally {
@@ -552,14 +618,17 @@ describe("OnlineMatchSession", () => {
   });
 
   it("surfaces bindMatch failure without constructing or exposing a coordinator", async () => {
-    const guest = createSessionHarness({
-      role: "guest",
-      sessionId: "session-1",
-      pairingId: "pairing-1",
-      matchId: "match-1",
-      localPeerId: "peer-guest",
-      intent: "new",
-    }, false);
+    const guest = createSessionHarness(
+      {
+        role: "guest",
+        sessionId: "session-1",
+        pairingId: "pairing-1",
+        matchId: "match-1",
+        localPeerId: "peer-guest",
+        intent: "new",
+      },
+      false,
+    );
     const host = createSessionHarness({
       role: "host",
       sessionId: "session-1",

@@ -220,7 +220,17 @@ function makeHarness(
     onFrameRejected: (reason) => rejected.push(reason),
     ...overrides,
   });
-  return { pc, timers, factory, session, frames, rejected, setNow: (value: number) => { now = value; } };
+  return {
+    pc,
+    timers,
+    factory,
+    session,
+    frames,
+    rejected,
+    setNow: (value: number) => {
+      now = value;
+    },
+  };
 }
 
 async function flushMicrotasks(): Promise<void> {
@@ -242,10 +252,7 @@ async function createHostOffer(harness = makeHarness()): Promise<{
   return { encoded, offer: decoded.value };
 }
 
-function encodeAnswer(
-  offer: SignalingOfferV1,
-  overrides: Partial<SignalingAnswerV1> = {},
-): string {
+function encodeAnswer(offer: SignalingOfferV1, overrides: Partial<SignalingAnswerV1> = {}): string {
   const encoded = encodeSignalingMessageV1({
     signalVersion: SIGNALING_VERSION,
     kind: "answer",
@@ -347,8 +354,9 @@ describe("PeerSession signaling and lifecycle", () => {
     const answer = await pending;
     const decoded = decodeSignalingMessageV1(answer, "answer");
     expect(decoded.ok && decoded.value.description.sdp).toBe(finalSdp);
-    expect(decoded.ok && decoded.value.kind === "answer" && decoded.value.guestPeerId)
-      .toBe(guestIdentity.localPeerId);
+    expect(decoded.ok && decoded.value.kind === "answer" && decoded.value.guestPeerId).toBe(
+      guestIdentity.localPeerId,
+    );
     expect(harness.session.getSnapshot().phase).toBe("answer-ready");
 
     harness.pc.receiveDataChannel();
@@ -369,8 +377,9 @@ describe("PeerSession signaling and lifecycle", () => {
     ];
 
     for (const mismatch of mismatches) {
-      await expect(harness.session.acceptAnswer(encodeAnswer(offer, mismatch))).rejects
-        .toMatchObject({ code: "identity-mismatch" });
+      await expect(
+        harness.session.acceptAnswer(encodeAnswer(offer, mismatch)),
+      ).rejects.toMatchObject({ code: "identity-mismatch" });
     }
     expect(harness.pc.calls.filter((call) => call.startsWith("setRemote"))).toEqual([]);
 

@@ -141,7 +141,9 @@ function createInitialBoard(): Board {
   return board;
 }
 
-export function getPositionKey(state: Pick<GameState, "board" | "sideToMove" | "rulesetId">): string {
+export function getPositionKey(
+  state: Pick<GameState, "board" | "sideToMove" | "rulesetId">,
+): string {
   const cells = Array.from({ length: BOARD_SIZE }, (_, index) => {
     const piece = state.board[index];
     if (!piece) {
@@ -373,16 +375,25 @@ function attacksSquare(board: Board, piece: Piece, target: Square): boolean {
 
   switch (piece.role) {
     case "chariot":
-      return (fileDistance === 0 || rankDistance === 0) && countBetween(board, piece.square, target) === 0;
+      return (
+        (fileDistance === 0 || rankDistance === 0) &&
+        countBetween(board, piece.square, target) === 0
+      );
     case "cannon":
-      return (fileDistance === 0 || rankDistance === 0) && countBetween(board, piece.square, target) === 1;
+      return (
+        (fileDistance === 0 || rankDistance === 0) &&
+        countBetween(board, piece.square, target) === 1
+      );
     case "horse": {
-      if (!((absoluteFile === 1 && absoluteRank === 2) || (absoluteFile === 2 && absoluteRank === 1))) {
+      if (
+        !((absoluteFile === 1 && absoluteRank === 2) || (absoluteFile === 2 && absoluteRank === 1))
+      ) {
         return false;
       }
-      const leg = absoluteRank === 2
-        ? { file: piece.square.file, rank: piece.square.rank + Math.sign(rankDistance) }
-        : { file: piece.square.file + Math.sign(fileDistance), rank: piece.square.rank };
+      const leg =
+        absoluteRank === 2
+          ? { file: piece.square.file, rank: piece.square.rank + Math.sign(rankDistance) }
+          : { file: piece.square.file + Math.sign(fileDistance), rank: piece.square.rank };
       return !pieceAt(board, leg);
     }
     case "elephant": {
@@ -415,7 +426,9 @@ function attacksSquare(board: Board, piece: Piece, target: Square): boolean {
       if (fileDistance === 0 && rankDistance === forward) {
         return true;
       }
-      return crossedRiver(piece.side, piece.square.rank) && rankDistance === 0 && absoluteFile === 1;
+      return (
+        crossedRiver(piece.side, piece.square.rank) && rankDistance === 0 && absoluteFile === 1
+      );
     }
   }
 }
@@ -464,9 +477,7 @@ export function getLegalMoves(state: GameState, pieceId: string): Square[] {
 }
 
 function sideHasLegalMove(board: Board, side: Side): boolean {
-  return board.some(
-    (piece) => piece?.side === side && legalMovesForPiece(board, piece).length > 0,
-  );
+  return board.some((piece) => piece?.side === side && legalMovesForPiece(board, piece).length > 0);
 }
 
 export function formatSquareCoordinate(square: Square): string {
@@ -480,7 +491,14 @@ function notation(piece: Piece, from: Square, to: Square): string {
 
 function rejected(
   state: GameState,
-  code: "stale-revision" | "game-over" | "invalid-square" | "no-piece" | "not-your-turn" | "illegal-move" | "cannot-undo",
+  code:
+    | "stale-revision"
+    | "game-over"
+    | "invalid-square"
+    | "no-piece"
+    | "not-your-turn"
+    | "illegal-move"
+    | "cannot-undo",
   message: string,
 ): DispatchResult {
   return { state, events: [], error: { code, message } };
@@ -500,7 +518,10 @@ function replayCommand(command: GameCommand): ReplayCommand {
   return { type: command.type };
 }
 
-function endedStatus(winner: Side | null, reason: Extract<GameStatus, { kind: "ended" }>["reason"]): Extract<GameStatus, { kind: "ended" }> {
+function endedStatus(
+  winner: Side | null,
+  reason: Extract<GameStatus, { kind: "ended" }>["reason"],
+): Extract<GameStatus, { kind: "ended" }> {
   return {
     kind: "ended",
     outcome: winner ? `${winner}-win` : "draw",
@@ -509,7 +530,10 @@ function endedStatus(winner: Side | null, reason: Extract<GameStatus, { kind: "e
   };
 }
 
-function dispatchMove(state: GameState, command: Extract<GameCommand, { type: "move" }>): DispatchResult {
+function dispatchMove(
+  state: GameState,
+  command: Extract<GameCommand, { type: "move" }>,
+): DispatchResult {
   if (state.status.kind === "ended") {
     return rejected(state, "game-over", "The game has already ended.");
   }
@@ -521,7 +545,11 @@ function dispatchMove(state: GameState, command: Extract<GameCommand, { type: "m
     return rejected(state, "no-piece", "There is no piece on the source square.");
   }
   if (piece.side !== state.sideToMove) {
-    return rejected(state, "not-your-turn", "The selected piece does not belong to the side to move.");
+    return rejected(
+      state,
+      "not-your-turn",
+      "The selected piece does not belong to the side to move.",
+    );
   }
   const legal = getLegalMoves(state, piece.id);
   if (!legal.some((square) => sameSquare(square, command.to))) {
@@ -530,7 +558,11 @@ function dispatchMove(state: GameState, command: Extract<GameCommand, { type: "m
 
   const target = pieceAt(state.board, command.to);
   if (target?.role === "general") {
-    return rejected(state, "illegal-move", "Generals are never captured; mate ends the game first.");
+    return rejected(
+      state,
+      "illegal-move",
+      "Generals are never captured; mate ends the game first.",
+    );
   }
   const captured: CapturedPiece | null = target
     ? { ...target, square: cloneSquare(target.square) }
@@ -620,7 +652,10 @@ function dispatchMove(state: GameState, command: Extract<GameCommand, { type: "m
   return { state: nextState, events };
 }
 
-function dispatchUndo(state: GameState, command: Extract<GameCommand, { type: "undo" }>): DispatchResult {
+function dispatchUndo(
+  state: GameState,
+  command: Extract<GameCommand, { type: "undo" }>,
+): DispatchResult {
   if (state.lastAction?.kind !== "move") {
     return rejected(state, "cannot-undo", "Only the immediately preceding move can be undone.");
   }
@@ -656,7 +691,10 @@ function dispatchUndo(state: GameState, command: Extract<GameCommand, { type: "u
   };
 }
 
-function dispatchResign(state: GameState, command: Extract<GameCommand, { type: "resign" }>): DispatchResult {
+function dispatchResign(
+  state: GameState,
+  command: Extract<GameCommand, { type: "resign" }>,
+): DispatchResult {
   if (state.status.kind === "ended") {
     return rejected(state, "game-over", "The game has already ended.");
   }

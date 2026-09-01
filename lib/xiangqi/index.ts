@@ -16,10 +16,7 @@ export {
   sha256Hex,
   XiangqiSerializationError,
 } from "./persistence";
-export {
-  POPULAR_RULESET_ID,
-  XIANGQI_SCHEMA_VERSION,
-} from "./types";
+export { POPULAR_RULESET_ID, XIANGQI_SCHEMA_VERSION } from "./types";
 export type {
   Board,
   CapturedPiece,

@@ -1,8 +1,5 @@
 import type { GameCommand, GameState, MoveCommand, Side } from "../../../lib/xiangqi/index";
-import {
-  decodeOnlineMessageV1,
-  type OnlineIntentV1,
-} from "../../../lib/xiangqi/online";
+import { decodeOnlineMessageV1, type OnlineIntentV1 } from "../../../lib/xiangqi/online";
 import {
   OnlineMatchCoordinator,
   type OnlineCommitContext,
@@ -120,9 +117,8 @@ export class OnlineMatchSession {
       rotatingToMatchId: null,
     });
     this.#unsubscribePeer = this.#peer.subscribe((peer) => {
-      const unavailable = peer.phase === "disconnected-grace"
-        || peer.phase === "failed"
-        || peer.phase === "closed";
+      const unavailable =
+        peer.phase === "disconnected-grace" || peer.phase === "failed" || peer.phase === "closed";
       this.#publish({
         peer,
         outboundSignal: peer.phase === "open" ? null : this.#snapshot.outboundSignal,
@@ -181,38 +177,47 @@ export class OnlineMatchSession {
   }
 
   setLocalReady(): Promise<OnlineCoordinatorActionResult> {
-    return this.#coordinator?.setLocalReady()
-      ?? Promise.resolve({ ok: false, reason: "invalid-phase" });
+    return (
+      this.#coordinator?.setLocalReady() ?? Promise.resolve({ ok: false, reason: "invalid-phase" })
+    );
   }
 
   submitLocalMove(command: MoveCommand): Promise<OnlineCoordinatorActionResult> {
-    return this.#coordinator?.submitLocalMove(command)
-      ?? Promise.resolve({ ok: false, reason: "invalid-phase" });
+    return (
+      this.#coordinator?.submitLocalMove(command) ??
+      Promise.resolve({ ok: false, reason: "invalid-phase" })
+    );
   }
 
   submitLocalResign(): Promise<OnlineCoordinatorActionResult> {
-    return this.#coordinator?.submitLocalResign()
-      ?? Promise.resolve({ ok: false, reason: "invalid-phase" });
+    return (
+      this.#coordinator?.submitLocalResign() ??
+      Promise.resolve({ ok: false, reason: "invalid-phase" })
+    );
   }
 
   requestRematch(): Promise<OnlineCoordinatorActionResult> {
-    return this.#coordinator?.requestRematch()
-      ?? Promise.resolve({ ok: false, reason: "invalid-phase" });
+    return (
+      this.#coordinator?.requestRematch() ?? Promise.resolve({ ok: false, reason: "invalid-phase" })
+    );
   }
 
   acceptRematch(): Promise<OnlineCoordinatorActionResult> {
-    return this.#coordinator?.acceptRematch()
-      ?? Promise.resolve({ ok: false, reason: "invalid-phase" });
+    return (
+      this.#coordinator?.acceptRematch() ?? Promise.resolve({ ok: false, reason: "invalid-phase" })
+    );
   }
 
   declineRematch(): Promise<OnlineCoordinatorActionResult> {
-    return this.#coordinator?.declineRematch()
-      ?? Promise.resolve({ ok: false, reason: "invalid-phase" });
+    return (
+      this.#coordinator?.declineRematch() ?? Promise.resolve({ ok: false, reason: "invalid-phase" })
+    );
   }
 
   cancelRematch(): Promise<OnlineCoordinatorActionResult> {
-    return this.#coordinator?.cancelRematch()
-      ?? Promise.resolve({ ok: false, reason: "invalid-phase" });
+    return (
+      this.#coordinator?.cancelRematch() ?? Promise.resolve({ ok: false, reason: "invalid-phase" })
+    );
   }
 
   setVisible(visible: boolean): Promise<void> {
@@ -251,7 +256,7 @@ export class OnlineMatchSession {
       intent: this.#options.identity.intent,
       rematchIndex,
     };
-    if (!await this.#options.bindMatch(identity)) throw new Error("match-bind-failed");
+    if (!(await this.#options.bindMatch(identity))) throw new Error("match-bind-failed");
     if (this.#disposed) return;
 
     this.#installCoordinator(identity);
@@ -286,11 +291,12 @@ export class OnlineMatchSession {
   async #startCoordinator(): Promise<void> {
     const coordinator = this.#coordinator;
     if (
-      !coordinator
-      || this.#coordinatorStarted
-      || this.#disposed
-      || this.#peer.getSnapshot().phase !== "open"
-    ) return;
+      !coordinator ||
+      this.#coordinatorStarted ||
+      this.#disposed ||
+      this.#peer.getSnapshot().phase !== "open"
+    )
+      return;
     this.#coordinatorStarted = true;
     const result = await coordinator.start();
     if (!result.ok) {

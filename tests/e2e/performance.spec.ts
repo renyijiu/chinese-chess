@@ -15,15 +15,19 @@ import {
 import { openCleanGame, startGame } from "./helpers";
 
 const rootDir = process.cwd();
-const audioManifest = JSON.parse(readFileSync(
-  join(rootDir, "public/audio/qin-diorama/v1/manifest.json"),
-  "utf8",
-)) as QinAudioPackManifestV1;
-const expectedAudioPaths = [QIN_AUDIO_MANIFEST_URL, ...audioManifest.assets.map((asset) => asset.url)];
-const expectedAudioBytes = new Map(expectedAudioPaths.map((path) => [
-  path,
-  statSync(join(rootDir, "public", path.replace(/^\//, ""))).size,
-]));
+const audioManifest = JSON.parse(
+  readFileSync(join(rootDir, "public/audio/qin-diorama/v1/manifest.json"), "utf8"),
+) as QinAudioPackManifestV1;
+const expectedAudioPaths = [
+  QIN_AUDIO_MANIFEST_URL,
+  ...audioManifest.assets.map((asset) => asset.url),
+];
+const expectedAudioBytes = new Map(
+  expectedAudioPaths.map((path) => [
+    path,
+    statSync(join(rootDir, "public", path.replace(/^\//, ""))).size,
+  ]),
+);
 const expectedAudioMime = new Map<string, string>([
   [QIN_AUDIO_MANIFEST_URL, "application/json"],
   ...audioManifest.assets.map((asset) => [asset.url, asset.mimeType] as const),
@@ -36,11 +40,20 @@ test.skip(
   "renderer thresholds run only through the explicit performance commands",
 );
 
-test("@performance captures first-playable transfer size and renderer telemetry", async ({ page }, testInfo) => {
+test("@performance captures first-playable transfer size and renderer telemetry", async ({
+  page,
+}, testInfo) => {
   const authoritativeFrameGate = Boolean(process.env.PLAYWRIGHT_MEASUREMENT_MODE);
   const baseUrl = new URL(testInfo.project.use.baseURL as string);
-  const expectedAssetPaths = ["marshal", "advisor", "elephant", "chariot", "horse", "cannon", "soldier"]
-    .map((role) => `/models/pieces/v1/${role}/${role}-lod1.glb`);
+  const expectedAssetPaths = [
+    "marshal",
+    "advisor",
+    "elephant",
+    "chariot",
+    "horse",
+    "cannon",
+    "soldier",
+  ].map((role) => `/models/pieces/v1/${role}/${role}-lod1.glb`);
   const activePanoramaPath = getPanoramaUrl("high");
   const inactivePanoramaPaths = [getPanoramaUrl("medium"), getPanoramaUrl("low")];
   const expectedFirstPlayablePaths = [...expectedAssetPaths, activePanoramaPath];
@@ -63,30 +76,43 @@ test("@performance captures first-playable transfer size and renderer telemetry"
     if (url.origin !== baseUrl.origin) return;
     if (response.ok() && expectedAudioPaths.includes(url.pathname)) {
       seenAudioPaths.add(url.pathname);
-      audioResponseBodies.push(response.body().then(
-        (body) => [
-          url.pathname,
-          body.byteLength,
-          response.headers()["content-type"]?.split(";", 1)[0]?.toLowerCase() ?? "",
-        ] as const,
-        (error: unknown) => {
-          throw new Error(`Unable to measure authored audio response ${url.pathname}: ${String(error)}`);
-        },
-      ));
+      audioResponseBodies.push(
+        response.body().then(
+          (body) =>
+            [
+              url.pathname,
+              body.byteLength,
+              response.headers()["content-type"]?.split(";", 1)[0]?.toLowerCase() ?? "",
+            ] as const,
+          (error: unknown) => {
+            throw new Error(
+              `Unable to measure authored audio response ${url.pathname}: ${String(error)}`,
+            );
+          },
+        ),
+      );
     }
     if (!recordingFirstPlayable || !response.ok()) return;
     seenPaths.add(url.pathname);
-    responseBodies.push(response.body().then(
-      (body) => [url.pathname, body.byteLength] as const,
-      (error: unknown) => {
-        throw new Error(`Unable to measure required production response ${url.pathname}: ${String(error)}`);
-      },
-    ));
+    responseBodies.push(
+      response.body().then(
+        (body) => [url.pathname, body.byteLength] as const,
+        (error: unknown) => {
+          throw new Error(
+            `Unable to measure required production response ${url.pathname}: ${String(error)}`,
+          );
+        },
+      ),
+    );
   });
 
   await openCleanGame(page, "high");
-  await expect.poll(() => expectedFirstPlayablePaths.every((path) => seenPaths.has(path))).toBe(true);
-  await expect.poll(() => page.evaluate(() => window.__XIANGQI_PERFORMANCE__?.currentDrawCalls ?? 0)).toBeGreaterThan(0);
+  await expect
+    .poll(() => expectedFirstPlayablePaths.every((path) => seenPaths.has(path)))
+    .toBe(true);
+  await expect
+    .poll(() => page.evaluate(() => window.__XIANGQI_PERFORMANCE__?.currentDrawCalls ?? 0))
+    .toBeGreaterThan(0);
   const bootstrapMetrics = await page.evaluate(() => window.__XIANGQI_PERFORMANCE__);
   console.info(`PERFORMANCE_BOOTSTRAP ${JSON.stringify(bootstrapMetrics)}`);
   recordingFirstPlayable = false;
@@ -96,14 +122,21 @@ test("@performance captures first-playable transfer size and renderer telemetry"
     expect(responseBytes.has(path), `first-playable response must include ${path}`).toBe(true);
   }
   for (const path of inactivePanoramaPaths) {
-    expect(seenPaths.has(path), `first playable must not request inactive panorama ${path}`).toBe(false);
+    expect(seenPaths.has(path), `first playable must not request inactive panorama ${path}`).toBe(
+      false,
+    );
   }
-  expect(audioRequestsBeforeGesture, "authored audio must not be part of pre-gesture first playable").toEqual([]);
+  expect(
+    audioRequestsBeforeGesture,
+    "authored audio must not be part of pre-gesture first playable",
+  ).toEqual([]);
   expect(audioRequests).toEqual([]);
 
   audioGestureUnlocked = true;
   const keyboard = await startGame(page);
-  await expect.poll(() => page.evaluate(() => window.__XIANGQI_AUDIO_DEBUG__?.().packState)).toBe("ready");
+  await expect
+    .poll(() => page.evaluate(() => window.__XIANGQI_AUDIO_DEBUG__?.().packState))
+    .toBe("ready");
   await expect.poll(() => expectedAudioPaths.every((path) => seenAudioPaths.has(path))).toBe(true);
   const measuredAudioResponses = await Promise.all(audioResponseBodies);
   const audioResponseBytes = new Map(measuredAudioResponses.map(([path, bytes]) => [path, bytes]));
@@ -111,8 +144,12 @@ test("@performance captures first-playable transfer size and renderer telemetry"
   expect(audioRequests).toEqual(expectedAudioPaths);
   expect(new Set(audioRequests).size).toBe(expectedAudioPaths.length);
   for (const path of expectedAudioPaths) {
-    expect(audioResponseBytes.get(path), `cold-cache audio bytes must reconcile for ${path}`).toBe(expectedAudioBytes.get(path));
-    expect(audioResponseMime.get(path), `cold-cache audio MIME must match for ${path}`).toBe(expectedAudioMime.get(path));
+    expect(audioResponseBytes.get(path), `cold-cache audio bytes must reconcile for ${path}`).toBe(
+      expectedAudioBytes.get(path),
+    );
+    expect(audioResponseMime.get(path), `cold-cache audio MIME must match for ${path}`).toBe(
+      expectedAudioMime.get(path),
+    );
     expect(audioResponseMime.get(path)).not.toContain("text/html");
   }
   const audioSnapshot = await page.evaluate(() => window.__XIANGQI_AUDIO_DEBUG__?.());
@@ -132,7 +169,16 @@ test("@performance captures first-playable transfer size and renderer telemetry"
     await page.waitForFunction(() => (window.__XIANGQI_PERFORMANCE__?.sampleCount ?? 0) >= 60);
     await page.getByRole("button", { name: "停止巡游" }).click();
     await keyboard.focus();
-    for (const key of ["ArrowLeft", "ArrowLeft", "ArrowLeft", "ArrowLeft", "ArrowUp", "ArrowUp", "ArrowUp", "Enter"]) {
+    for (const key of [
+      "ArrowLeft",
+      "ArrowLeft",
+      "ArrowLeft",
+      "ArrowLeft",
+      "ArrowUp",
+      "ArrowUp",
+      "ArrowUp",
+      "Enter",
+    ]) {
       await keyboard.press(key);
     }
     await page.evaluate(() => window.__XIANGQI_RESET_PERFORMANCE__?.());
@@ -145,28 +191,33 @@ test("@performance captures first-playable transfer size and renderer telemetry"
       await page.waitForFunction(() => (window.__XIANGQI_PERFORMANCE__?.sampleCount ?? 0) >= 180);
       await page.getByRole("button", { name: "停止巡游" }).click();
     }
-    metrics = await page.evaluate(() => window.__XIANGQI_PERFORMANCE__) as RuntimePerformanceSnapshot;
+    metrics = (await page.evaluate(
+      () => window.__XIANGQI_PERFORMANCE__,
+    )) as RuntimePerformanceSnapshot;
   }
   const renderer = await page.locator("canvas").evaluate((canvas) => {
     const gl = (canvas as HTMLCanvasElement).getContext("webgl2");
     const debug = gl?.getExtension("WEBGL_debug_renderer_info");
-    return debug && gl ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) as string : "unavailable";
+    return debug && gl ? (gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) as string) : "unavailable";
   });
   const firstPlayableBytes = [...responseBytes.values()].reduce((total, bytes) => total + bytes, 0);
-  const rafIntervals = await page.evaluate(() => new Promise<number[]>((resolve) => {
-    const intervals: number[] = [];
-    let previous = 0;
-    const sample = (timestamp: number) => {
-      if (previous > 0) intervals.push(timestamp - previous);
-      previous = timestamp;
-      if (intervals.length < 120) {
+  const rafIntervals = await page.evaluate(
+    () =>
+      new Promise<number[]>((resolve) => {
+        const intervals: number[] = [];
+        let previous = 0;
+        const sample = (timestamp: number) => {
+          if (previous > 0) intervals.push(timestamp - previous);
+          previous = timestamp;
+          if (intervals.length < 120) {
+            window.requestAnimationFrame(sample);
+            return;
+          }
+          resolve(intervals);
+        };
         window.requestAnimationFrame(sample);
-        return;
-      }
-      resolve(intervals);
-    };
-    window.requestAnimationFrame(sample);
-  }));
+      }),
+  );
   const rafCadence = summarizeFrameIntervals(rafIntervals);
   const canvasDpr = await page.locator("canvas").evaluate((canvas) => {
     const bounds = canvas.getBoundingClientRect();
@@ -181,14 +232,19 @@ test("@performance captures first-playable transfer size and renderer telemetry"
       maxInFlightFetches: audioSnapshot!.maxInFlightFetches,
       responseBytes: Object.fromEntries(audioResponseBytes),
       responseMime: Object.fromEntries(audioResponseMime),
-      totalResponseBytes: [...audioResponseBytes.values()].reduce((total, bytes) => total + bytes, 0),
+      totalResponseBytes: [...audioResponseBytes.values()].reduce(
+        (total, bytes) => total + bytes,
+        0,
+      ),
       uniqueSuccessfulUrls: [...audioResponseBytes.keys()],
     },
     authoritativeFrameGate,
     firstPlayableBytes,
     firstPlayableMiB: Number((firstPlayableBytes / 1024 / 1024).toFixed(2)),
     canvasDpr,
-    measurement: process.env.PLAYWRIGHT_MEASUREMENT_MODE ?? "Headless Chromium rendered-frame interval; not CPU time or GPU render duration",
+    measurement:
+      process.env.PLAYWRIGHT_MEASUREMENT_MODE ??
+      "Headless Chromium rendered-frame interval; not CPU time or GPU render duration",
     rafCadence,
     renderer,
     gpuMemoryMiB: "not measured; renderer.info exposes resource counts, not allocation bytes",
@@ -207,7 +263,9 @@ test("@performance captures first-playable transfer size and renderer telemetry"
   expect(firstPlayableBytes).toBeLessThanOrEqual(12 * 1024 * 1024);
 });
 
-test("@performance keeps lightweight AI search off the main thread during presentation", async ({ page }, testInfo) => {
+test("@performance keeps lightweight AI search off the main thread during presentation", async ({
+  page,
+}, testInfo) => {
   const authoritativeFrameGate = Boolean(process.env.PLAYWRIGHT_MEASUREMENT_MODE);
   await page.addInitScript(() => {
     const target = window as typeof window & {
@@ -219,7 +277,8 @@ test("@performance keeps lightweight AI search off the main thread during presen
     };
     target.__XIANGQI_AI_LONG_TASKS__ = [];
     new PerformanceObserver((entries) => {
-      for (const entry of entries.getEntries()) target.__XIANGQI_AI_LONG_TASKS__?.push(entry.duration);
+      for (const entry of entries.getEntries())
+        target.__XIANGQI_AI_LONG_TASKS__?.push(entry.duration);
     }).observe({ type: "longtask", buffered: true });
     const NativeWorker = window.Worker;
     class MeasuredWorker extends NativeWorker {
@@ -242,7 +301,10 @@ test("@performance keeps lightweight AI search off the main thread during presen
           window.requestAnimationFrame(sample);
         });
       }
-      override postMessage(message: unknown, options?: StructuredSerializeOptions | Transferable[]) {
+      override postMessage(
+        message: unknown,
+        options?: StructuredSerializeOptions | Transferable[],
+      ) {
         const send = () => {
           const nativePostMessage = NativeWorker.prototype.postMessage as unknown as (
             this: Worker,
@@ -268,7 +330,9 @@ test("@performance keeps lightweight AI search off the main thread during presen
     Object.defineProperty(window, "Worker", { configurable: true, value: MeasuredWorker });
     let first = true;
     const original = Crypto.prototype.getRandomValues;
-    Crypto.prototype.getRandomValues = function getRandomValues<T extends ArrayBufferView | null>(array: T): T {
+    Crypto.prototype.getRandomValues = function getRandomValues<T extends ArrayBufferView | null>(
+      array: T,
+    ): T {
       if (first && array instanceof Uint8Array) {
         first = false;
         array.fill(4);
@@ -282,7 +346,8 @@ test("@performance keeps lightweight AI search off the main thread during presen
   await page.getByRole("radio", { name: "困难", exact: true }).check();
   await page.getByRole("button", { name: "掷骰决定阵营" }).click();
   await page.getByRole("button", { name: "以红方开始对局" }).click();
-  await expect.poll(() => page.evaluate(() => window.__XIANGQI_AUDIO_DEBUG__?.().packState))
+  await expect
+    .poll(() => page.evaluate(() => window.__XIANGQI_AUDIO_DEBUG__?.().packState))
     .toBe("ready");
   await page.evaluate(() => {
     window.__XIANGQI_RESET_PERFORMANCE__?.();
@@ -291,23 +356,37 @@ test("@performance keeps lightweight AI search off the main thread during presen
   const keyboard = page.locator(".game-keyboard-control button");
   await keyboard.focus();
   for (const key of [
-    "ArrowLeft", "ArrowLeft", "ArrowLeft", "ArrowLeft",
-    "ArrowUp", "ArrowUp", "ArrowUp", "Enter", "ArrowUp", "Enter",
-  ]) await keyboard.press(key);
-  await expect(page.locator(".xiangqi-game-shell"))
-    .toHaveAttribute("data-game-revision", "2", { timeout: 45_000 });
+    "ArrowLeft",
+    "ArrowLeft",
+    "ArrowLeft",
+    "ArrowLeft",
+    "ArrowUp",
+    "ArrowUp",
+    "ArrowUp",
+    "Enter",
+    "ArrowUp",
+    "Enter",
+  ])
+    await keyboard.press(key);
+  await expect(page.locator(".xiangqi-game-shell")).toHaveAttribute("data-game-revision", "2", {
+    timeout: 45_000,
+  });
   await expect(keyboard).toHaveAttribute("aria-disabled", "false", { timeout: 20_000 });
   if (authoritativeFrameGate) {
-    const settledSamples = await page.evaluate(() => window.__XIANGQI_PERFORMANCE__?.sampleCount ?? 0);
+    const settledSamples = await page.evaluate(
+      () => window.__XIANGQI_PERFORMANCE__?.sampleCount ?? 0,
+    );
     await page.getByRole("button", { name: "自动巡游" }).click();
-    await expect.poll(() => page.evaluate(() => window.__XIANGQI_PERFORMANCE__?.sampleCount ?? 0))
+    await expect
+      .poll(() => page.evaluate(() => window.__XIANGQI_PERFORMANCE__?.sampleCount ?? 0))
       .toBeGreaterThan(settledSamples);
     await page.getByRole("button", { name: "停止巡游" }).click();
   } else {
     // Reduced-motion deliberately disables auto-tour. The AI result and its
     // short presentation still produce enough demand frames for resource
     // telemetry; frame cadence remains diagnostic under SwiftShader.
-    await expect.poll(() => page.evaluate(() => window.__XIANGQI_PERFORMANCE__?.sampleCount ?? 0))
+    await expect
+      .poll(() => page.evaluate(() => window.__XIANGQI_PERFORMANCE__?.sampleCount ?? 0))
       .toBeGreaterThan(0);
   }
   const evidence = await page.evaluate(() => {
@@ -343,8 +422,9 @@ test("@performance keeps lightweight AI search off the main thread during presen
   expect(evidence.searchLongTasks.filter((duration) => duration > 50)).toEqual([]);
   if (authoritativeFrameGate) {
     expect(evidence.renderer?.sampleCount ?? 0).toBeGreaterThanOrEqual(30);
-    expect(evidence.renderer?.p95FrameIntervalMs ?? Infinity)
-      .toBeLessThanOrEqual(AI_P95_REGRESSION_LIMIT_MS);
+    expect(evidence.renderer?.p95FrameIntervalMs ?? Infinity).toBeLessThanOrEqual(
+      AI_P95_REGRESSION_LIMIT_MS,
+    );
   }
   expect(evidence.renderer?.peakDrawCalls ?? Infinity).toBeLessThanOrEqual(160);
   expect(evidence.renderer?.currentDrawCalls ?? Infinity).toBeLessThanOrEqual(100);

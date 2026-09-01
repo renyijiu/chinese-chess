@@ -25,19 +25,26 @@ declare global {
   }
 }
 
-const audioManifest = JSON.parse(readFileSync(
-  join(process.cwd(), "public/audio/qin-diorama/v1/manifest.json"),
-  "utf8",
-)) as QinAudioPackManifestV1;
-const audioPackPaths = [
-  QIN_AUDIO_MANIFEST_URL,
-  ...audioManifest.assets.map((asset) => asset.url),
-];
+const audioManifest = JSON.parse(
+  readFileSync(join(process.cwd(), "public/audio/qin-diorama/v1/manifest.json"), "utf8"),
+) as QinAudioPackManifestV1;
+const audioPackPaths = [QIN_AUDIO_MANIFEST_URL, ...audioManifest.assets.map((asset) => asset.url)];
 
 async function playTwoLegalTurns(page: Page) {
   const keyboard = page.locator(".game-keyboard-control button");
   await keyboard.focus();
-  await pressSequence(keyboard, ["ArrowLeft", "ArrowLeft", "ArrowLeft", "ArrowLeft", "ArrowUp", "ArrowUp", "ArrowUp", "Enter", "ArrowUp", "Enter"]);
+  await pressSequence(keyboard, [
+    "ArrowLeft",
+    "ArrowLeft",
+    "ArrowLeft",
+    "ArrowLeft",
+    "ArrowUp",
+    "ArrowUp",
+    "ArrowUp",
+    "Enter",
+    "ArrowUp",
+    "Enter",
+  ]);
   await waitForRevision(page, 1);
   await pressSequence(keyboard, ["ArrowUp", "ArrowUp", "Enter", "ArrowDown", "Enter"]);
   await waitForRevision(page, 2);
@@ -46,22 +53,23 @@ async function playTwoLegalTurns(page: Page) {
 }
 
 async function expectSynthFallback(page: Page) {
-  await expect.poll(() => page.evaluate(() => window.__XIANGQI_AUDIO_DEBUG__?.().packState)).toBe("unavailable");
-  await expect.poll(() => page.evaluate(() => window.__XIANGQI_AUDIO_DEBUG__?.())).toMatchObject({
-    activeSourcesByKind: {
-      "authored-music": 0,
-      "synth-music": 1,
-    },
-    musicMode: "synth",
-    pendingDecodes: 0,
-    pendingFetches: 0,
-  });
+  await expect
+    .poll(() => page.evaluate(() => window.__XIANGQI_AUDIO_DEBUG__?.().packState))
+    .toBe("unavailable");
+  await expect
+    .poll(() => page.evaluate(() => window.__XIANGQI_AUDIO_DEBUG__?.()))
+    .toMatchObject({
+      activeSourcesByKind: {
+        "authored-music": 0,
+        "synth-music": 1,
+      },
+      musicMode: "synth",
+      pendingDecodes: 0,
+      pendingFetches: 0,
+    });
 }
 
-async function runFailedAudioSession(
-  page: Page,
-  testInfo: TestInfo,
-) {
+async function runFailedAudioSession(page: Page, testInfo: TestInfo) {
   const requestCounts = new Map<string, number>();
   const failures: Array<{ failure: string | null; path: string }> = [];
   page.on("request", (request) => {
@@ -70,7 +78,8 @@ async function runFailedAudioSession(
   });
   page.on("requestfailed", (request) => {
     const path = new URL(request.url()).pathname;
-    if (audioPackPaths.includes(path)) failures.push({ failure: request.failure()?.errorText ?? null, path });
+    if (audioPackPaths.includes(path))
+      failures.push({ failure: request.failure()?.errorText ?? null, path });
   });
 
   await openCleanGame(page, "low", true);
@@ -96,8 +105,12 @@ async function runFailedAudioSession(
   });
 }
 
-test("a failed optional panorama degrades locally and leaves the board playable", async ({ page }) => {
-  await page.route("**/background/qin-diorama-panorama-v1-*.webp", (route) => route.abort("failed"));
+test("a failed optional panorama degrades locally and leaves the board playable", async ({
+  page,
+}) => {
+  await page.route("**/background/qin-diorama-panorama-v1-*.webp", (route) =>
+    route.abort("failed"),
+  );
   await openCleanGame(page);
   await waitForEnvironmentSettled(page, "degraded");
 
@@ -106,7 +119,9 @@ test("a failed optional panorama degrades locally and leaves the board playable"
   await waitForEnvironmentSettled(page, "degraded");
 });
 
-test("a failed optional river degrades locally and leaves authoritative moves playable", async ({ page }) => {
+test("a failed optional river degrades locally and leaves authoritative moves playable", async ({
+  page,
+}) => {
   await page.addInitScript(() => {
     window.__XIANGQI_TEST_FAULTS__ = { riverRender: true };
   });
@@ -119,13 +134,26 @@ test("a failed optional river degrades locally and leaves authoritative moves pl
 
   const keyboard = await startGame(page);
   await keyboard.focus();
-  await pressSequence(keyboard, ["ArrowLeft", "ArrowLeft", "ArrowLeft", "ArrowLeft", "ArrowUp", "ArrowUp", "ArrowUp", "Enter", "ArrowUp", "Enter"]);
+  await pressSequence(keyboard, [
+    "ArrowLeft",
+    "ArrowLeft",
+    "ArrowLeft",
+    "ArrowLeft",
+    "ArrowUp",
+    "ArrowUp",
+    "ArrowUp",
+    "Enter",
+    "ArrowUp",
+    "Enter",
+  ]);
   await waitForRevision(page, 1);
   await expect(page.locator(".game-history")).toContainText("红·兵 a3 → a4");
   await waitForEnvironmentSettled(page, "degraded");
 });
 
-test("a failed optional ambient task degrades its owner without blocking the game", async ({ page }) => {
+test("a failed optional ambient task degrades its owner without blocking the game", async ({
+  page,
+}) => {
   await page.addInitScript(() => {
     window.__XIANGQI_TEST_FAULTS__ = { ambientTask: true };
   });
@@ -134,26 +162,45 @@ test("a failed optional ambient task degrades its owner without blocking the gam
 
   const keyboard = await startGame(page);
   await keyboard.focus();
-  await pressSequence(keyboard, ["ArrowLeft", "ArrowLeft", "ArrowLeft", "ArrowLeft", "ArrowUp", "ArrowUp", "ArrowUp", "Enter", "ArrowUp", "Enter"]);
+  await pressSequence(keyboard, [
+    "ArrowLeft",
+    "ArrowLeft",
+    "ArrowLeft",
+    "ArrowLeft",
+    "ArrowUp",
+    "ArrowUp",
+    "ArrowUp",
+    "Enter",
+    "ArrowUp",
+    "Enter",
+  ]);
   await waitForRevision(page, 1);
 });
 
 test.describe("authored audio failure isolation", () => {
-  test("a network abort is attempted once and both sides continue on synth", async ({ page }, testInfo) => {
+  test("a network abort is attempted once and both sides continue on synth", async ({
+    page,
+  }, testInfo) => {
     await page.route(`**${QIN_AUDIO_MANIFEST_URL}`, (route) => route.abort("failed"));
     await runFailedAudioSession(page, testInfo);
   });
 
-  test("an HTTP error is attempted once and both sides continue on synth", async ({ page }, testInfo) => {
-    await page.route("**/audio/qin-diorama/v1/qin-procession-v1.mp3", (route) => route.fulfill({
-      body: "upstream unavailable",
-      contentType: "text/plain",
-      status: 503,
-    }));
+  test("an HTTP error is attempted once and both sides continue on synth", async ({
+    page,
+  }, testInfo) => {
+    await page.route("**/audio/qin-diorama/v1/qin-procession-v1.mp3", (route) =>
+      route.fulfill({
+        body: "upstream unavailable",
+        contentType: "text/plain",
+        status: 503,
+      }),
+    );
     await runFailedAudioSession(page, testInfo);
   });
 
-  test("corrupt media fails real decode without blocking authoritative turns", async ({ page }, testInfo) => {
+  test("corrupt media fails real decode without blocking authoritative turns", async ({
+    page,
+  }, testInfo) => {
     const corruptBody = Buffer.from("not-an-mp3-stream");
     const corruptManifest = structuredClone(audioManifest);
     corruptManifest.assets[0] = {
@@ -161,24 +208,34 @@ test.describe("authored audio failure isolation", () => {
       bytes: corruptBody.byteLength,
       sha256: createHash("sha256").update(corruptBody).digest("hex"),
     };
-    await page.route(`**${QIN_AUDIO_MANIFEST_URL}`, (route) => route.fulfill({
-      body: JSON.stringify(corruptManifest),
-      contentType: "application/json",
-      status: 200,
-    }));
-    await page.route("**/audio/qin-diorama/v1/qin-procession-v1.mp3", (route) => route.fulfill({
-      body: corruptBody,
-      contentType: "audio/mpeg",
-      status: 200,
-    }));
+    await page.route(`**${QIN_AUDIO_MANIFEST_URL}`, (route) =>
+      route.fulfill({
+        body: JSON.stringify(corruptManifest),
+        contentType: "application/json",
+        status: 200,
+      }),
+    );
+    await page.route("**/audio/qin-diorama/v1/qin-procession-v1.mp3", (route) =>
+      route.fulfill({
+        body: corruptBody,
+        contentType: "audio/mpeg",
+        status: 200,
+      }),
+    );
     await runFailedAudioSession(page, testInfo);
   });
 
-  test("an authored source-start failure invalidates the pack and preserves turns", async ({ page }, testInfo) => {
+  test("an authored source-start failure invalidates the pack and preserves turns", async ({
+    page,
+  }, testInfo) => {
     await page.addInitScript(() => {
       const nativeStart = AudioBufferSourceNode.prototype.start;
       let failed = false;
-      AudioBufferSourceNode.prototype.start = function start(when?: number, offset?: number, duration?: number) {
+      AudioBufferSourceNode.prototype.start = function start(
+        when?: number,
+        offset?: number,
+        duration?: number,
+      ) {
         if (!failed && this.loop && this.loopStart > 0) {
           failed = true;
           throw new DOMException("Injected authored source-start failure", "NotSupportedError");
@@ -190,13 +247,17 @@ test.describe("authored audio failure isolation", () => {
       };
     });
     await runFailedAudioSession(page, testInfo);
-    await expect.poll(() => page.evaluate(() => window.__XIANGQI_AUDIO_DEBUG__?.())).toMatchObject({
-      sourceStartAttemptsByKind: { "authored-music": 1 },
-      sourceStartsByKind: { "authored-music": 0 },
-    });
+    await expect
+      .poll(() => page.evaluate(() => window.__XIANGQI_AUDIO_DEBUG__?.()))
+      .toMatchObject({
+        sourceStartAttemptsByKind: { "authored-music": 1 },
+        sourceStartsByKind: { "authored-music": 0 },
+      });
   });
 
-  test("a held decode never blocks play and cannot start late after disposal", async ({ page }, testInfo) => {
+  test("a held decode never blocks play and cannot start late after disposal", async ({
+    page,
+  }, testInfo) => {
     await page.addInitScript(() => {
       const nativeDecode = AudioContext.prototype.decodeAudioData;
       let held = true;
@@ -211,65 +272,86 @@ test.describe("authored audio failure isolation", () => {
 
     await openCleanGame(page, "low", true);
     await startGame(page);
-    await expect.poll(() => page.evaluate(() => window.__XIANGQI_AUDIO_DEBUG__?.().pendingDecodes)).toBe(1);
-    await expect.poll(() => page.evaluate(() => window.__XIANGQI_AUDIO_DEBUG__?.())).toMatchObject({
-      activeSourcesByKind: { "synth-music": 1 },
-      musicMode: "synth",
-      packState: "loading",
-    });
+    await expect
+      .poll(() => page.evaluate(() => window.__XIANGQI_AUDIO_DEBUG__?.().pendingDecodes))
+      .toBe(1);
+    await expect
+      .poll(() => page.evaluate(() => window.__XIANGQI_AUDIO_DEBUG__?.()))
+      .toMatchObject({
+        activeSourcesByKind: { "synth-music": 1 },
+        musicMode: "synth",
+        packState: "loading",
+      });
     await playTwoLegalTurns(page);
 
     const beforeDispose = await page.evaluate(() => window.__XIANGQI_AUDIO_DEBUG__?.());
     await page.evaluate(() => window.__XIANGQI_AUDIO_TEST__?.dispose());
     await page.evaluate(() => window.__XIANGQI_AUDIO_RELEASE_HELD_DECODE__?.());
-    await expect.poll(() => page.evaluate(() => window.__XIANGQI_AUDIO_DEBUG__?.().pendingDecodes)).toBe(0);
-    await expect.poll(() => page.evaluate(() => window.__XIANGQI_AUDIO_DEBUG__?.())).toMatchObject({
-      activeSources: 0,
-      authoredBufferCount: 0,
-      cachedBuffers: 0,
-      contextPresent: false,
-      disposed: true,
-      listenerAttachments: 0,
-      loadingAuthoredBufferCount: 0,
-    });
-    expect((await page.evaluate(() => window.__XIANGQI_AUDIO_DEBUG__?.().sourceStarts))).toBe(beforeDispose?.sourceStarts);
+    await expect
+      .poll(() => page.evaluate(() => window.__XIANGQI_AUDIO_DEBUG__?.().pendingDecodes))
+      .toBe(0);
+    await expect
+      .poll(() => page.evaluate(() => window.__XIANGQI_AUDIO_DEBUG__?.()))
+      .toMatchObject({
+        activeSources: 0,
+        authoredBufferCount: 0,
+        cachedBuffers: 0,
+        contextPresent: false,
+        disposed: true,
+        listenerAttachments: 0,
+        loadingAuthoredBufferCount: 0,
+      });
+    expect(await page.evaluate(() => window.__XIANGQI_AUDIO_DEBUG__?.().sourceStarts)).toBe(
+      beforeDispose?.sourceStarts,
+    );
 
     await testInfo.attach("audio-late-decode-disposal.json", {
-      body: Buffer.from(JSON.stringify({
-        after: await page.evaluate(() => window.__XIANGQI_AUDIO_DEBUG__?.()),
-        beforeDispose,
-      }, null, 2)),
+      body: Buffer.from(
+        JSON.stringify(
+          {
+            after: await page.evaluate(() => window.__XIANGQI_AUDIO_DEBUG__?.()),
+            beforeDispose,
+          },
+          null,
+          2,
+        ),
+      ),
       contentType: "application/json",
     });
   });
 });
 
-test("high-quality ambient motion keeps resources stable across 100 browser frames", async ({ page }, testInfo) => {
+test("high-quality ambient motion keeps resources stable across 100 browser frames", async ({
+  page,
+}, testInfo) => {
   test.setTimeout(90_000);
   await openCleanGame(page, "high", false);
   await waitForEnvironmentSettled(page, "ready");
   await expect(page.locator(".xiangqi-game-shell")).toHaveAttribute("data-reduced-motion", "false");
-  await expect.poll(
-    () => page.evaluate(() => window.__XIANGQI_PERFORMANCE__?.geometries ?? 0),
-  ).toBeGreaterThan(0);
+  await expect
+    .poll(() => page.evaluate(() => window.__XIANGQI_PERFORMANCE__?.geometries ?? 0))
+    .toBeGreaterThan(0);
   const baseline = await page.evaluate(() => window.__XIANGQI_PERFORMANCE__!);
 
-  const browserFrames = await page.evaluate(() => new Promise<{
-    elapsedMs: number;
-    frameCount: number;
-  }>((resolve) => {
-    const startedAt = performance.now();
-    let frameCount = 0;
-    const sample = () => {
-      frameCount += 1;
-      if (frameCount >= 120) {
-        resolve({ elapsedMs: performance.now() - startedAt, frameCount });
-        return;
-      }
-      window.requestAnimationFrame(sample);
-    };
-    window.requestAnimationFrame(sample);
-  }));
+  const browserFrames = await page.evaluate(
+    () =>
+      new Promise<{
+        elapsedMs: number;
+        frameCount: number;
+      }>((resolve) => {
+        const startedAt = performance.now();
+        let frameCount = 0;
+        const sample = () => {
+          frameCount += 1;
+          if (frameCount >= 120) {
+            resolve({ elapsedMs: performance.now() - startedAt, frameCount });
+            return;
+          }
+          window.requestAnimationFrame(sample);
+        };
+        window.requestAnimationFrame(sample);
+      }),
+  );
   const settled = await page.evaluate(() => window.__XIANGQI_PERFORMANCE__!);
   const evidence = { baseline, browserFrames, settled };
   console.info(`AMBIENT_LIFECYCLE ${JSON.stringify(evidence)}`);
@@ -285,7 +367,9 @@ test("high-quality ambient motion keeps resources stable across 100 browser fram
   expect(Math.abs(settled.textures - baseline.textures)).toBeLessThanOrEqual(1);
 });
 
-test("high-low-high environment switching settles without cumulative renderer growth", async ({ page }, testInfo) => {
+test("high-low-high environment switching settles without cumulative renderer growth", async ({
+  page,
+}, testInfo) => {
   test.setTimeout(120_000);
   await openCleanGame(page, "high");
   await startGame(page);
@@ -297,9 +381,9 @@ test("high-low-high environment switching settles without cumulative renderer gr
     await expect(page.locator(".xiangqi-game-shell")).toHaveAttribute("data-quality", quality);
     await waitForEnvironmentSettled(page, "ready");
     await page.getByRole("button", { name: "设置" }).click();
-    await expect.poll(
-      () => page.evaluate(() => window.__XIANGQI_PERFORMANCE__?.geometries ?? 0),
-    ).toBeGreaterThan(0);
+    await expect
+      .poll(() => page.evaluate(() => window.__XIANGQI_PERFORMANCE__?.geometries ?? 0))
+      .toBeGreaterThan(0);
     // Renderer memory counters are published at 500 ms intervals; wait for a
     // post-transition sample instead of re-reading the outgoing tier.
     await page.waitForTimeout(1_500);
@@ -348,7 +432,17 @@ test("authoritative rules continue through a WebGL context loss and restore", as
   const keyboard = await startGame(page);
 
   await keyboard.focus();
-  await pressSequence(keyboard, ["ArrowLeft", "ArrowLeft", "ArrowLeft", "ArrowLeft", "ArrowUp", "ArrowUp", "ArrowUp", "Enter", "ArrowUp"]);
+  await pressSequence(keyboard, [
+    "ArrowLeft",
+    "ArrowLeft",
+    "ArrowLeft",
+    "ArrowLeft",
+    "ArrowUp",
+    "ArrowUp",
+    "ArrowUp",
+    "Enter",
+    "ArrowUp",
+  ]);
   await keyboard.press("Enter");
 
   const contextControl = await page.locator("canvas").evaluate((canvas) => {
@@ -357,10 +451,14 @@ test("authoritative rules continue through a WebGL context loss and restore", as
     if (!extension || !gl) return Promise.resolve(false);
     return new Promise<boolean>((resolve) => {
       const timeout = window.setTimeout(() => resolve(false), 5_000);
-      canvas.addEventListener("webglcontextrestored", () => {
-        window.clearTimeout(timeout);
-        window.requestAnimationFrame(() => resolve(!gl.isContextLost()));
-      }, { once: true });
+      canvas.addEventListener(
+        "webglcontextrestored",
+        () => {
+          window.clearTimeout(timeout);
+          window.requestAnimationFrame(() => resolve(!gl.isContextLost()));
+        },
+        { once: true },
+      );
       extension.loseContext();
       window.setTimeout(() => extension.restoreContext(), 150);
     });

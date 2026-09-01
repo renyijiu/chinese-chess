@@ -43,9 +43,8 @@ function snapshot(phase: OpponentCoordinatorSnapshot["phase"]): OpponentCoordina
     effectiveTier: "lightweight-hard",
     visible: true,
     turn: null,
-    failure: phase === "failed"
-      ? { code: "failed", message: "worker stopped", recoverable: true }
-      : null,
+    failure:
+      phase === "failed" ? { code: "failed", message: "worker stopped", recoverable: true } : null,
   };
 }
 
@@ -93,30 +92,39 @@ describe("game HUD policy", () => {
       to: { file: 0, rank: 4 },
     });
     if (afterHuman.error) throw new Error("fixture move must be legal");
-    expect(deriveGameHudPermissions({
-      ...computer,
-      game: afterHuman.state,
-      revision: afterHuman.state.revision,
-    }, false).canResign).toBe(false);
+    expect(
+      deriveGameHudPermissions(
+        {
+          ...computer,
+          game: afterHuman.state,
+          revision: afterHuman.state.revision,
+        },
+        false,
+      ).canResign,
+    ).toBe(false);
   });
 
   it("announces active thinking and a persisted Master fallback accurately", () => {
     const hard = createComputerMatch("hard", { entropy: fixedEntropy(0) });
     if (hard.config.mode !== "computer") throw new Error("expected computer match");
-    expect(describeOpponentStatus({
-      config: hard.config,
-      computerOwnsTurn: true,
-      snapshot: snapshot("searching"),
-    })).toBe("电脑正在思考");
+    expect(
+      describeOpponentStatus({
+        config: hard.config,
+        computerOwnsTurn: true,
+        snapshot: snapshot("searching"),
+      }),
+    ).toBe("电脑正在思考");
 
     const requestedMaster = createComputerMatch("master", { entropy: fixedEntropy(0) });
     const fallback = setEffectiveOpponentTier(requestedMaster, "lightweight-hard");
     if (fallback.config.mode !== "computer") throw new Error("expected computer match");
-    expect(describeOpponentStatus({
-      config: fallback.config,
-      computerOwnsTurn: false,
-      snapshot: snapshot("ready"),
-    })).toContain("已保存并回退至困难");
+    expect(
+      describeOpponentStatus({
+        config: fallback.config,
+        computerOwnsTurn: false,
+        snapshot: snapshot("ready"),
+      }),
+    ).toContain("已保存并回退至困难");
   });
 
   it("offers online resignation on either turn only while the peer protocol is healthy", () => {
@@ -155,18 +163,24 @@ describe("game HUD policy", () => {
       revision: afterLocal.state.revision,
     };
     expect(deriveGameHudPermissions(opponentTurn, false, healthy).canResign).toBe(true);
-    expect(deriveGameHudPermissions(opponentTurn, false, {
-      ...healthy,
-      peerOpen: false,
-    }).canResign).toBe(false);
-    expect(deriveGameHudPermissions(opponentTurn, false, {
-      ...healthy,
-      coordinatorPhase: "stalled",
-    }).canResign).toBe(false);
-    expect(deriveGameHudPermissions(opponentTurn, false, {
-      ...healthy,
-      coordinatorPhase: "awaiting-ack",
-    }).canResign).toBe(true);
+    expect(
+      deriveGameHudPermissions(opponentTurn, false, {
+        ...healthy,
+        peerOpen: false,
+      }).canResign,
+    ).toBe(false);
+    expect(
+      deriveGameHudPermissions(opponentTurn, false, {
+        ...healthy,
+        coordinatorPhase: "stalled",
+      }).canResign,
+    ).toBe(false);
+    expect(
+      deriveGameHudPermissions(opponentTurn, false, {
+        ...healthy,
+        coordinatorPhase: "awaiting-ack",
+      }).canResign,
+    ).toBe(true);
   });
 
   it("names the captured piece and groups losses by faction", () => {
@@ -201,7 +215,8 @@ describe("game HUD policy", () => {
       square: { file: 0, rank: 6 },
     };
     const history = Array.from({ length: 9 }, (_, index) =>
-      captureMove(index + 1, index % 2 === 0 ? "red" : "black", "chariot", captured));
+      captureMove(index + 1, index % 2 === 0 ? "red" : "black", "chariot", captured),
+    );
 
     expect(deriveVisibleMoveHistory(history, false).map((move) => move.revision)).toEqual([
       9, 8, 7, 6, 5, 4, 3, 2,
