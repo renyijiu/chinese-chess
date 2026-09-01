@@ -1,6 +1,6 @@
 "use client";
 
-/* eslint-disable react/no-unknown-property -- R3F scene graph props are valid custom JSX properties. */
+/* oxlint-disable react/no-unknown-property -- R3F scene graph props are valid custom JSX properties. */
 
 import type { ThreeEvent } from "@react-three/fiber";
 import { memo, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from "react";
