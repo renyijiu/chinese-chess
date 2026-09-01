@@ -13,6 +13,7 @@ import {
   waitForEnvironmentSettled,
   waitForRevision,
 } from "./helpers";
+import { getQualityProfile } from "../../components/xiangqi/runtime/quality";
 import { getPanoramaUrl } from "../../components/xiangqi/scene/diorama-environment";
 import {
   QIN_AUDIO_MANIFEST_URL,
@@ -371,9 +372,55 @@ test("high-low-high environment switching settles without cumulative renderer gr
   page,
 }, testInfo) => {
   test.setTimeout(120_000);
+  const lowLodPattern = /\/models\/pieces\/v1\/[^/]+\/[^/]+-lod2\.glb(?:\?.*)?$/;
+  let lowLodRequestSeen = false;
+  let releaseLowLod: () => void = () => undefined;
+  const lowLodGate = new Promise<void>((resolve) => {
+    releaseLowLod = resolve;
+  });
+  await page.route(lowLodPattern, async (route) => {
+    lowLodRequestSeen = true;
+    await lowLodGate;
+    await route.continue();
+  });
   await openCleanGame(page, "high");
   await startGame(page);
   await setReducedMotion(page);
+
+  const settleRendererMemory = async () => {
+    const viewport = page.viewportSize();
+    if (!viewport) throw new Error("renderer memory sampling requires a configured viewport");
+
+    const invalidatedWidth = viewport.width > 1 ? viewport.width - 1 : viewport.width + 1;
+    let currentWidth = viewport.width;
+    let previous: { geometries: number; textures: number } | undefined;
+    try {
+      for (let attempt = 0; attempt < 6; attempt += 1) {
+        // The canvas renders on demand, so a passive timeout cannot flush Three.js
+        // disposal. Resizing by one pixel invalidates it; metrics publish every 500 ms.
+        currentWidth = attempt % 2 === 0 ? invalidatedWidth : viewport.width;
+        await page.setViewportSize({ height: viewport.height, width: currentWidth });
+        await page.waitForTimeout(600);
+        const current = await page.evaluate(() => ({
+          geometries: window.__XIANGQI_PERFORMANCE__?.geometries ?? 0,
+          textures: window.__XIANGQI_PERFORMANCE__?.textures ?? 0,
+        }));
+        if (
+          previous &&
+          current.geometries > 0 &&
+          current.geometries === previous.geometries &&
+          current.textures === previous.textures
+        ) {
+          return current;
+        }
+        previous = current;
+      }
+    } finally {
+      if (currentWidth !== viewport.width) await page.setViewportSize(viewport);
+    }
+
+    throw new Error(`renderer memory did not settle: ${JSON.stringify(previous)}`);
+  };
 
   const switchQuality = async (quality: "high" | "low") => {
     await page.getByRole("button", { name: "设置" }).click();
@@ -382,25 +429,35 @@ test("high-low-high environment switching settles without cumulative renderer gr
     await waitForEnvironmentSettled(page, "ready");
     await page.getByRole("button", { name: "设置" }).click();
     await expect
-      .poll(() => page.evaluate(() => window.__XIANGQI_PERFORMANCE__?.geometries ?? 0))
-      .toBeGreaterThan(0);
-    // Renderer memory counters are published at 500 ms intervals; wait for a
-    // post-transition sample instead of re-reading the outgoing tier.
-    await page.waitForTimeout(1_500);
-    return page.evaluate(() => {
-      const metrics = window.__XIANGQI_PERFORMANCE__;
+      .poll(() => page.evaluate(() => window.__XIANGQI_COMMITTED_PIECE_LOD__))
+      .toBe(getQualityProfile(quality).lod);
+    const rendererMemory = await settleRendererMemory();
+    return page.evaluate((memory) => {
       const diagnostics = window.__XIANGQI_ENVIRONMENT_DIAGNOSTICS__;
       return {
         activePanoramaUrls: diagnostics?.activePanoramaUrls ?? [],
         disposedPanoramaCount: diagnostics?.disposedPanoramaCount ?? 0,
-        geometries: metrics?.geometries ?? 0,
-        textures: metrics?.textures ?? 0,
+        ...memory,
       };
-    });
+    }, rendererMemory);
   };
 
   const initialHigh = await switchQuality("high");
-  const lowAfterHigh = await switchQuality("low");
+  let lowSwitchSettled = false;
+  const lowAfterHighPromise = switchQuality("low").then((sample) => {
+    lowSwitchSettled = true;
+    return sample;
+  });
+  await expect.poll(() => lowLodRequestSeen).toBe(true);
+  await waitForEnvironmentSettled(page, "ready");
+  try {
+    await page.waitForTimeout(2_000);
+    expect(lowSwitchSettled).toBe(false);
+  } finally {
+    releaseLowLod();
+  }
+  const lowAfterHigh = await lowAfterHighPromise;
+  await page.unroute(lowLodPattern);
   const warmedHigh = await switchQuality("high");
   const secondLow = await switchQuality("low");
   const settledHigh = await switchQuality("high");
