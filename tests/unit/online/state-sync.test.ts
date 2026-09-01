@@ -61,27 +61,39 @@ describe("online snapshot state synchronization", () => {
     const valid = await snapshot(moved);
     const pretty = JSON.stringify(JSON.parse(valid.serializedGame), null, 2);
 
-    await expect(validateSnapshotV1({ ...valid, serializedGame: "not-json" }))
-      .resolves.toEqual({ ok: false, error: { code: "invalid-serialization" } });
-    await expect(validateSnapshotV1({
-      ...valid,
-      serializedGame: pretty,
-      positionHash: await sha256Hex(pretty),
-    })).resolves.toEqual({ ok: false, error: { code: "non-canonical" } });
-    await expect(validateSnapshotV1({ ...valid, revision: valid.revision + 1 }))
-      .resolves.toEqual({ ok: false, error: { code: "revision-mismatch" } });
-    await expect(validateSnapshotV1({ ...valid, positionHash: "0".repeat(64) }))
-      .resolves.toEqual({ ok: false, error: { code: "hash-mismatch" } });
+    await expect(validateSnapshotV1({ ...valid, serializedGame: "not-json" })).resolves.toEqual({
+      ok: false,
+      error: { code: "invalid-serialization" },
+    });
+    await expect(
+      validateSnapshotV1({
+        ...valid,
+        serializedGame: pretty,
+        positionHash: await sha256Hex(pretty),
+      }),
+    ).resolves.toEqual({ ok: false, error: { code: "non-canonical" } });
+    await expect(validateSnapshotV1({ ...valid, revision: valid.revision + 1 })).resolves.toEqual({
+      ok: false,
+      error: { code: "revision-mismatch" },
+    });
+    await expect(validateSnapshotV1({ ...valid, positionHash: "0".repeat(64) })).resolves.toEqual({
+      ok: false,
+      error: { code: "hash-mismatch" },
+    });
 
     const undone = dispatch(moved, { type: "undo", expectedRevision: moved.revision });
     if (undone.error) throw new Error(undone.error.code);
-    await expect(validateSnapshotV1(await snapshot(undone.state)))
-      .resolves.toEqual({ ok: false, error: { code: "undo-not-allowed" } });
+    await expect(validateSnapshotV1(await snapshot(undone.state))).resolves.toEqual({
+      ok: false,
+      error: { code: "undo-not-allowed" },
+    });
 
-    await expect(validateSnapshotV1({
-      ...valid,
-      serializedGame: "x".repeat(MAX_ONLINE_FRAME_BYTES),
-    })).resolves.toEqual({ ok: false, error: { code: "invalid-snapshot" } });
+    await expect(
+      validateSnapshotV1({
+        ...valid,
+        serializedGame: "x".repeat(MAX_ONLINE_FRAME_BYTES),
+      }),
+    ).resolves.toEqual({ ok: false, error: { code: "invalid-snapshot" } });
   });
 
   it("permits only equal logs or a strict local-prefix fast-forward", () => {

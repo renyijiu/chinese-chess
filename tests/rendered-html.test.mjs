@@ -50,10 +50,9 @@ test("server-renders the fullscreen Qin terracotta game", async () => {
 });
 
 test("serves Master assets with exact MIME, isolation, and version-aware cache policy", async () => {
-  const generatedWrangler = JSON.parse(await readFile(
-    new URL("../dist/server/wrangler.json", import.meta.url),
-    "utf8",
-  ));
+  const generatedWrangler = JSON.parse(
+    await readFile(new URL("../dist/server/wrangler.json", import.meta.url), "utf8"),
+  );
   assert.equal(generatedWrangler.assets.binding, "ASSETS");
   assert.deepEqual(generatedWrangler.assets.run_worker_first, [
     "/engines/fairy-stockfish-nnue/1.1.12/*",
@@ -93,7 +92,10 @@ test("serves Master assets with exact MIME, isolation, and version-aware cache p
   );
   assert.equal(lightweightWorker.status, 200);
   assert.equal(lightweightWorker.headers.get("content-type"), "text/javascript; charset=utf-8");
-  assert.equal(lightweightWorker.headers.get("cache-control"), "public, max-age=31536000, immutable");
+  assert.equal(
+    lightweightWorker.headers.get("cache-control"),
+    "public, max-age=31536000, immutable",
+  );
   assert.equal(lightweightWorker.headers.get("cross-origin-embedder-policy"), "require-corp");
 });
 
@@ -145,8 +147,14 @@ test("keeps the rule-correct board and modular R3F runtime wired", async () => {
     readFile(new URL("../components/xiangqi/scene/BoardScene.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/xiangqi/scene/BoardSurface.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/xiangqi/scene/board-geometry.ts", import.meta.url), "utf8"),
-    readFile(new URL("../components/xiangqi/scene/DioramaEnvironment.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../components/xiangqi/runtime/board-coordinates.ts", import.meta.url), "utf8"),
+    readFile(
+      new URL("../components/xiangqi/scene/DioramaEnvironment.tsx", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../components/xiangqi/runtime/board-coordinates.ts", import.meta.url),
+      "utf8",
+    ),
     readFile(new URL("../components/xiangqi/pieces/asset-loader.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/xiangqi/scene/PrototypeMarshal.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/xiangqi/XiangqiGame.tsx", import.meta.url), "utf8"),
@@ -154,8 +162,14 @@ test("keeps the rule-correct board and modular R3F runtime wired", async () => {
     readFile(new URL("../components/xiangqi/game/storage.ts", import.meta.url), "utf8"),
     readFile(new URL("../components/xiangqi/pieces/PieceActor.tsx", import.meta.url), "utf8"),
     readFile(new URL("../components/xiangqi/pieces/piece-catalog.ts", import.meta.url), "utf8"),
-    readFile(new URL("../components/xiangqi/animation/AnimationDirector.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../components/xiangqi/presentation/PresentationStore.ts", import.meta.url), "utf8"),
+    readFile(
+      new URL("../components/xiangqi/animation/AnimationDirector.tsx", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../components/xiangqi/presentation/PresentationStore.ts", import.meta.url),
+      "utf8",
+    ),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/XiangqiGameClient.tsx", import.meta.url), "utf8"),
     readFile(new URL("../README.md", import.meta.url), "utf8"),
@@ -214,8 +228,13 @@ test("keeps the rule-correct board and modular R3F runtime wired", async () => {
   assert.match(pieceActor, /pieceAssetUrl\(piece\.role, lod\)/);
   assert.doesNotMatch(pieceActor, /technical-placeholder/);
   for (const [gameRole, assetRole] of Object.entries({
-    general: "marshal", advisor: "advisor", elephant: "elephant", chariot: "chariot",
-    horse: "horse", cannon: "cannon", soldier: "soldier",
+    general: "marshal",
+    advisor: "advisor",
+    elephant: "elephant",
+    chariot: "chariot",
+    horse: "horse",
+    cannon: "cannon",
+    soldier: "soldier",
   })) {
     assert.match(pieceCatalog, new RegExp(`${gameRole}: "${assetRole}"`));
   }
@@ -223,7 +242,10 @@ test("keeps the rule-correct board and modular R3F runtime wired", async () => {
   assert.match(animationDirector, /useFrame/);
   assert.match(presentationStore, /TimelineDirector/);
   assert.match(page, /XiangqiGameClient/);
-  assert.match(gameClient, /dynamic\(\s*\(\) => import\("\.\.\/components\/xiangqi\/XiangqiGame"\)/);
+  assert.match(
+    gameClient,
+    /dynamic\(\s*\(\) => import\("\.\.\/components\/xiangqi\/XiangqiGame"\)/,
+  );
   assert.match(gameClient, /ssr: false/);
   assert.match(gameClient, /loading: LoadingGameShell/);
   assert.match(readme, /九道纵线、十道横线/);

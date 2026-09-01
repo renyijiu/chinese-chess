@@ -8,7 +8,11 @@ import type { PresentationStore } from "../presentation/PresentationStore";
 import type { QualityTier } from "../runtime/quality";
 
 /** Cue-driven camera impulse. It is deliberately presentation-only and cannot delay a rule transition. */
-export function CameraFeedback({ presentation, quality, reducedMotion }: {
+export function CameraFeedback({
+  presentation,
+  quality,
+  reducedMotion,
+}: {
   presentation: PresentationStore;
   quality: QualityTier;
   reducedMotion: boolean;
@@ -18,13 +22,17 @@ export function CameraFeedback({ presentation, quality, reducedMotion }: {
   const elapsed = useRef(0);
   const lastOffset = useRef(new THREE.Vector3());
 
-  useEffect(() => presentation.subscribeCue((cue) => {
-    if (reducedMotion || quality === "low") return;
-    if (cue.marker !== "impact" && cue.marker !== "fracture") return;
-    amplitude.current = Math.max(amplitude.current, cue.marker === "fracture" ? 0.055 : 0.035);
-    elapsed.current = 0;
-    invalidate();
-  }), [invalidate, presentation, quality, reducedMotion]);
+  useEffect(
+    () =>
+      presentation.subscribeCue((cue) => {
+        if (reducedMotion || quality === "low") return;
+        if (cue.marker !== "impact" && cue.marker !== "fracture") return;
+        amplitude.current = Math.max(amplitude.current, cue.marker === "fracture" ? 0.055 : 0.035);
+        elapsed.current = 0;
+        invalidate();
+      }),
+    [invalidate, presentation, quality, reducedMotion],
+  );
 
   useFrame((_, delta) => {
     camera.position.sub(lastOffset.current);
@@ -47,10 +55,13 @@ export function CameraFeedback({ presentation, quality, reducedMotion }: {
     }
   });
 
-  useEffect(() => () => {
-    camera.position.sub(lastOffset.current);
-    lastOffset.current.set(0, 0, 0);
-  }, [camera]);
+  useEffect(
+    () => () => {
+      camera.position.sub(lastOffset.current);
+      lastOffset.current.set(0, 0, 0);
+    },
+    [camera],
+  );
 
   return null;
 }

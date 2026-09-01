@@ -36,10 +36,7 @@ export function serializeGame(state: GameState): string {
 export async function sha256Hex(value: string): Promise<string> {
   const bytes = new TextEncoder().encode(value);
   const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes);
-  return Array.from(
-    new Uint8Array(digest),
-    (byte) => byte.toString(16).padStart(2, "0"),
-  ).join("");
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 export function fingerprintGame(state: GameState): Promise<string> {
@@ -102,7 +99,9 @@ function parseSerializedGame(serialized: string): SerializedGameV1 {
     value.rulesetId !== POPULAR_RULESET_ID ||
     value.initialPosition !== "standard"
   ) {
-    throw new XiangqiSerializationError("The save schema, ruleset, or initial position is unsupported.");
+    throw new XiangqiSerializationError(
+      "The save schema, ruleset, or initial position is unsupported.",
+    );
   }
   if (!Array.isArray(value.commands) || value.commands.length > 10_000) {
     throw new XiangqiSerializationError("The save command list is missing or too large.");

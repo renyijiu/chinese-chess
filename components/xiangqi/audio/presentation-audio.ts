@@ -6,7 +6,9 @@ import type { AudioEngine } from "./AudioEngine";
 import type { AudioCueId } from "./audio-types";
 import { ROLE_VOICE_LINES } from "./voice-lines";
 
-const CUE_SUFFIX_BY_MARKER: Readonly<Partial<Record<PresentationCue["marker"], "move" | "release" | "impact" | "fracture">>> = Object.freeze({
+const CUE_SUFFIX_BY_MARKER: Readonly<
+  Partial<Record<PresentationCue["marker"], "move" | "release" | "impact" | "fracture">>
+> = Object.freeze({
   telegraph: "move",
   release: "release",
   impact: "impact",
@@ -14,8 +16,8 @@ const CUE_SUFFIX_BY_MARKER: Readonly<Partial<Record<PresentationCue["marker"], "
 });
 
 function cueMoveEvent(cue: PresentationCue) {
-  const event = cue.transition.events.find((candidate) =>
-    candidate.type === "MoveCommitted" || candidate.type === "MoveUndone",
+  const event = cue.transition.events.find(
+    (candidate) => candidate.type === "MoveCommitted" || candidate.type === "MoveUndone",
   );
   return event?.type === "MoveCommitted" || event?.type === "MoveUndone" ? event : null;
 }
@@ -28,7 +30,9 @@ export function handlePresentationAudioCue(engine: AudioEngine, cue: Presentatio
     const role = ASSET_ROLE_BY_GAME_ROLE[move.role];
     const visualFrom = moveEvent.type === "MoveUndone" ? move.to : move.from;
     const visualTo = moveEvent.type === "MoveUndone" ? move.from : move.to;
-    const world = squareToWorld(cue.marker === "telegraph" || cue.marker === "release" ? visualFrom : visualTo);
+    const world = squareToWorld(
+      cue.marker === "telegraph" || cue.marker === "release" ? visualFrom : visualTo,
+    );
     const suffix = CUE_SUFFIX_BY_MARKER[cue.marker];
     if (suffix) engine.play(`${role}.${suffix}` as AudioCueId, { position: world });
 

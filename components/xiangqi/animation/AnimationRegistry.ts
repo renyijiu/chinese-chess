@@ -46,7 +46,9 @@ export class AnimationRegistry {
     next.fadeIn(0.08);
     entry.current = next;
     entry.urgentSeconds = looping
-      ? clipName === "move_loop" ? Math.max(entry.urgentSeconds, 0.8) : entry.urgentSeconds
+      ? clipName === "move_loop"
+        ? Math.max(entry.urgentSeconds, 0.8)
+        : entry.urgentSeconds
       : Math.max(entry.urgentSeconds, next.getClip().duration + 0.12);
     return true;
   }

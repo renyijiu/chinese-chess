@@ -26,13 +26,17 @@ export type OpponentCoordinatorPhase =
   | "failed"
   | "disposed";
 
-export type OpponentTurnToken = Readonly<OpponentPositionIdentityV1 & {
-  positionStatus: "playing";
-}>;
+export type OpponentTurnToken = Readonly<
+  OpponentPositionIdentityV1 & {
+    positionStatus: "playing";
+  }
+>;
 
-export type OpponentCommitReceipt = Readonly<OpponentTurnToken & {
-  status: "committed" | "rejected" | "superseded";
-}>;
+export type OpponentCommitReceipt = Readonly<
+  OpponentTurnToken & {
+    status: "committed" | "rejected" | "superseded";
+  }
+>;
 
 export type OpponentCandidateRelease = Readonly<{
   turn: OpponentTurnToken;
@@ -72,12 +76,14 @@ export interface OpponentCoordinatorOptions {
   readonly providerFactory: OpponentProviderFactory;
   readonly digest?: PositionDigest;
   readonly fallbackResolver?: OpponentFallbackResolver;
-  readonly onFallback?: (event: Readonly<{
-    matchId: string;
-    fromTier: OpponentTier;
-    toTier: OpponentTier;
-    failure: OpponentProviderFailure;
-  }>) => void | Promise<void>;
+  readonly onFallback?: (
+    event: Readonly<{
+      matchId: string;
+      fromTier: OpponentTier;
+      toTier: OpponentTier;
+      failure: OpponentProviderFailure;
+    }>,
+  ) => void | Promise<void>;
   readonly stopGraceMs?: number;
   readonly searchTimeoutPaddingMs?: number;
   readonly timers?: OpponentCoordinatorTimers;
@@ -140,19 +146,23 @@ async function sha256(value: string): Promise<string> {
 }
 
 function sameIdentity(left: OpponentIdentityV1, right: OpponentIdentityV1): boolean {
-  return left.matchId === right.matchId
-    && left.generation === right.generation
-    && left.requestId === right.requestId;
+  return (
+    left.matchId === right.matchId &&
+    left.generation === right.generation &&
+    left.requestId === right.requestId
+  );
 }
 
 function samePositionIdentity(
   left: OpponentPositionIdentityV1,
   right: OpponentPositionIdentityV1,
 ): boolean {
-  return sameIdentity(left, right)
-    && left.positionRevision === right.positionRevision
-    && left.positionFingerprint === right.positionFingerprint
-    && left.sideToMove === right.sideToMove;
+  return (
+    sameIdentity(left, right) &&
+    left.positionRevision === right.positionRevision &&
+    left.positionFingerprint === right.positionFingerprint &&
+    left.sideToMove === right.sideToMove
+  );
 }
 
 function freezeTurn(request: OpponentRequestV1): OpponentTurnToken {
@@ -194,14 +204,13 @@ export class OpponentCoordinator {
   constructor(options: OpponentCoordinatorOptions) {
     this.#providerFactory = options.providerFactory;
     this.#digest = options.digest ?? sha256;
-    this.#fallbackResolver = options.fallbackResolver
-      ?? ((tier) => defaultFallback(tier));
+    this.#fallbackResolver = options.fallbackResolver ?? ((tier) => defaultFallback(tier));
     this.#onFallback = options.onFallback;
     this.#stopGraceMs = Math.max(0, options.stopGraceMs ?? 250);
     this.#searchTimeoutPaddingMs = Math.max(0, options.searchTimeoutPaddingMs ?? 250);
     this.#timers = options.timers ?? defaultTimers;
-    this.#createRequestId = options.createRequestId
-      ?? ((generation, sequence) => `request-${generation}-${sequence}`);
+    this.#createRequestId =
+      options.createRequestId ?? ((generation, sequence) => `request-${generation}-${sequence}`);
   }
 
   getSnapshot(): OpponentCoordinatorSnapshot {
@@ -248,15 +257,16 @@ export class OpponentCoordinator {
 
   async requestTurn(input: OpponentTurnRequest): Promise<boolean> {
     if (
-      this.#disposed
-      || !this.#visible
-      || this.#terminal
-      || input.status !== "playing"
-      || this.#phase !== "ready"
-      || !this.#provider
-      || !this.#match
-      || input.matchId !== this.#match.matchId
-    ) return false;
+      this.#disposed ||
+      !this.#visible ||
+      this.#terminal ||
+      input.status !== "playing" ||
+      this.#phase !== "ready" ||
+      !this.#provider ||
+      !this.#match ||
+      input.matchId !== this.#match.matchId
+    )
+      return false;
 
     const generation = this.#generation;
     const match = this.#match;
@@ -271,15 +281,18 @@ export class OpponentCoordinator {
       positionFingerprint = await this.#digest(input.serializedGame);
     } catch {
       if (this.isCurrent(generation, match.matchId) && this.#phase === "searching") {
-        this.fail(providerFailure("invalid-request", "The position fingerprint could not be created."));
+        this.fail(
+          providerFailure("invalid-request", "The position fingerprint could not be created."),
+        );
       }
       return false;
     }
     if (
-      !this.isCurrent(generation, match.matchId)
-      || this.#provider !== provider
-      || this.#phase !== "searching"
-    ) return false;
+      !this.isCurrent(generation, match.matchId) ||
+      this.#provider !== provider ||
+      this.#phase !== "searching"
+    )
+      return false;
 
     const request: OpponentRequestV1 = Object.freeze({
       protocolVersion: 1,
@@ -299,16 +312,16 @@ export class OpponentCoordinator {
     });
     this.#activeRequest = request;
     this.emit();
-    this.#searchTimeout = this.#timers.setTimeout(
-      () => { void this.handleSearchTimeout(request, provider); },
-      input.safetyDeadlineMs + this.#searchTimeoutPaddingMs,
-    );
+    this.#searchTimeout = this.#timers.setTimeout(() => {
+      void this.handleSearchTimeout(request, provider);
+    }, input.safetyDeadlineMs + this.#searchTimeoutPaddingMs);
     void provider.search(request).then(
       (outcome) => this.handleOutcome(request, provider, outcome),
-      () => this.handleOutcome(request, provider, {
-        ok: false,
-        failure: providerFailure("failed", "The opponent provider rejected its search."),
-      }),
+      () =>
+        this.handleOutcome(request, provider, {
+          ok: false,
+          failure: providerFailure("failed", "The opponent provider rejected its search."),
+        }),
     );
     return true;
   }
@@ -590,36 +603,40 @@ export class OpponentCoordinator {
   }
 
   private contextMatches(context: OpponentCommitContext, request: OpponentRequestV1): boolean {
-    return context.status === "playing"
-      && context.matchId === request.matchId
-      && context.positionRevision === request.positionRevision
-      && context.positionFingerprint === request.positionFingerprint
-      && context.sideToMove === request.sideToMove
-      && this.#match?.matchId === request.matchId
-      && this.#generation === request.generation
-      && !this.#terminal
-      && this.#visible;
+    return (
+      context.status === "playing" &&
+      context.matchId === request.matchId &&
+      context.positionRevision === request.positionRevision &&
+      context.positionFingerprint === request.positionFingerprint &&
+      context.sideToMove === request.sideToMove &&
+      this.#match?.matchId === request.matchId &&
+      this.#generation === request.generation &&
+      !this.#terminal &&
+      this.#visible
+    );
   }
 
   private isActive(request: OpponentRequestV1, provider: OpponentProvider): boolean {
-    return !this.#disposed
-      && this.#provider === provider
-      && this.#activeRequest !== null
-      && samePositionIdentity(this.#activeRequest, request)
-      && this.#generation === request.generation;
+    return (
+      !this.#disposed &&
+      this.#provider === provider &&
+      this.#activeRequest !== null &&
+      samePositionIdentity(this.#activeRequest, request) &&
+      this.#generation === request.generation
+    );
   }
 
   private isPending(generation: number, pending: PendingCandidate): boolean {
-    return !this.#disposed
-      && this.#generation === generation
-      && this.#pending === pending
-      && this.#activeRequest === pending.request;
+    return (
+      !this.#disposed &&
+      this.#generation === generation &&
+      this.#pending === pending &&
+      this.#activeRequest === pending.request
+    );
   }
 
   private isCurrent(generation: number, matchId: string): boolean {
-    return !this.#disposed
-      && this.#generation === generation
-      && this.#match?.matchId === matchId;
+    return !this.#disposed && this.#generation === generation && this.#match?.matchId === matchId;
   }
 
   private fail(failure: OpponentProviderFailure): void {

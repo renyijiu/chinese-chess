@@ -74,12 +74,21 @@ function sha256(path) {
 function defaultProbeAudio(path) {
   let result;
   try {
-    result = JSON.parse(execFileSync("ffprobe", [
-      "-v", "error",
-      "-show_entries", "stream=codec_name,sample_rate,channels,duration:format=duration",
-      "-of", "json",
-      path,
-    ], { encoding: "utf8" }));
+    result = JSON.parse(
+      execFileSync(
+        "ffprobe",
+        [
+          "-v",
+          "error",
+          "-show_entries",
+          "stream=codec_name,sample_rate,channels,duration:format=duration",
+          "-of",
+          "json",
+          path,
+        ],
+        { encoding: "utf8" },
+      ),
+    );
   } catch (error) {
     fail(`ffprobe could not inspect ${path}: ${error.message}`);
   }
@@ -95,7 +104,9 @@ function defaultProbeAudio(path) {
 }
 
 function isGitLfsPointer(path) {
-  return readFileSync(path).subarray(0, GIT_LFS_POINTER_PREFIX.length).equals(GIT_LFS_POINTER_PREFIX);
+  return readFileSync(path)
+    .subarray(0, GIT_LFS_POINTER_PREFIX.length)
+    .equals(GIT_LFS_POINTER_PREFIX);
 }
 
 function validateLosslessSourceProbe(probe, label) {
@@ -120,16 +131,24 @@ async function validateSourceRecords(manifest, rootDir, ledgerPath, probeLossles
     validateClaimBoundary(record.claimBoundary, `${id} claim boundary`);
     let hasLosslessSource = false;
     for (const sourcePath of record.sourcePaths) {
-      if (typeof sourcePath !== "string" || sourcePath.startsWith("/") || sourcePath.includes("..")) {
+      if (
+        typeof sourcePath !== "string" ||
+        sourcePath.startsWith("/") ||
+        sourcePath.includes("..")
+      ) {
         fail(`${id} has an invalid source path ${sourcePath}`);
       }
       const absolutePath = resolve(rootDir, sourcePath);
       if (!existsSync(absolutePath)) fail(`${id} source path does not exist: ${sourcePath}`);
       if (!LOSSLESS_SOURCE_EXTENSIONS.has(extname(sourcePath).toLowerCase())) continue;
       hasLosslessSource = true;
-      if (isGitLfsPointer(absolutePath)) fail(`${id} source path is an unhydrated Git LFS pointer: ${sourcePath}`);
+      if (isGitLfsPointer(absolutePath))
+        fail(`${id} source path is an unhydrated Git LFS pointer: ${sourcePath}`);
       try {
-        validateLosslessSourceProbe(await probeLosslessSource(absolutePath), `${id} lossless source ${sourcePath}`);
+        validateLosslessSourceProbe(
+          await probeLosslessSource(absolutePath),
+          `${id} lossless source ${sourcePath}`,
+        );
       } catch (error) {
         fail(`${id} lossless source could not be inspected: ${sourcePath}: ${error.message}`);
       }
@@ -147,11 +166,15 @@ async function validateSourceRecords(manifest, rootDir, ledgerPath, probeLossles
 }
 
 function validateManifestHeader(manifest) {
-  if (manifest?.schema !== "xiangqi-audio-pack/v1") fail("Manifest schema must be xiangqi-audio-pack/v1");
+  if (manifest?.schema !== "xiangqi-audio-pack/v1")
+    fail("Manifest schema must be xiangqi-audio-pack/v1");
   if (manifest?.version !== 1) fail("Manifest version must be 1");
   if (manifest?.packId !== "qin-diorama") fail("Manifest packId must be qin-diorama");
   validateClaimBoundary(manifest.claimBoundary, "Manifest claim boundary");
-  if (!Array.isArray(manifest.loadOrder) || JSON.stringify(manifest.loadOrder) !== JSON.stringify(EXPECTED_IDS)) {
+  if (
+    !Array.isArray(manifest.loadOrder) ||
+    JSON.stringify(manifest.loadOrder) !== JSON.stringify(EXPECTED_IDS)
+  ) {
     fail(`Manifest loadOrder must be ${EXPECTED_IDS.join(", ")}`);
   }
   if (!Array.isArray(manifest.assets) || manifest.assets.length !== EXPECTED_IDS.length) {
@@ -183,9 +206,15 @@ function validateAssetShape(asset, expected, order) {
   if (!asset?.sourceRecordId) fail(`${label} is missing sourceRecordId`);
 
   const filename = asset.url?.split("/").at(-1) ?? "";
-  if (!/-v1\.(?:mp3|wav)$/.test(filename)) fail(`${label} runtime filename must be versioned with -v1`);
+  if (!/-v1\.(?:mp3|wav)$/.test(filename))
+    fail(`${label} runtime filename must be versioned with -v1`);
   if (asset.kind === "background") {
-    if (asset.group !== "critical" || asset.bus !== "music" || asset.mimeType !== "audio/mpeg" || asset.codec !== "mp3") {
+    if (
+      asset.group !== "critical" ||
+      asset.bus !== "music" ||
+      asset.mimeType !== "audio/mpeg" ||
+      asset.codec !== "mp3"
+    ) {
       fail(`${label} must be a critical audio/mpeg MP3 on the music bus`);
     }
     if (asset.durationSeconds !== 72) fail(`${label} must declare the 72-second authored duration`);
@@ -199,7 +228,12 @@ function validateAssetShape(asset, expected, order) {
     }
   } else if (asset.kind === "transient") {
     if (asset.loop !== undefined) fail(`${label} transient must not declare a loop range`);
-    if (asset.group !== "deferred" || asset.bus !== "sfx" || asset.mimeType !== "audio/wav" || asset.codec !== "pcm_s16le") {
+    if (
+      asset.group !== "deferred" ||
+      asset.bus !== "sfx" ||
+      asset.mimeType !== "audio/wav" ||
+      asset.codec !== "pcm_s16le"
+    ) {
       fail(`${label} must be a deferred audio/wav PCM16 transient on the sfx bus`);
     }
     if (asset.channels !== 1 || asset.sampleRate !== 48_000) {
@@ -209,13 +243,14 @@ function validateAssetShape(asset, expected, order) {
     fail(`${label} has unknown kind ${asset.kind}`);
   }
 
-  const maximumDuration = expectedId === "accent.capture-clay"
-    ? 0.5
-    : expectedId === "system.check"
-      ? 0.9
-      : expectedId.startsWith("system.")
-        ? 2.5
-        : null;
+  const maximumDuration =
+    expectedId === "accent.capture-clay"
+      ? 0.5
+      : expectedId === "system.check"
+        ? 0.9
+        : expectedId.startsWith("system.")
+          ? 2.5
+          : null;
   if (maximumDuration !== null && !(asset.durationSeconds < maximumDuration)) {
     fail(`${label} duration must be shorter than ${maximumDuration} seconds`);
   }
@@ -233,8 +268,10 @@ function validateBudgets(manifest, manifestBytes, budgets) {
     uniqueUrls.add(asset.url);
     runtimeBytes += positiveInteger(asset.bytes, `${asset.id} bytes`);
     if (asset.group === "critical") criticalBytes += asset.bytes;
-    const decoded = positiveInteger(asset.channels, `${asset.id} channels`)
-      * positiveInteger(asset.sampleFrames, `${asset.id} sampleFrames`) * 4;
+    const decoded =
+      positiveInteger(asset.channels, `${asset.id} channels`) *
+      positiveInteger(asset.sampleFrames, `${asset.id} sampleFrames`) *
+      4;
     decodedBytes += decoded;
     decodedAssets.push({ bytes: decoded, id: asset.id });
     runtimeFiles.push({ bytes: asset.bytes, mimeType: asset.mimeType, url: asset.url });
@@ -253,13 +290,19 @@ function validateBudgets(manifest, manifestBytes, budgets) {
 
 export async function validateAudioPackage(options = {}) {
   const rootDir = resolve(options.rootDir ?? SCRIPT_ROOT);
-  const manifestPath = resolve(options.manifestPath ?? resolve(rootDir, "public/audio/qin-diorama/v1/manifest.json"));
-  const ledgerPath = resolve(options.ledgerPath ?? resolve(rootDir, "assets/audio/qin-diorama/v1/SOURCES.md"));
+  const manifestPath = resolve(
+    options.manifestPath ?? resolve(rootDir, "public/audio/qin-diorama/v1/manifest.json"),
+  );
+  const ledgerPath = resolve(
+    options.ledgerPath ?? resolve(rootDir, "assets/audio/qin-diorama/v1/SOURCES.md"),
+  );
   const probeAudio = options.probeAudio ?? defaultProbeAudio;
   const probeLosslessSource = options.probeLosslessSource ?? defaultProbeAudio;
   const budgets = options.budgets ?? AUDIO_PACK_BUDGETS;
   const manifest = options.manifest ?? readJson(manifestPath, "Qin audio manifest");
-  const manifestBytes = existsSync(manifestPath) ? statSync(manifestPath).size : Buffer.byteLength(JSON.stringify(manifest));
+  const manifestBytes = existsSync(manifestPath)
+    ? statSync(manifestPath).size
+    : Buffer.byteLength(JSON.stringify(manifest));
 
   validateManifestHeader(manifest);
   const ids = new Set();
@@ -270,7 +313,12 @@ export async function validateAudioPackage(options = {}) {
     validateAssetShape(asset, expected, order);
   }
   const budgetReport = validateBudgets(manifest, manifestBytes, budgets);
-  const sourceRecords = await validateSourceRecords(manifest, rootDir, ledgerPath, probeLosslessSource);
+  const sourceRecords = await validateSourceRecords(
+    manifest,
+    rootDir,
+    ledgerPath,
+    probeLosslessSource,
+  );
 
   for (const asset of manifest.assets) {
     if (!sourceRecords.has(asset.sourceRecordId)) {
@@ -279,15 +327,27 @@ export async function validateAudioPackage(options = {}) {
     const path = runtimePath(rootDir, asset.url);
     if (!existsSync(path)) fail(`${asset.id} runtime file does not exist: ${asset.url}`);
     const actualBytes = statSync(path).size;
-    if (actualBytes !== asset.bytes) fail(`${asset.id} byte count differs: manifest ${asset.bytes}, disk ${actualBytes}`);
+    if (actualBytes !== asset.bytes)
+      fail(`${asset.id} byte count differs: manifest ${asset.bytes}, disk ${actualBytes}`);
     const actualHash = sha256(path);
-    if (actualHash !== asset.sha256) fail(`${asset.id} SHA-256 differs: manifest ${asset.sha256}, disk ${actualHash}`);
+    if (actualHash !== asset.sha256)
+      fail(`${asset.id} SHA-256 differs: manifest ${asset.sha256}, disk ${actualHash}`);
     const probe = await probeAudio(path);
-    if (probe.codec !== asset.codec) fail(`${asset.id} codec differs: manifest ${asset.codec}, media ${probe.codec}`);
-    if (probe.channels !== asset.channels) fail(`${asset.id} channels differ: manifest ${asset.channels}, media ${probe.channels}`);
-    if (probe.sampleRate !== asset.sampleRate) fail(`${asset.id} sample rate differs: manifest ${asset.sampleRate}, media ${probe.sampleRate}`);
-    if (!Number.isFinite(probe.durationSeconds) || Math.abs(probe.durationSeconds - asset.durationSeconds) > 0.05) {
-      fail(`${asset.id} duration differs: manifest ${asset.durationSeconds}, media ${probe.durationSeconds}`);
+    if (probe.codec !== asset.codec)
+      fail(`${asset.id} codec differs: manifest ${asset.codec}, media ${probe.codec}`);
+    if (probe.channels !== asset.channels)
+      fail(`${asset.id} channels differ: manifest ${asset.channels}, media ${probe.channels}`);
+    if (probe.sampleRate !== asset.sampleRate)
+      fail(
+        `${asset.id} sample rate differs: manifest ${asset.sampleRate}, media ${probe.sampleRate}`,
+      );
+    if (
+      !Number.isFinite(probe.durationSeconds) ||
+      Math.abs(probe.durationSeconds - asset.durationSeconds) > 0.05
+    ) {
+      fail(
+        `${asset.id} duration differs: manifest ${asset.durationSeconds}, media ${probe.durationSeconds}`,
+      );
     }
   }
 
@@ -306,16 +366,22 @@ async function main() {
   const report = await validateAudioPackage();
   console.log("Qin audio asset validation passed.");
   console.log(`Assets: ${report.assetCount}`);
-  console.log(`Critical transfer: ${report.criticalBytes} bytes (${formatMiB(report.criticalBytes)})`);
+  console.log(
+    `Critical transfer: ${report.criticalBytes} bytes (${formatMiB(report.criticalBytes)})`,
+  );
   console.log(`Runtime transfer: ${report.runtimeBytes} bytes (${formatMiB(report.runtimeBytes)})`);
-  console.log(`Runtime /audio/qin-diorama/v1/manifest.json: ${report.manifestBytes} bytes (application/json)`);
+  console.log(
+    `Runtime /audio/qin-diorama/v1/manifest.json: ${report.manifestBytes} bytes (application/json)`,
+  );
   for (const file of report.runtimeFiles) {
     console.log(`Runtime ${file.url}: ${file.bytes} bytes (${file.mimeType})`);
   }
   for (const asset of report.decodedAssets) {
     console.log(`Decoded ${asset.id}: ${asset.bytes} bytes (${formatMiB(asset.bytes)})`);
   }
-  console.log(`Authored decoded total: ${report.decodedBytes} bytes (${formatMiB(report.decodedBytes)})`);
+  console.log(
+    `Authored decoded total: ${report.decodedBytes} bytes (${formatMiB(report.decodedBytes)})`,
+  );
 }
 
 const entryPoint = process.argv[1] ? pathToFileURL(resolve(process.argv[1])).href : "";

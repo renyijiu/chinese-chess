@@ -1,9 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  createInitialGame,
-  dispatch,
-} from "../../../lib/xiangqi/index";
+import { createInitialGame, dispatch } from "../../../lib/xiangqi/index";
 import { ControllerRuntime } from "../../../components/xiangqi/game/ControllerRuntime";
 import {
   commandErrorMessage,

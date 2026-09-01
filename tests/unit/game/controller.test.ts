@@ -59,7 +59,10 @@ describe("game selection controller", () => {
       selection: { pieceId: "red:soldier:1" },
     });
 
-    const cancelled = resolveBoardClick(game, deriveSelection(game, "red:soldier:1"), { file: 2, rank: 3 });
+    const cancelled = resolveBoardClick(game, deriveSelection(game, "red:soldier:1"), {
+      file: 2,
+      rank: 3,
+    });
     expect(cancelled).toMatchObject({
       kind: "selection",
       selection: { pieceId: null, legalMoves: [] },
@@ -68,7 +71,10 @@ describe("game selection controller", () => {
 
   it("returns a revision-bound move intent for legal empty and enemy targets", () => {
     let game = createInitialGame();
-    const quiet = resolveBoardClick(game, deriveSelection(game, "red:soldier:0"), { file: 0, rank: 4 });
+    const quiet = resolveBoardClick(game, deriveSelection(game, "red:soldier:0"), {
+      file: 0,
+      rank: 4,
+    });
     expect(quiet).toEqual({
       kind: "move",
       command: {
@@ -81,7 +87,10 @@ describe("game selection controller", () => {
 
     game = move(game, { file: 0, rank: 3 }, { file: 0, rank: 4 });
     game = move(game, { file: 0, rank: 6 }, { file: 0, rank: 5 });
-    const capture = resolveBoardClick(game, deriveSelection(game, "red:soldier:0"), { file: 0, rank: 5 });
+    const capture = resolveBoardClick(game, deriveSelection(game, "red:soldier:0"), {
+      file: 0,
+      rank: 5,
+    });
     expect(capture).toMatchObject({
       kind: "move",
       command: { expectedRevision: 2, to: { file: 0, rank: 5 } },
@@ -90,7 +99,10 @@ describe("game selection controller", () => {
 
   it("preserves a valid selection after an illegal empty target and clears stale selection", () => {
     const game = createInitialGame();
-    const illegal = resolveBoardClick(game, deriveSelection(game, "red:soldier:0"), { file: 1, rank: 4 });
+    const illegal = resolveBoardClick(game, deriveSelection(game, "red:soldier:0"), {
+      file: 1,
+      rank: 4,
+    });
     expect(illegal).toMatchObject({
       kind: "selection",
       selection: { pieceId: "red:soldier:0" },

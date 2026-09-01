@@ -1,7 +1,4 @@
-import type {
-  TimelineEndReason,
-  TimelineInterruptionReason,
-} from "../animation/TimelineDirector";
+import type { TimelineEndReason, TimelineInterruptionReason } from "../animation/TimelineDirector";
 import type { GameActionTransition } from "../game/actions";
 import type { PresentationMarker } from "../presentation/PresentationStore";
 import type { AudioTransientCueId } from "./audio-types";
@@ -55,9 +52,12 @@ export function deriveSemanticCuePlan(transition: GameActionTransition): Semanti
     const winner = ended.status.winner;
     return {
       capture,
-      completion: winner === null
-        ? "system.draw"
-        : winner === transition.viewSide ? "system.victory" : "system.defeat",
+      completion:
+        winner === null
+          ? "system.draw"
+          : winner === transition.viewSide
+            ? "system.victory"
+            : "system.defeat",
     };
   }
 
@@ -83,12 +83,12 @@ export class SemanticAudioDirector {
 
   constructor(output: SemanticAudioOutput, options: SemanticAudioDirectorOptions = {}) {
     this.output = output;
-    this.captureCompletionDelayMs = Math.max(0, options.captureDurationMs ?? AUDITED_CAPTURE_DURATION_MS)
-      + Math.max(0, options.completionGapMs ?? DEFAULT_COMPLETION_GAP_MS);
+    this.captureCompletionDelayMs =
+      Math.max(0, options.captureDurationMs ?? AUDITED_CAPTURE_DURATION_MS) +
+      Math.max(0, options.completionGapMs ?? DEFAULT_COMPLETION_GAP_MS);
     this.schedule = options.schedule ?? ((callback, delayMs) => setTimeout(callback, delayMs));
-    this.clearScheduled = options.clearScheduled ?? (
-      (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>)
-    );
+    this.clearScheduled =
+      options.clearScheduled ?? ((handle) => clearTimeout(handle as ReturnType<typeof setTimeout>));
   }
 
   get activeCount() {
@@ -96,7 +96,8 @@ export class SemanticAudioDirector {
   }
 
   begin(transition: GameActionTransition) {
-    if (this.completedIds.has(transition.actionId) || this.ledgers.has(transition.actionId)) return false;
+    if (this.completedIds.has(transition.actionId) || this.ledgers.has(transition.actionId))
+      return false;
     const plan = deriveSemanticCuePlan(transition);
     if (!plan.capture && !plan.completion) {
       this.rememberCompleted(transition.actionId);
@@ -164,7 +165,9 @@ export class SemanticAudioDirector {
     }
   }
 
-  cancelAll(cause: Extract<TimelineInterruptionReason, "match-reset" | "game-replaced" | "dispose">) {
+  cancelAll(
+    cause: Extract<TimelineInterruptionReason, "match-reset" | "game-replaced" | "dispose">,
+  ) {
     for (const actionId of [...this.ledgers.keys()]) this.settle(actionId, cause);
   }
 
@@ -177,7 +180,11 @@ export class SemanticAudioDirector {
     if (ledger.captureConsumed) return;
     ledger.captureConsumed = true;
     if (ledger.plan.capture && this.eligible()) {
-      try { this.output.playTransient(ledger.plan.capture); } catch { /* Audio cannot reject presentation. */ }
+      try {
+        this.output.playTransient(ledger.plan.capture);
+      } catch {
+        /* Audio cannot reject presentation. */
+      }
     }
   }
 
@@ -185,7 +192,11 @@ export class SemanticAudioDirector {
     if (ledger.completionConsumed) return;
     ledger.completionConsumed = true;
     if (ledger.plan.completion && this.eligible()) {
-      try { this.output.playTransient(ledger.plan.completion); } catch { /* Audio cannot reject presentation. */ }
+      try {
+        this.output.playTransient(ledger.plan.completion);
+      } catch {
+        /* Audio cannot reject presentation. */
+      }
     }
   }
 
@@ -207,6 +218,10 @@ export class SemanticAudioDirector {
   }
 
   private eligible() {
-    try { return this.output.isTransientEligible(); } catch { return false; }
+    try {
+      return this.output.isTransientEligible();
+    } catch {
+      return false;
+    }
   }
 }

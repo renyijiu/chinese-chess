@@ -1,16 +1,7 @@
-import {
-  deserializeGame,
-  serializeGame,
-  type GameState,
-} from "../../../lib/xiangqi/index";
+import { deserializeGame, serializeGame, type GameState } from "../../../lib/xiangqi/index";
 import { DEFAULT_AUDIO_MIX } from "../audio/audio-types";
 import type { QualityTier } from "../runtime/quality";
-import {
-  createLocalMatch,
-  parseMatchConfig,
-  type MatchConfig,
-  type SavedMatch,
-} from "./match";
+import { createLocalMatch, parseMatchConfig, type MatchConfig, type SavedMatch } from "./match";
 
 export const GAME_SAVE_KEY = "xiangqi3d:game:v3";
 export const GAME_SAVE_BACKUP_KEY = "xiangqi3d:game:v3:backup";
@@ -74,9 +65,7 @@ export type LoadGameResult = Readonly<{
   warning?: string;
 }>;
 
-export type StorageWriteResult =
-  | Readonly<{ ok: true }>
-  | Readonly<{ ok: false; warning: string }>;
+export type StorageWriteResult = Readonly<{ ok: true }> | Readonly<{ ok: false; warning: string }>;
 
 export type GameStorageWriteResult =
   | Readonly<{ ok: true; resumable: true }>
@@ -89,8 +78,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function hasExactKeys(value: Record<string, unknown>, expected: ReadonlyArray<string>): boolean {
   const actual = Object.keys(value).sort();
   const sortedExpected = [...expected].sort();
-  return actual.length === sortedExpected.length
-    && actual.every((key, index) => key === sortedExpected[index]);
+  return (
+    actual.length === sortedExpected.length &&
+    actual.every((key, index) => key === sortedExpected[index])
+  );
 }
 
 function isStoredRevision(value: unknown): value is number {
@@ -125,13 +116,13 @@ function parseVersionedEnvelope(raw: string, version: 2 | 3): SavedMatch {
 function parseLegacyEnvelope(raw: string): SavedMatch {
   const value: unknown = JSON.parse(raw);
   if (
-    !isRecord(value)
-    || !hasExactKeys(value, ["kind", "version", "savedAt", "serialized"])
-    || value.kind !== SAVE_KIND
-    || value.version !== LEGACY_SAVE_VERSION
-    || typeof value.savedAt !== "number"
-    || !Number.isFinite(value.savedAt)
-    || typeof value.serialized !== "string"
+    !isRecord(value) ||
+    !hasExactKeys(value, ["kind", "version", "savedAt", "serialized"]) ||
+    value.kind !== SAVE_KIND ||
+    value.version !== LEGACY_SAVE_VERSION ||
+    typeof value.savedAt !== "number" ||
+    !Number.isFinite(value.savedAt) ||
+    typeof value.serialized !== "string"
   ) {
     throw new Error("Unsupported legacy local save envelope");
   }
@@ -335,7 +326,13 @@ export function loadGameSettings(storage: StorageLike): GameSettings {
     const voiceVolume = optionalVolume(value.voiceVolume, DEFAULT_GAME_SETTINGS.voiceVolume);
     const sfxVolume = optionalVolume(value.sfxVolume, DEFAULT_GAME_SETTINGS.sfxVolume);
     const uiVolume = optionalVolume(value.uiVolume, DEFAULT_GAME_SETTINGS.uiVolume);
-    if (musicVolume === null || ambientVolume === null || voiceVolume === null || sfxVolume === null || uiVolume === null) {
+    if (
+      musicVolume === null ||
+      ambientVolume === null ||
+      voiceVolume === null ||
+      sfxVolume === null ||
+      uiVolume === null
+    ) {
       return DEFAULT_GAME_SETTINGS;
     }
     return {
@@ -354,10 +351,7 @@ export function loadGameSettings(storage: StorageLike): GameSettings {
   }
 }
 
-export function saveGameSettings(
-  storage: StorageLike,
-  settings: GameSettings,
-): StorageWriteResult {
+export function saveGameSettings(storage: StorageLike, settings: GameSettings): StorageWriteResult {
   try {
     storage.setItem(GAME_SETTINGS_KEY, JSON.stringify({ version: SETTINGS_VERSION, ...settings }));
     return { ok: true };

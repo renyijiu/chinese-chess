@@ -1,7 +1,16 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { getDeterministicFallbackCandidate, runLightweightSearchBatched } from "../../lib/xiangqi/ai/lightweight";
-import { createInitialGame, dispatch, getPieceAt, serializeGame, type GameState } from "../../lib/xiangqi/index";
+import {
+  getDeterministicFallbackCandidate,
+  runLightweightSearchBatched,
+} from "../../lib/xiangqi/ai/lightweight";
+import {
+  createInitialGame,
+  dispatch,
+  getPieceAt,
+  serializeGame,
+  type GameState,
+} from "../../lib/xiangqi/index";
 import { openCleanGame, waitForRevision } from "./helpers";
 
 const GAME_SAVE_KEY = "xiangqi3d:game:v3";
@@ -44,12 +53,30 @@ function computerSaveFixture(state: GameState, seed: string) {
 
 const AI_CHECK_CAPTURE_SEED = "check-capture-0";
 const AI_CHECK_CAPTURE_STATE = applyFixtureMoves([
-  [[1, 2], [4, 2]],
-  [[0, 6], [0, 5]],
-  [[4, 3], [4, 4]],
-  [[2, 6], [2, 5]],
-  [[4, 4], [4, 5]],
-  [[7, 9], [6, 7]],
+  [
+    [1, 2],
+    [4, 2],
+  ],
+  [
+    [0, 6],
+    [0, 5],
+  ],
+  [
+    [4, 3],
+    [4, 4],
+  ],
+  [
+    [2, 6],
+    [2, 5],
+  ],
+  [
+    [4, 4],
+    [4, 5],
+  ],
+  [
+    [7, 9],
+    [6, 7],
+  ],
 ]);
 const AI_CHECK_CAPTURE_FIXTURE = computerSaveFixture(AI_CHECK_CAPTURE_STATE, AI_CHECK_CAPTURE_SEED);
 const AI_CHECK_CAPTURE_MOVE = {
@@ -76,7 +103,9 @@ async function forceNextDie(page: Page, dieResult: 1 | 2 | 3 | 4 | 5 | 6) {
   await page.addInitScript((value) => {
     let first = true;
     const original = Crypto.prototype.getRandomValues;
-    Crypto.prototype.getRandomValues = function getRandomValues<T extends ArrayBufferView | null>(array: T): T {
+    Crypto.prototype.getRandomValues = function getRandomValues<T extends ArrayBufferView | null>(
+      array: T,
+    ): T {
       if (first && array instanceof Uint8Array) {
         first = false;
         array.fill(value - 1);
@@ -90,7 +119,9 @@ async function forceNextDie(page: Page, dieResult: 1 | 2 | 3 | 4 | 5 | 6) {
 async function forceEveryDie(page: Page, dieResult: 1 | 2 | 3 | 4 | 5 | 6) {
   await page.addInitScript((value) => {
     const original = Crypto.prototype.getRandomValues;
-    Crypto.prototype.getRandomValues = function getRandomValues<T extends ArrayBufferView | null>(array: T): T {
+    Crypto.prototype.getRandomValues = function getRandomValues<T extends ArrayBufferView | null>(
+      array: T,
+    ): T {
       if (array instanceof Uint8Array && array.byteLength === 1) {
         array[0] = value - 1;
         return array as T;
@@ -137,7 +168,9 @@ test("keeps the capture-and-check fixture stable across Easy search cutoffs", as
   expect(result.state.status).toEqual({ kind: "playing", check: "black" });
 });
 
-test("rolls and persists an odd die before confirming a red-side computer match", async ({ page }) => {
+test("rolls and persists an odd die before confirming a red-side computer match", async ({
+  page,
+}) => {
   await forceNextDie(page, 5);
   await openCleanGame(page, "low", true);
   await chooseComputerMode(page, "简单");
@@ -178,21 +211,36 @@ test("restores a persisted die confirmation without rerolling", async ({ page })
   const keyboard = page.locator(".game-keyboard-control button");
   await keyboard.focus();
   for (const key of [
-    "ArrowLeft", "ArrowLeft", "ArrowLeft", "ArrowLeft",
-    "ArrowUp", "ArrowUp", "ArrowUp", "Enter", "ArrowUp", "Enter",
-  ]) await keyboard.press(key);
+    "ArrowLeft",
+    "ArrowLeft",
+    "ArrowLeft",
+    "ArrowLeft",
+    "ArrowUp",
+    "ArrowUp",
+    "ArrowUp",
+    "Enter",
+    "ArrowUp",
+    "Enter",
+  ])
+    await keyboard.press(key);
   await waitForRevision(page, 2);
   await expect(page.locator(".game-history li")).toHaveCount(2);
-  await expect.poll(() => page.evaluate(() => {
-    const raw = window.localStorage.getItem("xiangqi3d:game:v3");
-    return raw ? JSON.parse(raw).match.effectiveTier : null;
-  })).toBe("lightweight-normal");
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const raw = window.localStorage.getItem("xiangqi3d:game:v3");
+        return raw ? JSON.parse(raw).match.effectiveTier : null;
+      }),
+    )
+    .toBe("lightweight-normal");
 });
 
-test("orients for human black and lets the computer open while controls stay responsive", async ({ page }) => {
-  const lightweightWorkerResponse = page.waitForResponse((response) => (
-    /lightweight\.worker(?:-[A-Za-z0-9_-]+\.js|\.ts)/.test(response.url())
-  ));
+test("orients for human black and lets the computer open while controls stay responsive", async ({
+  page,
+}) => {
+  const lightweightWorkerResponse = page.waitForResponse((response) =>
+    /lightweight\.worker(?:-[A-Za-z0-9_-]+\.js|\.ts)/.test(response.url()),
+  );
   await forceNextDie(page, 4);
   await openCleanGame(page, "low", true);
   await chooseComputerMode(page, "困难");
@@ -206,7 +254,9 @@ test("orients for human black and lets the computer open while controls stay res
   await page.getByRole("button", { name: "重新开局" }).click();
   await expect(page.getByRole("alertdialog", { name: "确认重新开局？" })).toBeVisible();
   await page.getByRole("button", { name: "取消" }).click();
-  await expect(page.getByRole("status", { name: "对手状态" })).toContainText(/思考|落子|结算|轮到你/);
+  await expect(page.getByRole("status", { name: "对手状态" })).toContainText(
+    /思考|落子|结算|轮到你/,
+  );
   await waitForRevision(page, 1);
   const workerResponse = await lightweightWorkerResponse;
   expect(workerResponse.status()).toBe(200);
@@ -220,76 +270,99 @@ test("orients for human black and lets the computer open while controls stay res
   await expect(page.locator(".xiangqi-game-shell")).toHaveAttribute("data-game-revision", "2");
 });
 
-test("resumes a computer turn and presents one authoritative capture and check", async ({ page }) => {
+test("resumes a computer turn and presents one authoritative capture and check", async ({
+  page,
+}) => {
   await installFixture(page, AI_CHECK_CAPTURE_FIXTURE);
-  await expect.poll(() => page.evaluate(() => Boolean(
-    window.__XIANGQI_AUDIO_DEBUG__ && window.__XIANGQI_PRESENTATION_DEBUG__,
-  ))).toBe(true);
-  const baselineAudio = await page.evaluate(() => window.__XIANGQI_AUDIO_DEBUG__?.().sourceStartsByCue);
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        Boolean(window.__XIANGQI_AUDIO_DEBUG__ && window.__XIANGQI_PRESENTATION_DEBUG__),
+      ),
+    )
+    .toBe(true);
+  const baselineAudio = await page.evaluate(
+    () => window.__XIANGQI_AUDIO_DEBUG__?.().sourceStartsByCue,
+  );
   await page.getByRole("button", { name: "继续对局" }).click();
   await waitForRevision(page, 7);
   await expect(page.locator(".game-history li")).toHaveCount(7);
   await expect(page.locator(".game-history li").first()).toContainText("吃");
   await expect(page.locator(".game-turn-card")).toHaveAttribute("data-check", "true");
   await expect(page.locator(".game-turn-card small")).toHaveText("黑方被将军");
-  await expect.poll(() => page.evaluate(() => {
-    const raw = window.localStorage.getItem("xiangqi3d:game:v3");
-    return raw ? JSON.parse(raw).revision : null;
-  })).toBe(7);
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const raw = window.localStorage.getItem("xiangqi3d:game:v3");
+        return raw ? JSON.parse(raw).revision : null;
+      }),
+    )
+    .toBe(7);
   const captureEvidence = await page.evaluate(() => ({
     audio: window.__XIANGQI_AUDIO_DEBUG__?.().sourceStartsByCue,
     presentation: window.__XIANGQI_PRESENTATION_DEBUG__?.(),
   }));
-  expect(captureEvidence.audio?.["system.capture"] ?? 0)
-    .toBe((baselineAudio?.["system.capture"] ?? 0) + 1);
-  expect(captureEvidence.audio?.["system.check"] ?? 0)
-    .toBe((baselineAudio?.["system.check"] ?? 0) + 1);
+  expect(captureEvidence.audio?.["system.capture"] ?? 0).toBe(
+    (baselineAudio?.["system.capture"] ?? 0) + 1,
+  );
+  expect(captureEvidence.audio?.["system.check"] ?? 0).toBe(
+    (baselineAudio?.["system.check"] ?? 0) + 1,
+  );
   expect(captureEvidence.presentation).toMatchObject({
     activeActionId: null,
     activeTimelines: 0,
     timers: 0,
   });
-  expect(captureEvidence.presentation?.completedActionIds.filter((id) => id.includes(":7:0:")))
-    .toHaveLength(1);
+  expect(
+    captureEvidence.presentation?.completedActionIds.filter((id) => id.includes(":7:0:")),
+  ).toHaveLength(1);
 
   await page.reload({ waitUntil: "domcontentloaded" });
   await page.getByRole("button", { name: "继续对局" }).click();
   await waitForRevision(page, 7);
   await page.waitForTimeout(500);
   await expect(page.locator(".game-history li")).toHaveCount(7);
-  expect(await page.evaluate(() => window.__XIANGQI_PRESENTATION_DEBUG__?.().completedActionIds ?? []))
-    .toEqual([]);
+  expect(
+    await page.evaluate(() => window.__XIANGQI_PRESENTATION_DEBUG__?.().completedActionIds ?? []),
+  ).toEqual([]);
 });
 
-test("pauses a hidden computer opening and starts exactly once after restoration", async ({ page }) => {
+test("pauses a hidden computer opening and starts exactly once after restoration", async ({
+  page,
+}) => {
   await page.addInitScript(() => {
     let hidden = false;
     Object.defineProperty(document, "hidden", { configurable: true, get: () => hidden });
     Object.defineProperty(document, "visibilityState", {
       configurable: true,
-      get: () => hidden ? "hidden" : "visible",
+      get: () => (hidden ? "hidden" : "visible"),
     });
-    (window as typeof window & { __XIANGQI_SET_TEST_HIDDEN__?: (value: boolean) => void })
-      .__XIANGQI_SET_TEST_HIDDEN__ = (value) => {
-        hidden = value;
-        document.dispatchEvent(new Event("visibilitychange"));
-      };
+    (
+      window as typeof window & { __XIANGQI_SET_TEST_HIDDEN__?: (value: boolean) => void }
+    ).__XIANGQI_SET_TEST_HIDDEN__ = (value) => {
+      hidden = value;
+      document.dispatchEvent(new Event("visibilitychange"));
+    };
   });
   await forceNextDie(page, 4);
   await openCleanGame(page, "low", true);
   await chooseComputerMode(page, "简单");
   await page.getByRole("button", { name: "掷骰决定阵营" }).click();
-  await page.evaluate(() => (
-    window as typeof window & { __XIANGQI_SET_TEST_HIDDEN__?: (value: boolean) => void }
-  ).__XIANGQI_SET_TEST_HIDDEN__?.(true));
+  await page.evaluate(() =>
+    (
+      window as typeof window & { __XIANGQI_SET_TEST_HIDDEN__?: (value: boolean) => void }
+    ).__XIANGQI_SET_TEST_HIDDEN__?.(true),
+  );
   await page.getByRole("button", { name: "以黑方开始对局" }).click();
   await page.waitForTimeout(700);
   await expect(page.locator(".xiangqi-game-shell")).toHaveAttribute("data-game-revision", "0");
   await expect(page.getByRole("status", { name: "对手状态" })).toContainText("页面已隐藏");
 
-  await page.evaluate(() => (
-    window as typeof window & { __XIANGQI_SET_TEST_HIDDEN__?: (value: boolean) => void }
-  ).__XIANGQI_SET_TEST_HIDDEN__?.(false));
+  await page.evaluate(() =>
+    (
+      window as typeof window & { __XIANGQI_SET_TEST_HIDDEN__?: (value: boolean) => void }
+    ).__XIANGQI_SET_TEST_HIDDEN__?.(false),
+  );
   await waitForRevision(page, 1);
   await page.waitForTimeout(500);
   await expect(page.locator(".game-history li")).toHaveCount(1);
@@ -305,15 +378,16 @@ test("keeps malformed Worker output recoverable without committing a move", asyn
           requestId?: string;
           type?: string;
         };
-        const data = input.type === "stop"
-          ? {
-              protocolVersion: 1,
-              type: "stopped",
-              matchId: input.matchId,
-              generation: input.generation,
-              requestId: input.requestId,
-            }
-          : { type: "malformed-result" };
+        const data =
+          input.type === "stop"
+            ? {
+                protocolVersion: 1,
+                type: "stopped",
+                matchId: input.matchId,
+                generation: input.generation,
+                requestId: input.requestId,
+              }
+            : { type: "malformed-result" };
         queueMicrotask(() => this.dispatchEvent(new MessageEvent("message", { data })));
       }
       terminate() {}
@@ -334,12 +408,16 @@ test("keeps malformed Worker output recoverable without committing a move", asyn
   await expect(page.getByRole("button", { name: "重新开局" })).toBeEnabled();
 });
 
-test("discloses Master fallback, hides computer undo, and preserves local undo", async ({ page }) => {
-  await page.route("**/engines/fairy-stockfish-nnue/1.1.12/manifest.json", (route) => route.fulfill({
-    body: "Master unavailable in this scenario",
-    contentType: "text/plain",
-    status: 404,
-  }));
+test("discloses Master fallback, hides computer undo, and preserves local undo", async ({
+  page,
+}) => {
+  await page.route("**/engines/fairy-stockfish-nnue/1.1.12/manifest.json", (route) =>
+    route.fulfill({
+      body: "Master unavailable in this scenario",
+      contentType: "text/plain",
+      status: 404,
+    }),
+  );
   await forceNextDie(page, 5);
   await openCleanGame(page, "low", true);
   await chooseComputerMode(page, "大师");
@@ -349,10 +427,14 @@ test("discloses Master fallback, hides computer undo, and preserves local undo",
   await expect(page.getByRole("status", { name: "对手状态" })).toContainText("大师");
   await expect(page.getByRole("status", { name: "对手状态" })).toContainText("困难");
   await expect(page.getByRole("button", { name: "悔棋" })).toHaveCount(0);
-  await expect.poll(() => page.evaluate(() => {
-    const raw = window.localStorage.getItem("xiangqi3d:game:v3");
-    return raw ? JSON.parse(raw).match.effectiveTier : null;
-  })).toBe("lightweight-hard");
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const raw = window.localStorage.getItem("xiangqi3d:game:v3");
+        return raw ? JSON.parse(raw).match.effectiveTier : null;
+      }),
+    )
+    .toBe("lightweight-hard");
 
   await page.evaluate(() => {
     window.localStorage.removeItem("xiangqi3d:game:v3");
@@ -365,7 +447,9 @@ test("discloses Master fallback, hides computer undo, and preserves local undo",
   await expect(page.getByRole("button", { name: "悔棋" })).toBeVisible();
 });
 
-test("boots the isolated verified Master Worker and commits one legal opening move", async ({ page }) => {
+test("boots the isolated verified Master Worker and commits one legal opening move", async ({
+  page,
+}) => {
   test.setTimeout(60_000);
   const failedEngineRequests: string[] = [];
   page.on("requestfailed", (request) => {
@@ -380,22 +464,36 @@ test("boots the isolated verified Master Worker and commits one legal opening mo
       if (name.startsWith("xiangqi-master:")) await caches.delete(name);
     }
   });
-  await expect.poll(() => page.evaluate(() => ({
-    isolated: crossOriginIsolated,
-    secure: isSecureContext,
-    shared: typeof SharedArrayBuffer === "function",
-  }))).toEqual({ isolated: true, secure: true, shared: true });
+  await expect
+    .poll(() =>
+      page.evaluate(() => ({
+        isolated: crossOriginIsolated,
+        secure: isSecureContext,
+        shared: typeof SharedArrayBuffer === "function",
+      })),
+    )
+    .toEqual({ isolated: true, secure: true, shared: true });
 
   await chooseComputerMode(page, "大师");
   await page.getByRole("button", { name: "掷骰决定阵营" }).click();
   await page.getByRole("button", { name: "以黑方开始对局" }).click();
   await expect(page.getByRole("status", { name: "对手状态" })).toContainText("大师");
-  await expect(page.locator(".xiangqi-game-shell")).toHaveAttribute("data-game-revision", "1", { timeout: 40_000 });
-  await expect(page.locator(".game-keyboard-control button")).toHaveAttribute("aria-disabled", "false", { timeout: 20_000 });
-  await expect.poll(() => page.evaluate(() => {
-    const raw = window.localStorage.getItem("xiangqi3d:game:v3");
-    return raw ? JSON.parse(raw).match.effectiveTier : null;
-  })).toBe("fairy-master");
+  await expect(page.locator(".xiangqi-game-shell")).toHaveAttribute("data-game-revision", "1", {
+    timeout: 40_000,
+  });
+  await expect(page.locator(".game-keyboard-control button")).toHaveAttribute(
+    "aria-disabled",
+    "false",
+    { timeout: 20_000 },
+  );
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const raw = window.localStorage.getItem("xiangqi3d:game:v3");
+        return raw ? JSON.parse(raw).match.effectiveTier : null;
+      }),
+    )
+    .toBe("fairy-master");
   expect(failedEngineRequests).toEqual([]);
 });
 
@@ -425,8 +523,13 @@ test("keeps setup and presentation controls usable at 390 by 844", async ({ page
   expect(settingsBox!.y + settingsBox!.height).toBeLessThanOrEqual(844);
 });
 
-test("keeps one Worker and stable lifecycle resources across 100 computer openings", async ({ page }, testInfo) => {
-  test.skip(process.env.RUN_AI_LIFECYCLE !== "1", "long AI lifecycle coverage runs through test:ai:lifecycle");
+test("keeps one Worker and stable lifecycle resources across 100 computer openings", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    process.env.RUN_AI_LIFECYCLE !== "1",
+    "long AI lifecycle coverage runs through test:ai:lifecycle",
+  );
   test.setTimeout(300_000);
   await page.addInitScript(() => {
     const NativeWorker = window.Worker;
@@ -474,15 +577,25 @@ test("keeps one Worker and stable lifecycle resources across 100 computer openin
       if (typeof handle === "number" && timerHandles.delete(handle)) activeTimers -= 1;
       nativeClearTimeout(handle);
     }) as typeof window.clearTimeout;
-    document.addEventListener = ((type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions) => {
+    document.addEventListener = ((
+      type: string,
+      listener: EventListenerOrEventListenerObject,
+      options?: boolean | AddEventListenerOptions,
+    ) => {
       if (type === "visibilitychange") visibilityListeners.add(listener);
       nativeDocumentAdd(type, listener, options);
     }) as typeof document.addEventListener;
-    document.removeEventListener = ((type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions) => {
+    document.removeEventListener = ((
+      type: string,
+      listener: EventListenerOrEventListenerObject,
+      options?: boolean | EventListenerOptions,
+    ) => {
       if (type === "visibilitychange") visibilityListeners.delete(listener);
       nativeDocumentRemove(type, listener, options);
     }) as typeof document.removeEventListener;
-    (window as typeof window & { __XIANGQI_AI_LIFECYCLE__?: () => unknown }).__XIANGQI_AI_LIFECYCLE__ = () => ({
+    (
+      window as typeof window & { __XIANGQI_AI_LIFECYCLE__?: () => unknown }
+    ).__XIANGQI_AI_LIFECYCLE__ = () => ({
       activeTimers,
       activeWorkers,
       createdWorkers,
@@ -505,44 +618,58 @@ test("keeps one Worker and stable lifecycle resources across 100 computer openin
     expect(used, "Chromium must expose JSHeapUsedSize for lifecycle verification").toBeDefined();
     return { opening, jsHeapUsedBytes: used! };
   };
-  const baseline = await page.evaluate(() => (
-    window as typeof window & { __XIANGQI_AI_LIFECYCLE__?: () => unknown }
-  ).__XIANGQI_AI_LIFECYCLE__?.());
+  const baseline = await page.evaluate(() =>
+    (
+      window as typeof window & { __XIANGQI_AI_LIFECYCLE__?: () => unknown }
+    ).__XIANGQI_AI_LIFECYCLE__?.(),
+  );
   const cacheKeys = await page.evaluate(() => caches.keys());
   const heapSamples = [await sampleHeap(1)];
 
   for (let opening = 2; opening <= 100; opening += 1) {
     await page.getByRole("button", { name: "重新开局" }).click();
-    await page.getByRole("alertdialog", { name: "确认重新开局？" })
-      .getByRole("button", { name: "重新开局", exact: true }).click();
+    await page
+      .getByRole("alertdialog", { name: "确认重新开局？" })
+      .getByRole("button", { name: "重新开局", exact: true })
+      .click();
     await page.getByRole("button", { name: "以黑方开始对局" }).click();
     await waitForRevision(page, 1);
     if (opening % 10 === 0) {
-      const sample = await page.evaluate(() => (
-        window as typeof window & { __XIANGQI_AI_LIFECYCLE__?: () => { activeWorkers: number } }
-      ).__XIANGQI_AI_LIFECYCLE__?.());
+      const sample = await page.evaluate(() =>
+        (
+          window as typeof window & { __XIANGQI_AI_LIFECYCLE__?: () => { activeWorkers: number } }
+        ).__XIANGQI_AI_LIFECYCLE__?.(),
+      );
       expect(sample?.activeWorkers).toBe(1);
     }
     if (opening === 50) heapSamples.push(await sampleHeap(opening));
   }
 
   await page.waitForTimeout(500);
-  const settled = await page.evaluate(() => (
-    window as typeof window & { __XIANGQI_AI_LIFECYCLE__?: () => {
-      activeTimers: number;
-      activeWorkers: number;
-      createdWorkers: number;
-      terminatedWorkers: number;
-      visibilityListeners: number;
-    } }
-  ).__XIANGQI_AI_LIFECYCLE__?.());
+  const settled = await page.evaluate(() =>
+    (
+      window as typeof window & {
+        __XIANGQI_AI_LIFECYCLE__?: () => {
+          activeTimers: number;
+          activeWorkers: number;
+          createdWorkers: number;
+          terminatedWorkers: number;
+          visibilityListeners: number;
+        };
+      }
+    ).__XIANGQI_AI_LIFECYCLE__?.(),
+  );
   expect(settled).toMatchObject({
     activeWorkers: 1,
     createdWorkers: 100,
     terminatedWorkers: 99,
   });
-  expect(settled!.visibilityListeners).toBe((baseline as { visibilityListeners: number }).visibilityListeners);
-  expect(settled!.activeTimers).toBeLessThanOrEqual((baseline as { activeTimers: number }).activeTimers + 2);
+  expect(settled!.visibilityListeners).toBe(
+    (baseline as { visibilityListeners: number }).visibilityListeners,
+  );
+  expect(settled!.activeTimers).toBeLessThanOrEqual(
+    (baseline as { activeTimers: number }).activeTimers + 2,
+  );
   expect(await page.evaluate(() => caches.keys())).toEqual(cacheKeys);
   heapSamples.push(await sampleHeap(100));
   const heapBaseline = heapSamples[0]?.jsHeapUsedBytes;
@@ -553,5 +680,7 @@ test("keeps one Worker and stable lifecycle resources across 100 computer openin
     body: JSON.stringify({ baseline, settled, cacheKeys, heapSamples }, null, 2),
     contentType: "application/json",
   });
-  console.info(`AI_LIFECYCLE_EVIDENCE ${JSON.stringify({ baseline, settled, cacheKeys, heapSamples })}`);
+  console.info(
+    `AI_LIFECYCLE_EVIDENCE ${JSON.stringify({ baseline, settled, cacheKeys, heapSamples })}`,
+  );
 });

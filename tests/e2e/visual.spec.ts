@@ -77,13 +77,34 @@ test("@visual check remains legible from the black battle view", async ({ page }
   await page.getByRole("button", { name: "俯视棋盘" }).click();
   const canvas = page.locator("canvas");
   const moves = [
-    [[1, 2], [4, 2]],
-    [[0, 6], [0, 5]],
-    [[4, 3], [4, 4]],
-    [[2, 6], [2, 5]],
-    [[4, 4], [4, 5]],
-    [[6, 6], [6, 5]],
-    [[4, 5], [4, 6]],
+    [
+      [1, 2],
+      [4, 2],
+    ],
+    [
+      [0, 6],
+      [0, 5],
+    ],
+    [
+      [4, 3],
+      [4, 4],
+    ],
+    [
+      [2, 6],
+      [2, 5],
+    ],
+    [
+      [4, 4],
+      [4, 5],
+    ],
+    [
+      [6, 6],
+      [6, 5],
+    ],
+    [
+      [4, 5],
+      [4, 6],
+    ],
   ] as const;
   for (const [index, [from, to]] of moves.entries()) {
     await clickBoardSquare(canvas, from[0], from[1]);

@@ -71,12 +71,14 @@ const EXPECTED_ASSETS = Object.freeze({
 } as const satisfies Readonly<Record<QinAudioAssetId, Partial<QinAudioAssetV1>>>);
 
 function record(value: unknown): Record<string, unknown> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Audio pack manifest must be an object");
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new Error("Audio pack manifest must be an object");
   return value as Record<string, unknown>;
 }
 
 function positiveFinite(value: unknown, label: string) {
-  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) throw new Error(`${label} must be positive`);
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0)
+    throw new Error(`${label} must be positive`);
   return value;
 }
 
@@ -86,7 +88,11 @@ function positiveInteger(value: unknown, label: string) {
   return number;
 }
 
-function validateAsset(value: unknown, expectedId: QinAudioAssetId, order: number): QinAudioAssetV1 {
+function validateAsset(
+  value: unknown,
+  expectedId: QinAudioAssetId,
+  order: number,
+): QinAudioAssetV1 {
   const asset = record(value);
   const expected = EXPECTED_ASSETS[expectedId];
   if (asset.id !== expectedId) throw new Error(`Audio pack asset ${order} must be ${expectedId}`);
@@ -94,7 +100,11 @@ function validateAsset(value: unknown, expectedId: QinAudioAssetId, order: numbe
   for (const [field, expectedValue] of Object.entries(expected)) {
     if (asset[field] !== expectedValue) throw new Error(`${expectedId} has invalid ${field}`);
   }
-  if (typeof asset.url !== "string" || !asset.url.startsWith("/audio/qin-diorama/v1/") || asset.url.includes("..")) {
+  if (
+    typeof asset.url !== "string" ||
+    !asset.url.startsWith("/audio/qin-diorama/v1/") ||
+    asset.url.includes("..")
+  ) {
     throw new Error(`${expectedId} has invalid versioned URL`);
   }
   positiveInteger(asset.bytes, `${expectedId} bytes`);
@@ -102,15 +112,18 @@ function validateAsset(value: unknown, expectedId: QinAudioAssetId, order: numbe
   positiveInteger(asset.channels, `${expectedId} channels`);
   positiveInteger(asset.sampleRate, `${expectedId} sample rate`);
   positiveInteger(asset.sampleFrames, `${expectedId} sample frames`);
-  if (typeof asset.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(asset.sha256)) throw new Error(`${expectedId} has invalid SHA-256`);
-  if (typeof asset.sourceRecordId !== "string" || !asset.sourceRecordId) throw new Error(`${expectedId} has no source record`);
+  if (typeof asset.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(asset.sha256))
+    throw new Error(`${expectedId} has invalid SHA-256`);
+  if (typeof asset.sourceRecordId !== "string" || !asset.sourceRecordId)
+    throw new Error(`${expectedId} has no source record`);
 
   if (expected.kind === "background") {
     if (asset.loop === undefined) throw new Error(`${expectedId} has no loop range`);
     const loop = record(asset.loop);
     const startSeconds = positiveFinite(loop.startSeconds, `${expectedId} loop start`);
     const endSeconds = positiveFinite(loop.endSeconds, `${expectedId} loop end`);
-    if (startSeconds >= endSeconds || endSeconds > (asset.durationSeconds as number)) throw new Error(`${expectedId} has invalid loop range`);
+    if (startSeconds >= endSeconds || endSeconds > (asset.durationSeconds as number))
+      throw new Error(`${expectedId} has invalid loop range`);
   } else if (asset.loop !== undefined) {
     throw new Error(`${expectedId} transient cannot define a loop`);
   }
@@ -120,23 +133,28 @@ function validateAsset(value: unknown, expectedId: QinAudioAssetId, order: numbe
 export function validateQinAudioPackManifest(value: unknown): QinAudioPackManifestV1 {
   const manifest = record(value);
   if (manifest.schema !== QIN_AUDIO_PACK_SCHEMA) throw new Error("Unsupported audio pack schema");
-  if (manifest.version !== QIN_AUDIO_PACK_VERSION) throw new Error("Unsupported audio pack version");
+  if (manifest.version !== QIN_AUDIO_PACK_VERSION)
+    throw new Error("Unsupported audio pack version");
   if (manifest.packId !== QIN_AUDIO_PACK_ID) throw new Error("Unexpected audio pack id");
   const loadOrder = manifest.loadOrder;
   if (!Array.isArray(loadOrder) || loadOrder.length !== QIN_AUDIO_ASSET_IDS.length) {
     throw new Error("Audio pack load order is incomplete");
   }
   QIN_AUDIO_ASSET_IDS.forEach((id, order) => {
-    if (loadOrder[order] !== id) throw new Error(`Audio pack load order must place ${id} at ${order}`);
+    if (loadOrder[order] !== id)
+      throw new Error(`Audio pack load order must place ${id} at ${order}`);
   });
   const manifestAssets = manifest.assets;
   if (!Array.isArray(manifestAssets) || manifestAssets.length !== QIN_AUDIO_ASSET_IDS.length) {
     throw new Error("Audio pack assets are incomplete");
   }
-  const assets = QIN_AUDIO_ASSET_IDS.map((id, order) => validateAsset(manifestAssets[order], id, order));
+  const assets = QIN_AUDIO_ASSET_IDS.map((id, order) =>
+    validateAsset(manifestAssets[order], id, order),
+  );
   const urls = new Set(assets.map((asset) => asset.url));
   if (urls.size !== assets.length) throw new Error("Audio pack URLs must be unique");
-  if (!Array.isArray(manifest.sourceRecords) || manifest.sourceRecords.length === 0) throw new Error("Audio pack source records are missing");
+  if (!Array.isArray(manifest.sourceRecords) || manifest.sourceRecords.length === 0)
+    throw new Error("Audio pack source records are missing");
   return { ...manifest, assets } as unknown as QinAudioPackManifestV1;
 }
 

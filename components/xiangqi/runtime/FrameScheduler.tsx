@@ -17,10 +17,7 @@ export type ScheduledFrameRegistration = Readonly<{
   onError?: ScheduledFrameErrorHandler;
   task: ScheduledFrame;
 }>;
-type RegisterFrame = (
-  task: ScheduledFrame,
-  onError?: ScheduledFrameErrorHandler,
-) => () => void;
+type RegisterFrame = (task: ScheduledFrame, onError?: ScheduledFrameErrorHandler) => () => void;
 
 const FrameSchedulerContext = createContext<RegisterFrame | null>(null);
 const FRAME_INTERVAL_TOLERANCE_MS = 0.75;
@@ -66,9 +63,7 @@ export function FrameScheduler({
 
   const register = useCallback<RegisterFrame>(
     (task, onError) => {
-      const registration: ScheduledFrameRegistration = onError
-        ? { onError, task }
-        : { task };
+      const registration: ScheduledFrameRegistration = onError ? { onError, task } : { task };
       tasks.current.add(registration);
       invalidate();
       requestNextFrame.current();
@@ -87,7 +82,14 @@ export function FrameScheduler({
     let stopped = false;
 
     const schedule = () => {
-      if (stopped || contextLost.current || document.hidden || tasks.current.size === 0 || frameRequest.current !== null) return;
+      if (
+        stopped ||
+        contextLost.current ||
+        document.hidden ||
+        tasks.current.size === 0 ||
+        frameRequest.current !== null
+      )
+        return;
       frameRequest.current = window.requestAnimationFrame(tick);
     };
 

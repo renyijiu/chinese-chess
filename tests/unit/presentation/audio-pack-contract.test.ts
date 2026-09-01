@@ -35,16 +35,83 @@ function makeFixture() {
   temporaryRoots.push(rootDir);
 
   const definitions = [
-    ["music.qin-procession", "qin-procession-v1.mp3", "background", "critical", "music", "audio/mpeg", "mp3", 72, 2, 48_000],
-    ["accent.capture-clay", "capture-clay-v1.wav", "transient", "deferred", "sfx", "audio/wav", "pcm_s16le", 0.4, 1, 48_000],
-    ["system.check", "check-bronze-v1.wav", "transient", "deferred", "sfx", "audio/wav", "pcm_s16le", 0.8, 1, 48_000],
-    ["system.victory", "result-victory-v1.wav", "transient", "deferred", "sfx", "audio/wav", "pcm_s16le", 2, 1, 48_000],
-    ["system.defeat", "result-defeat-v1.wav", "transient", "deferred", "sfx", "audio/wav", "pcm_s16le", 2, 1, 48_000],
-    ["system.draw", "result-draw-v1.wav", "transient", "deferred", "sfx", "audio/wav", "pcm_s16le", 2, 1, 48_000],
+    [
+      "music.qin-procession",
+      "qin-procession-v1.mp3",
+      "background",
+      "critical",
+      "music",
+      "audio/mpeg",
+      "mp3",
+      72,
+      2,
+      48_000,
+    ],
+    [
+      "accent.capture-clay",
+      "capture-clay-v1.wav",
+      "transient",
+      "deferred",
+      "sfx",
+      "audio/wav",
+      "pcm_s16le",
+      0.4,
+      1,
+      48_000,
+    ],
+    [
+      "system.check",
+      "check-bronze-v1.wav",
+      "transient",
+      "deferred",
+      "sfx",
+      "audio/wav",
+      "pcm_s16le",
+      0.8,
+      1,
+      48_000,
+    ],
+    [
+      "system.victory",
+      "result-victory-v1.wav",
+      "transient",
+      "deferred",
+      "sfx",
+      "audio/wav",
+      "pcm_s16le",
+      2,
+      1,
+      48_000,
+    ],
+    [
+      "system.defeat",
+      "result-defeat-v1.wav",
+      "transient",
+      "deferred",
+      "sfx",
+      "audio/wav",
+      "pcm_s16le",
+      2,
+      1,
+      48_000,
+    ],
+    [
+      "system.draw",
+      "result-draw-v1.wav",
+      "transient",
+      "deferred",
+      "sfx",
+      "audio/wav",
+      "pcm_s16le",
+      2,
+      1,
+      48_000,
+    ],
   ] as const;
 
   const assets = definitions.map<QinAudioAssetV1>((definition, order) => {
-    const [id, filename, kind, group, bus, mimeType, codec, durationSeconds, channels, sampleRate] = definition;
+    const [id, filename, kind, group, bus, mimeType, codec, durationSeconds, channels, sampleRate] =
+      definition;
     const bytes = Buffer.from(`fixture:${id}`);
     const runtimePath = join(rootDir, "public/audio/qin-diorama/v1", filename);
     mkdirSync(dirname(runtimePath), { recursive: true });
@@ -82,15 +149,18 @@ function makeFixture() {
     schema: "xiangqi-audio-pack/v1",
     version: 1,
     packId: "qin-diorama",
-    claimBoundary: "Qin-inspired visual fantasy; not a historical reconstruction or claim of acoustic authenticity.",
+    claimBoundary:
+      "Qin-inspired visual fantasy; not a historical reconstruction or claim of acoustic authenticity.",
     loadOrder: [...QIN_AUDIO_ASSET_IDS],
     assets,
     sourceRecords: assets.map((asset) => ({
       id: asset.sourceRecordId,
       author: "Chinese Chess 3D project",
-      authorization: "Original project-authored composition and synthesis; redistribution permitted with this repository.",
+      authorization:
+        "Original project-authored composition and synthesis; redistribution permitted with this repository.",
       sourcePaths: [`assets/audio/qin-diorama/v1/source/${asset.url.split("/").at(-1)}.flac`],
-      claimBoundary: "Qin-inspired visual fantasy; not a historical reconstruction or claim of acoustic authenticity.",
+      claimBoundary:
+        "Qin-inspired visual fantasy; not a historical reconstruction or claim of acoustic authenticity.",
     })),
   };
   const manifestPath = join(rootDir, "public/audio/qin-diorama/v1/manifest.json");
@@ -143,7 +213,10 @@ describe("Qin audio pack contract", () => {
     );
 
     const wrongOrder = structuredClone(manifest);
-    [wrongOrder.loadOrder[0], wrongOrder.loadOrder[1]] = [wrongOrder.loadOrder[1]!, wrongOrder.loadOrder[0]!];
+    [wrongOrder.loadOrder[0], wrongOrder.loadOrder[1]] = [
+      wrongOrder.loadOrder[1]!,
+      wrongOrder.loadOrder[0]!,
+    ];
     expect(() => validateQinAudioPackManifest(wrongOrder)).toThrow(/load order/i);
 
     const wrongCodec = structuredClone(manifest);
@@ -225,22 +298,28 @@ describe("Qin audio pack contract", () => {
 
   it("rejects critical, runtime, and decoded-byte budget overruns", async () => {
     const criticalFixture = makeFixture();
-    await expect(validateAudioPackage({
-      ...criticalFixture,
-      budgets: { ...AUDIO_PACK_BUDGETS, criticalBytes: 1 },
-    })).rejects.toThrow(/critical.*budget/i);
+    await expect(
+      validateAudioPackage({
+        ...criticalFixture,
+        budgets: { ...AUDIO_PACK_BUDGETS, criticalBytes: 1 },
+      }),
+    ).rejects.toThrow(/critical.*budget/i);
 
     const runtimeFixture = makeFixture();
-    await expect(validateAudioPackage({
-      ...runtimeFixture,
-      budgets: { ...AUDIO_PACK_BUDGETS, runtimeBytes: 1 },
-    })).rejects.toThrow(/runtime.*budget/i);
+    await expect(
+      validateAudioPackage({
+        ...runtimeFixture,
+        budgets: { ...AUDIO_PACK_BUDGETS, runtimeBytes: 1 },
+      }),
+    ).rejects.toThrow(/runtime.*budget/i);
 
     const decodedFixture = makeFixture();
-    await expect(validateAudioPackage({
-      ...decodedFixture,
-      budgets: { ...AUDIO_PACK_BUDGETS, authoredDecodedBytes: 1 },
-    })).rejects.toThrow(/decoded.*budget/i);
+    await expect(
+      validateAudioPackage({
+        ...decodedFixture,
+        budgets: { ...AUDIO_PACK_BUDGETS, authoredDecodedBytes: 1 },
+      }),
+    ).rejects.toThrow(/decoded.*budget/i);
   });
 
   it("rejects incomplete source records and missing Qin-inspired claim boundaries", async () => {

@@ -37,20 +37,24 @@ export function OnlineStatusCard({
   onReconnect?: () => void;
 }) {
   const coordinator = snapshot.coordinator;
-  const peerOwnsStatus = snapshot.peer.phase === "disconnected-grace"
-    || snapshot.peer.phase === "failed"
-    || snapshot.peer.phase === "closed";
-  const status = coordinator && !peerOwnsStatus
-    ? COORDINATOR_LABELS[coordinator.phase]
-    : PEER_LABELS[snapshot.peer.phase];
-  const failed = snapshot.peer.phase === "failed"
-    || coordinator?.phase === "failed"
-    || coordinator?.phase === "repair-required";
-  const canChooseReconnect = failed
-    || snapshot.reconnectRequired
-    || snapshot.peer.phase === "disconnected-grace"
-    || coordinator?.phase === "stalled"
-    || coordinator?.phase === "revalidating";
+  const peerOwnsStatus =
+    snapshot.peer.phase === "disconnected-grace" ||
+    snapshot.peer.phase === "failed" ||
+    snapshot.peer.phase === "closed";
+  const status =
+    coordinator && !peerOwnsStatus
+      ? COORDINATOR_LABELS[coordinator.phase]
+      : PEER_LABELS[snapshot.peer.phase];
+  const failed =
+    snapshot.peer.phase === "failed" ||
+    coordinator?.phase === "failed" ||
+    coordinator?.phase === "repair-required";
+  const canChooseReconnect =
+    failed ||
+    snapshot.reconnectRequired ||
+    snapshot.peer.phase === "disconnected-grace" ||
+    coordinator?.phase === "stalled" ||
+    coordinator?.phase === "revalidating";
 
   return (
     <section
@@ -62,18 +66,29 @@ export function OnlineStatusCard({
     >
       <div>
         <span>好友直连</span>
-        <strong>{snapshot.identity?.localSide === "black" ? "执黑" : snapshot.identity ? "执红" : "配对中"}</strong>
+        <strong>
+          {snapshot.identity?.localSide === "black"
+            ? "执黑"
+            : snapshot.identity
+              ? "执红"
+              : "配对中"}
+        </strong>
       </div>
       <p>{status}</p>
       {coordinator ? (
         <small>
-          你{coordinator.localReady ? "已准备" : "未准备"} · 好友{coordinator.remoteReady ? "已准备" : "未准备"}
+          你{coordinator.localReady ? "已准备" : "未准备"} · 好友
+          {coordinator.remoteReady ? "已准备" : "未准备"}
         </small>
       ) : null}
       {failed ? <em>棋盘输入已锁定；请返回菜单后重新配对。</em> : null}
       {snapshot.rotatingToMatchId ? <em>正在保留当前直连并创建下一局…</em> : null}
       {canChooseReconnect && onReconnect ? (
-        <button className="game-secondary-action online-reconnect-action" type="button" onClick={onReconnect}>
+        <button
+          className="game-secondary-action online-reconnect-action"
+          type="button"
+          onClick={onReconnect}
+        >
           返回菜单重新配对
         </button>
       ) : null}

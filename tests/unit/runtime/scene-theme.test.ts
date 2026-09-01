@@ -41,8 +41,12 @@ describe("Qin diorama scene theme", () => {
     const { legal, capture, keyboardFocus } = QIN_DIORAMA_THEME.states;
 
     expect(new Set([legal.indicator, capture.indicator, keyboardFocus.indicator]).size).toBe(3);
-    expect(Math.abs(relativeLuminance(legal.color) - relativeLuminance(capture.color))).toBeGreaterThan(0.25);
-    expect(QIN_DIORAMA_CSS_VARIABLES["--qin-state-keyboard-focus"]).toBe(cssHex(keyboardFocus.color));
+    expect(
+      Math.abs(relativeLuminance(legal.color) - relativeLuminance(capture.color)),
+    ).toBeGreaterThan(0.25);
+    expect(QIN_DIORAMA_CSS_VARIABLES["--qin-state-keyboard-focus"]).toBe(
+      cssHex(keyboardFocus.color),
+    );
   });
 
   it("exports an immutable JSON-serializable CSS variable map from canonical values", () => {
@@ -50,8 +54,12 @@ describe("Qin diorama scene theme", () => {
     expect(Object.isFrozen(QIN_DIORAMA_THEME.materials)).toBe(true);
     expect(Object.isFrozen(QIN_DIORAMA_THEME.states.legal)).toBe(true);
     expect(Object.isFrozen(QIN_DIORAMA_CSS_VARIABLES)).toBe(true);
-    expect(Object.values(QIN_DIORAMA_CSS_VARIABLES).every((value) => typeof value === "string")).toBe(true);
-    expect(JSON.parse(JSON.stringify(QIN_DIORAMA_CSS_VARIABLES))).toEqual(QIN_DIORAMA_CSS_VARIABLES);
+    expect(
+      Object.values(QIN_DIORAMA_CSS_VARIABLES).every((value) => typeof value === "string"),
+    ).toBe(true);
+    expect(JSON.parse(JSON.stringify(QIN_DIORAMA_CSS_VARIABLES))).toEqual(
+      QIN_DIORAMA_CSS_VARIABLES,
+    );
     expect(QIN_DIORAMA_CSS_VARIABLES).toMatchObject({
       "--qin-aged-bronze": cssHex(QIN_DIORAMA_THEME.materials.agedBronze),
       "--qin-black-lacquer": cssHex(QIN_DIORAMA_THEME.materials.blackLacquer),

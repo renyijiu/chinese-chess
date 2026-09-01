@@ -57,7 +57,8 @@ describe("interpolateSquareToWorld", () => {
     const start = squareToWorld(from);
     const end = squareToWorld(to);
     const samples = [0, 0.25, 0.5, 0.75, 1].map((progress) =>
-      interpolateSquareToWorld(from, to, progress));
+      interpolateSquareToWorld(from, to, progress),
+    );
 
     expect(samples[0]).toEqual(start);
     expect(samples.at(-1)).toEqual(end);

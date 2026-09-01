@@ -17,10 +17,7 @@ import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 
 import { useScheduledFrame } from "../runtime/FrameScheduler";
-import {
-  markPanoramaActive,
-  markPanoramaDisposed,
-} from "../runtime/environment-diagnostics";
+import { markPanoramaActive, markPanoramaDisposed } from "../runtime/environment-diagnostics";
 import type { QualityProfile } from "../runtime/quality";
 import { isTestFaultEnabled } from "../runtime/test-faults";
 import {
@@ -68,10 +65,13 @@ function LayerStatusSignal({
 }
 
 function QinGradientSky() {
-  const uniforms = useMemo(() => ({
-    bottomColor: { value: new THREE.Color(QIN_DIORAMA_THEME.environment.fog) },
-    topColor: { value: new THREE.Color(QIN_DIORAMA_THEME.environment.background) },
-  }), []);
+  const uniforms = useMemo(
+    () => ({
+      bottomColor: { value: new THREE.Color(QIN_DIORAMA_THEME.environment.fog) },
+      topColor: { value: new THREE.Color(QIN_DIORAMA_THEME.environment.background) },
+    }),
+    [],
+  );
   return (
     <mesh
       frustumCulled={false}
@@ -181,7 +181,12 @@ function QinPanorama({
 
   if (!panorama) return null;
   return (
-    <mesh frustumCulled={false} name="qin-diorama-panorama" raycast={() => null} renderOrder={-1000}>
+    <mesh
+      frustumCulled={false}
+      name="qin-diorama-panorama"
+      raycast={() => null}
+      renderOrder={-1000}
+    >
       <sphereGeometry args={[76, 48, 24]} />
       <meshBasicMaterial depthWrite={false} fog={false} map={panorama} side={THREE.BackSide} />
     </mesh>
@@ -222,11 +227,12 @@ function StaticPropInstances({
   }, [placements]);
 
   useEffect(() => () => geometry.dispose(), [geometry]);
-  const color = kind === "pit-corridor"
-    ? QIN_DIORAMA_THEME.materials.firedClayShadow
-    : kind === "mound"
-      ? QIN_DIORAMA_THEME.materials.firedClay
-      : QIN_DIORAMA_THEME.materials.firedClayLight;
+  const color =
+    kind === "pit-corridor"
+      ? QIN_DIORAMA_THEME.materials.firedClayShadow
+      : kind === "mound"
+        ? QIN_DIORAMA_THEME.materials.firedClay
+        : QIN_DIORAMA_THEME.materials.firedClayLight;
 
   return (
     <instancedMesh
@@ -258,15 +264,28 @@ function writeMatrices<T>(
 }
 
 function GateDetails({ placements }: { placements: readonly DioramaPropPlacement[] }) {
-  const parts = useMemo(() => placements.flatMap((placement) => {
-    const [x, y, z] = placement.position;
-    const [width, height, depth] = placement.scale;
-    return [
-      { position: [x - width * 0.38, y + height * 0.38, z] as const, scale: [width * 0.17, height, depth] as const },
-      { position: [x + width * 0.38, y + height * 0.38, z] as const, scale: [width * 0.17, height, depth] as const },
-      { position: [x, y + height * 0.78, z] as const, scale: [width, height * 0.18, depth * 1.2] as const },
-    ];
-  }), [placements]);
+  const parts = useMemo(
+    () =>
+      placements.flatMap((placement) => {
+        const [x, y, z] = placement.position;
+        const [width, height, depth] = placement.scale;
+        return [
+          {
+            position: [x - width * 0.38, y + height * 0.38, z] as const,
+            scale: [width * 0.17, height, depth] as const,
+          },
+          {
+            position: [x + width * 0.38, y + height * 0.38, z] as const,
+            scale: [width * 0.17, height, depth] as const,
+          },
+          {
+            position: [x, y + height * 0.78, z] as const,
+            scale: [width, height * 0.18, depth * 1.2] as const,
+          },
+        ];
+      }),
+    [placements],
+  );
   const meshRef = useRef<THREE.InstancedMesh>(null);
 
   useLayoutEffect(() => {
@@ -277,7 +296,12 @@ function GateDetails({ placements }: { placements: readonly DioramaPropPlacement
   }, [parts]);
 
   return (
-    <instancedMesh ref={meshRef} args={[undefined, undefined, parts.length]} name="qin-gate-cues" raycast={() => null}>
+    <instancedMesh
+      ref={meshRef}
+      args={[undefined, undefined, parts.length]}
+      name="qin-gate-cues"
+      raycast={() => null}
+    >
       <boxGeometry />
       <meshStandardMaterial color={QIN_DIORAMA_THEME.materials.blackLacquer} roughness={0.78} />
     </instancedMesh>
@@ -297,9 +321,18 @@ function CampDetails({
   onDegraded: () => void;
   placements: readonly DioramaPropPlacement[];
 }) {
-  const flames = useMemo(() => placements.filter((placement) => placement.kind === "brazier"), [placements]);
-  const banners = useMemo(() => placements.filter((placement) => placement.kind === "banner"), [placements]);
-  const racks = useMemo(() => placements.filter((placement) => placement.kind === "weapon-rack"), [placements]);
+  const flames = useMemo(
+    () => placements.filter((placement) => placement.kind === "brazier"),
+    [placements],
+  );
+  const banners = useMemo(
+    () => placements.filter((placement) => placement.kind === "banner"),
+    [placements],
+  );
+  const racks = useMemo(
+    () => placements.filter((placement) => placement.kind === "weapon-rack"),
+    [placements],
+  );
   const brazierRef = useRef<THREE.InstancedMesh>(null);
   const flameRef = useRef<THREE.InstancedMesh>(null);
   const poleRef = useRef<THREE.InstancedMesh>(null);
@@ -307,33 +340,65 @@ function CampDetails({
   const lightGroupRef = useRef<THREE.Group>(null);
   const matrixTransform = useMemo(() => new THREE.Object3D(), []);
 
-  const updateFlames = useCallback((elapsed: number) => {
-    if (elapsed > 0 && isTestFaultEnabled("ambientTask")) {
-      throw new Error("Forced ambient task failure for resilience coverage");
-    }
-    writeMatrices(flameRef.current, flames, (transform, placement, index) => {
-      const pulse = 1 + Math.sin(elapsed * 5.1 + index * 1.7) * 0.09;
-      transform.position.set(placement.position[0], placement.position[1] + 0.52, placement.position[2]);
-      transform.rotation.set(0, elapsed * 0.35 + index, 0);
-      transform.scale.set(0.17 / pulse, 0.58 * pulse, 0.17 / pulse);
-    }, matrixTransform);
-  }, [flames, matrixTransform]);
-  const updateFlags = useCallback((elapsed: number) => {
-    writeMatrices(flagRef.current, banners, (transform, placement, index) => {
-      const flutter = Math.sin(elapsed * 1.35 + index * 2.1) * 0.08;
-      transform.position.set(placement.position[0] + 0.36, placement.position[1] + 1.65, placement.position[2]);
-      transform.rotation.set(0, placement.rotation + flutter, 0);
-      transform.scale.set(0.72, 1.08, 0.05);
-    }, matrixTransform);
-  }, [banners, matrixTransform]);
+  const updateFlames = useCallback(
+    (elapsed: number) => {
+      if (elapsed > 0 && isTestFaultEnabled("ambientTask")) {
+        throw new Error("Forced ambient task failure for resilience coverage");
+      }
+      writeMatrices(
+        flameRef.current,
+        flames,
+        (transform, placement, index) => {
+          const pulse = 1 + Math.sin(elapsed * 5.1 + index * 1.7) * 0.09;
+          transform.position.set(
+            placement.position[0],
+            placement.position[1] + 0.52,
+            placement.position[2],
+          );
+          transform.rotation.set(0, elapsed * 0.35 + index, 0);
+          transform.scale.set(0.17 / pulse, 0.58 * pulse, 0.17 / pulse);
+        },
+        matrixTransform,
+      );
+    },
+    [flames, matrixTransform],
+  );
+  const updateFlags = useCallback(
+    (elapsed: number) => {
+      writeMatrices(
+        flagRef.current,
+        banners,
+        (transform, placement, index) => {
+          const flutter = Math.sin(elapsed * 1.35 + index * 2.1) * 0.08;
+          transform.position.set(
+            placement.position[0] + 0.36,
+            placement.position[1] + 1.65,
+            placement.position[2],
+          );
+          transform.rotation.set(0, placement.rotation + flutter, 0);
+          transform.scale.set(0.72, 1.08, 0.05);
+        },
+        matrixTransform,
+      );
+    },
+    [banners, matrixTransform],
+  );
 
   useLayoutEffect(() => {
     writeMatrices(brazierRef.current, flames, (transform, placement) => {
-      transform.position.set(placement.position[0], placement.position[1] + 0.19, placement.position[2]);
+      transform.position.set(
+        placement.position[0],
+        placement.position[1] + 0.19,
+        placement.position[2],
+      );
       transform.scale.set(1, 1, 1);
     });
     writeMatrices(poleRef.current, banners, (transform, placement) => {
-      transform.position.set(placement.position[0], placement.position[1] + 1.32, placement.position[2]);
+      transform.position.set(
+        placement.position[0],
+        placement.position[1] + 1.32,
+        placement.position[2],
+      );
       transform.rotation.set(0, placement.rotation, 0);
       transform.scale.set(1, 1, 1);
     });
@@ -342,28 +407,55 @@ function CampDetails({
   }, [banners, flames, updateFlags, updateFlames]);
   useScheduledFrame(updateFlames, animateLights && flames.length > 0, onDegraded);
   useScheduledFrame(updateFlags, animateFlags && banners.length > 0, onDegraded);
-  useScheduledFrame((elapsed) => {
-    lightGroupRef.current?.children.forEach((child, index) => {
-      if (child instanceof THREE.PointLight) child.intensity = 10 + Math.sin(elapsed * 4.4 + index * 1.8) * 1.8;
-    });
-  }, animateLights && dynamicLightStrategy === "animated", onDegraded);
+  useScheduledFrame(
+    (elapsed) => {
+      lightGroupRef.current?.children.forEach((child, index) => {
+        if (child instanceof THREE.PointLight)
+          child.intensity = 10 + Math.sin(elapsed * 4.4 + index * 1.8) * 1.8;
+      });
+    },
+    animateLights && dynamicLightStrategy === "animated",
+    onDegraded,
+  );
 
   return (
     <group name="qin-diorama-camp-details">
       {flames.length > 0 ? (
         <>
-          <instancedMesh ref={brazierRef} args={[undefined, undefined, flames.length]} raycast={() => null}>
+          <instancedMesh
+            ref={brazierRef}
+            args={[undefined, undefined, flames.length]}
+            raycast={() => null}
+          >
             <cylinderGeometry args={[0.19, 0.27, 0.42, 8]} />
-            <meshStandardMaterial color={QIN_DIORAMA_THEME.materials.blackLacquer} metalness={0.22} roughness={0.68} />
+            <meshStandardMaterial
+              color={QIN_DIORAMA_THEME.materials.blackLacquer}
+              metalness={0.22}
+              roughness={0.68}
+            />
           </instancedMesh>
-          <instancedMesh ref={flameRef} args={[undefined, undefined, flames.length]} raycast={() => null}>
+          <instancedMesh
+            ref={flameRef}
+            args={[undefined, undefined, flames.length]}
+            raycast={() => null}
+          >
             <coneGeometry args={[1, 1, 7]} />
-            <meshBasicMaterial color={QIN_DIORAMA_THEME.environment.brazierFlame} toneMapped={false} />
+            <meshBasicMaterial
+              color={QIN_DIORAMA_THEME.environment.brazierFlame}
+              toneMapped={false}
+            />
           </instancedMesh>
           {dynamicLightStrategy !== "none" ? (
             <group ref={lightGroupRef}>
               {flames.slice(0, 2).map((placement, index) => (
-                <pointLight key={`${placement.position.join(":")}:${index}`} color={QIN_DIORAMA_THEME.environment.brazierLight} decay={2} distance={4.4} intensity={10} position={[placement.position[0], 1.25, placement.position[2]]} />
+                <pointLight
+                  key={`${placement.position.join(":")}:${index}`}
+                  color={QIN_DIORAMA_THEME.environment.brazierLight}
+                  decay={2}
+                  distance={4.4}
+                  intensity={10}
+                  position={[placement.position[0], 1.25, placement.position[2]]}
+                />
               ))}
             </group>
           ) : null}
@@ -371,26 +463,51 @@ function CampDetails({
       ) : null}
       {banners.length > 0 ? (
         <>
-          <instancedMesh ref={poleRef} args={[undefined, undefined, banners.length]} raycast={() => null}>
+          <instancedMesh
+            ref={poleRef}
+            args={[undefined, undefined, banners.length]}
+            raycast={() => null}
+          >
             <cylinderGeometry args={[0.035, 0.055, 3.1, 7]} />
-            <meshStandardMaterial color={QIN_DIORAMA_THEME.materials.agedBronze} metalness={0.26} roughness={0.67} />
+            <meshStandardMaterial
+              color={QIN_DIORAMA_THEME.materials.agedBronze}
+              metalness={0.26}
+              roughness={0.67}
+            />
           </instancedMesh>
-          <instancedMesh ref={flagRef} args={[undefined, undefined, banners.length]} raycast={() => null}>
+          <instancedMesh
+            ref={flagRef}
+            args={[undefined, undefined, banners.length]}
+            raycast={() => null}
+          >
             <boxGeometry />
             <meshStandardMaterial color={QIN_DIORAMA_THEME.accents.cinnabar} roughness={0.9} />
           </instancedMesh>
         </>
       ) : null}
       {racks.map((placement, index) => (
-        <group key={`${placement.position.join(":")}:${index}`} position={placement.position} rotation={[0, placement.rotation, 0]}>
+        <group
+          key={`${placement.position.join(":")}:${index}`}
+          position={placement.position}
+          rotation={[0, placement.rotation, 0]}
+        >
           <mesh raycast={() => null} position={[0, 0.5, 0]}>
             <boxGeometry args={[1.1, 0.1, 0.1]} />
             <meshStandardMaterial color={QIN_DIORAMA_THEME.materials.agedBronze} roughness={0.72} />
           </mesh>
           {[-0.42, 0, 0.42].map((x) => (
-            <mesh key={x} raycast={() => null} position={[x, 0.72, 0]} rotation={[0, 0, x === 0 ? 0 : x * 0.28]}>
+            <mesh
+              key={x}
+              raycast={() => null}
+              position={[x, 0.72, 0]}
+              rotation={[0, 0, x === 0 ? 0 : x * 0.28]}
+            >
               <cylinderGeometry args={[0.025, 0.035, 1.4, 6]} />
-              <meshStandardMaterial color={QIN_DIORAMA_THEME.materials.blackLacquer} metalness={0.12} roughness={0.68} />
+              <meshStandardMaterial
+                color={QIN_DIORAMA_THEME.materials.blackLacquer}
+                metalness={0.12}
+                roughness={0.68}
+              />
             </mesh>
           ))}
         </group>
@@ -421,12 +538,16 @@ function DustMotes({
     return values;
   }, [density]);
 
-  useScheduledFrame((elapsed) => {
-    const points = pointsRef.current;
-    if (!points) return;
-    points.rotation.y = elapsed * 0.018;
-    points.position.y = Math.sin(elapsed * 0.24) * 0.08;
-  }, animate && density > 0, onDegraded);
+  useScheduledFrame(
+    (elapsed) => {
+      const points = pointsRef.current;
+      if (!points) return;
+      points.rotation.y = elapsed * 0.018;
+      points.position.y = Math.sin(elapsed * 0.24) * 0.08;
+    },
+    animate && density > 0,
+    onDegraded,
+  );
 
   if (density === 0) return null;
   return (
@@ -434,7 +555,13 @@ function DustMotes({
       <bufferGeometry>
         <bufferAttribute attach="attributes-position" args={[positions, 3]} />
       </bufferGeometry>
-      <pointsMaterial color={QIN_DIORAMA_THEME.materials.chalk} depthWrite={false} opacity={0.2} size={0.045} transparent />
+      <pointsMaterial
+        color={QIN_DIORAMA_THEME.materials.chalk}
+        depthWrite={false}
+        opacity={0.2}
+        size={0.045}
+        transparent
+      />
     </points>
   );
 }
@@ -470,7 +597,12 @@ function DioramaPropLayer({
       {(["wall", "pit-corridor", "mound", "tent"] as const).map((kind) => {
         const kindPlacements = byKind.get(kind) ?? [];
         return kindPlacements.length > 0 ? (
-          <StaticPropInstances key={kind} castShadow={castShadow} kind={kind} placements={kindPlacements} />
+          <StaticPropInstances
+            key={kind}
+            castShadow={castShadow}
+            kind={kind}
+            placements={kindPlacements}
+          />
         ) : null;
       })}
       <GateDetails placements={byKind.get("gate") ?? []} />
@@ -508,7 +640,13 @@ export function DioramaEnvironment({
   return (
     <>
       <QinSceneAtmosphere />
-      <hemisphereLight args={[QIN_DIORAMA_THEME.environment.keyLight, QIN_DIORAMA_THEME.environment.background, 2.7]} />
+      <hemisphereLight
+        args={[
+          QIN_DIORAMA_THEME.environment.keyLight,
+          QIN_DIORAMA_THEME.environment.background,
+          2.7,
+        ]}
+      />
       <directionalLight
         castShadow={quality.environment.shadowStrategy !== "none"}
         color={QIN_DIORAMA_THEME.environment.keyLight}
@@ -524,7 +662,11 @@ export function DioramaEnvironment({
         shadow-mapSize-height={quality.shadowMapSize}
         shadow-mapSize-width={quality.shadowMapSize}
       />
-      <directionalLight color={QIN_DIORAMA_THEME.environment.fillLight} intensity={1.1} position={[10, 7, -10]} />
+      <directionalLight
+        color={QIN_DIORAMA_THEME.environment.fillLight}
+        intensity={1.1}
+        position={[10, 7, -10]}
+      />
 
       <QinPanorama onStatus={setPanoramaStatus} url={panoramaUrl} />
       <group name="qin-hybrid-diorama-environment">

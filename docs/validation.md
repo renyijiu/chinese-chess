@@ -44,14 +44,14 @@ Chromium 浏览器 fixture 覆盖：
 
 `npm run test:ai:lifecycle` 在一个真实 Chromium 页面内执行 100 次 Easy 电脑开局和 99 次重新开局，结果为：
 
-| 指标 | 第 1 次 | 第 100 次 | 结论 |
-| --- | ---: | ---: | --- |
-| 活动 Worker | 1 | 1 | 稳定 |
-| Worker 创建 / 终止 | 1 / 0 | 100 / 99 | 每次换局释放旧实例 |
-| 活动超时句柄 | 0 | 0 | 稳定 |
-| `visibilitychange` listeners | 4 | 4 | 稳定 |
-| CacheStorage key 集合 | `[]` | `[]` | Easy 循环未污染缓存命名空间 |
-| page JS heap | 24,262,156 B | 27,849,972 B | +3,587,816 B，低于 32 MiB 容差 |
+| 指标                         |      第 1 次 |    第 100 次 | 结论                           |
+| ---------------------------- | -----------: | -----------: | ------------------------------ |
+| 活动 Worker                  |            1 |            1 | 稳定                           |
+| Worker 创建 / 终止           |        1 / 0 |     100 / 99 | 每次换局释放旧实例             |
+| 活动超时句柄                 |            0 |            0 | 稳定                           |
+| `visibilitychange` listeners |            4 |            4 | 稳定                           |
+| CacheStorage key 集合        |         `[]` |         `[]` | Easy 循环未污染缓存命名空间    |
+| page JS heap                 | 24,262,156 B | 27,849,972 B | +3,587,816 B，低于 32 MiB 容差 |
 
 中点第 50 次 page heap 为 `27,371,248` B。heap 数字来自 Chromium CDP `Performance.getMetrics` 并在采样前调用 GC，**只代表页面 JS heap**；它不包含 Dedicated Worker heap、WASM linear memory 或 SharedArrayBuffer。因此这里不宣称 Master 总内存稳定。Worker 生命周期只由活动实例数约束；Master 内容缓存正确性由 engine-cache 单元测试、资产 hash 校验和生产冷启动共同覆盖，Easy 的空 CacheStorage key 集合不代表 Master cache entries 已被 100 次压力验证。
 
@@ -59,13 +59,13 @@ Chromium 浏览器 fixture 覆盖：
 
 轻量 Hard 搜索窗口由真实 Worker 执行，PerformanceObserver 在演出稳定后清空环境噪声并持续到 Worker 返回；可见 Chromium 的权威轮次得到：
 
-| 指标 | 实测 | 门槛 | 结论 |
-| --- | ---: | ---: | --- |
-| 搜索窗口 >50 ms main-thread long task | 0 | 0 | 通过 |
-| renderer p95 frame interval | 18.34 ms | ≤20.24 ms（引入 AI 前 18.4 ms × 1.1） | 通过 |
-| 独立 rAF cadence p95 | 18.515 ms | 诊断项 | 记录 |
-| current / peak draw calls | 76 / 113 | ≤100 / ≤160 | 通过 |
-| renderer samples | 147 | ≥30 | 通过 |
+| 指标                                  |      实测 |                                  门槛 | 结论 |
+| ------------------------------------- | --------: | ------------------------------------: | ---- |
+| 搜索窗口 >50 ms main-thread long task |         0 |                                     0 | 通过 |
+| renderer p95 frame interval           |  18.34 ms | ≤20.24 ms（引入 AI 前 18.4 ms × 1.1） | 通过 |
+| 独立 rAF cadence p95                  | 18.515 ms |                                诊断项 | 记录 |
+| current / peak draw calls             |  76 / 113 |                           ≤100 / ≤160 | 通过 |
+| renderer samples                      |       147 |                                   ≥30 | 通过 |
 
 无头 SwiftShader AI 轮次同样得到 `searchLongTasks=[]`、current/peak draw calls `56/59`；renderer p95 `141.11 ms` 与独立 rAF p95 `133.61 ms` 只作软件渲染诊断，不参与 GPU 发布门槛。生产预算轮次为首次可玩 `3,904,254` B（3.72 MiB）、首屏音频 `1,921,564` B、draw calls `77/77`、494,204 triangles、DPR 1，均通过对应预算。
 
@@ -75,19 +75,19 @@ AI 自身没有造成超过基线 10% 的可见浏览器 p95 回退；但项目�
 
 最终 clean-worktree 回归结果：
 
-| 命令/范围 | 结果 |
-| --- | --- |
-| `npm run typecheck` / `npm run lint` | 通过 / 通过 |
-| rules / game / AI / presentation Vitest | 26 / 40 / 63 / 60 tests 通过 |
-| runtime Vitest | 45 tests 通过 |
-| `assets:pieces:validate` | 21 GLB、7 角色、14 阵营外观全部通过，Khronos warnings 0 |
-| `assets:ai:validate` / `test:budget` | 通过 / 通过 |
-| `npm test` | 生产 build 与 4 个 Worker HTML/MIME/接线 smoke 通过 |
-| `npm run test:e2e` | 31 passed / 3 expected skipped / 0 failed；跳过项仅为显式 performance ×2 与 lifecycle ×1，它们已独立运行 |
-| `npm run test:visual` | detached clean worktree 中 3/3 通过；desktop 与 390×844 共 9 张基线 |
-| `npm run test:ai:lifecycle` | 1/1 通过，100 次电脑开局 |
-| `npm run test:performance` | headless 2/2 通过 |
-| headed AI performance | 1/1 通过；完整 headed 命令因下述原有 16.7 ms 绝对门槛失败 |
+| 命令/范围                               | 结果                                                                                                     |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `npm run typecheck` / `npm run lint`    | 通过 / 通过                                                                                              |
+| rules / game / AI / presentation Vitest | 26 / 40 / 63 / 60 tests 通过                                                                             |
+| runtime Vitest                          | 45 tests 通过                                                                                            |
+| `assets:pieces:validate`                | 21 GLB、7 角色、14 阵营外观全部通过，Khronos warnings 0                                                  |
+| `assets:ai:validate` / `test:budget`    | 通过 / 通过                                                                                              |
+| `npm test`                              | 生产 build 与 4 个 Worker HTML/MIME/接线 smoke 通过                                                      |
+| `npm run test:e2e`                      | 31 passed / 3 expected skipped / 0 failed；跳过项仅为显式 performance ×2 与 lifecycle ×1，它们已独立运行 |
+| `npm run test:visual`                   | detached clean worktree 中 3/3 通过；desktop 与 390×844 共 9 张基线                                      |
+| `npm run test:ai:lifecycle`             | 1/1 通过，100 次电脑开局                                                                                 |
+| `npm run test:performance`              | headless 2/2 通过                                                                                        |
+| headed AI performance                   | 1/1 通过；完整 headed 命令因下述原有 16.7 ms 绝对门槛失败                                                |
 
 视觉基线先在共享工作区人工检查，再在 `ba300a9` detached clean worktree 中仅叠加 U8 文件重新生成；九张 clean 基线与主目录 SHA-256 逐一相同。随后不带 `--update-snapshots` 的 clean-worktree 比较为 3/3 通过，因此证据不依赖未提交的 scene、piece、coordinate 或 VFX 文件。
 
@@ -164,13 +164,13 @@ Playwright 使用 Chromium 验证了：
 
 `npm run test:budget` 的 2026-08-25 结果：
 
-| 项目 | 实测 | 门槛 | 结论 |
-| --- | ---: | ---: | --- |
-| 21 个角色运行时 GLB | 6,820,108 bytes / 6.50 MiB | 记录项 | 通过校验 |
-| 七个 LOD1 角色 | 1,989,092 bytes / 1.90 MiB | ≤8.6 MiB | 通过 |
-| high / medium / low 全景 | 126,368 / 63,914 / 25,440 bytes | 单调递减；high ≤250 KB | 通过 |
-| 三档全景合计 | 215,722 bytes / 0.21 MiB | 记录项 | 通过 |
-| LOD1 + 活动 high 全景 | 2,115,460 bytes / 2.02 MiB | ≤12 MiB | 通过 |
+| 项目                     |                            实测 |                   门槛 | 结论     |
+| ------------------------ | ------------------------------: | ---------------------: | -------- |
+| 21 个角色运行时 GLB      |      6,820,108 bytes / 6.50 MiB |                 记录项 | 通过校验 |
+| 七个 LOD1 角色           |      1,989,092 bytes / 1.90 MiB |               ≤8.6 MiB | 通过     |
+| high / medium / low 全景 | 126,368 / 63,914 / 25,440 bytes | 单调递减；high ≤250 KB | 通过     |
+| 三档全景合计             |        215,722 bytes / 0.21 MiB |                 记录项 | 通过     |
+| LOD1 + 活动 high 全景    |      2,115,460 bytes / 2.02 MiB |                ≤12 MiB | 通过     |
 
 2026-08-31 的生产构建另由 `npm run test:bundle` 检查 JavaScript：主棋局 chunk 为 1,333,716 bytes raw / 370,009 bytes gzip，连同静态依赖的初始棋局闭包为 1,659,723 bytes raw / 470,132 bytes gzip，低于 1,700,000 / 490,000 bytes 门槛。Master、轻量 AI Provider 与在线会话均由 manifest 证明为动态 chunk；该检查在 CI 的生产构建后执行。
 
@@ -180,17 +180,17 @@ Playwright 使用 Chromium 验证了：
 
 固定场景为高画质 1920×1080、DPR 上限 1.5。32 子和 high 全景加载完成后先以自动巡游预热 60 帧，再清零采样、执行一次兵移动，并以自动巡游补足至少 180 帧。可见 Chromium 使用 ANGLE Metal（Apple M1 Max）得到 203 个正式样本：
 
-| 指标 | 实测 | 项目门槛 | 结论 |
-| --- | ---: | ---: | --- |
-| 当前 draw calls | 77 | ≤100 | 通过 |
-| 峰值 draw calls | 82 | ≤160 | 通过 |
-| rendered-frame interval 平均 / p50 | 16.42 / 16.5 ms（平均约 60.91 FPS） | 诊断项 | 记录 |
-| rendered-frame interval p90 / p95 / max | 17.9 / 18.4 / 19.8 ms | p95 ≤16.7 ms | **未通过** |
-| 当前三角形 | 494,204 | 诊断项 | 记录 |
-| geometry / texture 数 | 63 / 38 | 稳定性诊断 | 记录 |
-| Canvas DPR | 1.0 | ≤1.5 | 通过 |
-| 首次可玩生产响应体 | 3.66 MiB | ≤12 MiB | 通过 |
-| 首玩活动环境 | high 全景；无 medium/low | 仅活动变体 | 通过 |
+| 指标                                    |                                实测 |     项目门槛 | 结论       |
+| --------------------------------------- | ----------------------------------: | -----------: | ---------- |
+| 当前 draw calls                         |                                  77 |         ≤100 | 通过       |
+| 峰值 draw calls                         |                                  82 |         ≤160 | 通过       |
+| rendered-frame interval 平均 / p50      | 16.42 / 16.5 ms（平均约 60.91 FPS） |       诊断项 | 记录       |
+| rendered-frame interval p90 / p95 / max |               17.9 / 18.4 / 19.8 ms | p95 ≤16.7 ms | **未通过** |
+| 当前三角形                              |                             494,204 |       诊断项 | 记录       |
+| geometry / texture 数                   |                             63 / 38 |   稳定性诊断 | 记录       |
+| Canvas DPR                              |                                 1.0 |         ≤1.5 | 通过       |
+| 首次可玩生产响应体                      |                            3.66 MiB |      ≤12 MiB | 通过       |
+| 首玩活动环境                            |            high 全景；无 medium/low |   仅活动变体 | 通过       |
 
 无头 SwiftShader 轮次的 draw calls 为 79 / 峰值 79，DPR 1.0、首玩 3.66 MiB；其 p95 为 140.4 ms，只作软件渲染诊断。可见浏览器同页 120 个原生 `requestAnimationFrame` 样本为平均 16.6675、p50 16.7、p90 16.8、p95 17.5、max 18.2 ms；场景 p95 比原生 rAF p95 慢 0.9 ms。该指标包含浏览器调度、垂直同步和合成，不是 CPU 函数耗时或 GPU render duration。没有通过归一化、容差或放宽断言伪造验收。
 

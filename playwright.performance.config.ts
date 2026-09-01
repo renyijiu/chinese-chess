@@ -6,7 +6,10 @@ export default defineConfig({
   expect: { timeout: 12_000 },
   fullyParallel: false,
   outputDir: "output/playwright/performance-results",
-  reporter: [["list"], ["html", { open: "never", outputFolder: "output/playwright/performance-report" }]],
+  reporter: [
+    ["list"],
+    ["html", { open: "never", outputFolder: "output/playwright/performance-report" }],
+  ],
   retries: 0,
   testDir: "tests/e2e",
   timeout: 90_000,

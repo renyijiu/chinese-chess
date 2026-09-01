@@ -95,10 +95,14 @@ describe("manual signaling protocol v1", () => {
       "v=0\r\ns=-\r\nt=0 0\r\n",
     ];
     for (const sdp of invalidSdps) {
-      expect(decodeSignalingMessageV1(JSON.stringify({
-        ...offer,
-        description: { type: "offer", sdp },
-      }))).toEqual({ ok: false, error: { code: "schema" } });
+      expect(
+        decodeSignalingMessageV1(
+          JSON.stringify({
+            ...offer,
+            description: { type: "offer", sdp },
+          }),
+        ),
+      ).toEqual({ ok: false, error: { code: "schema" } });
     }
   });
 
@@ -113,18 +117,20 @@ describe("manual signaling protocol v1", () => {
       ok: false,
       error: { code: "size" },
     });
-    expect(decodeSignalingMessageV1("{" )).toEqual({ ok: false, error: { code: "json" } });
+    expect(decodeSignalingMessageV1("{")).toEqual({ ok: false, error: { code: "json" } });
     expect(decodeSignalingMessageV1(JSON.stringify({ signalVersion: 2 }))).toEqual({
       ok: false,
       error: { code: "version" },
     });
 
-    expect(encodeSignalingMessageV1({
-      ...offer,
-      description: {
-        type: "offer",
-        sdp: `${APPLICATION_SDP}a=x:${"棋".repeat(MAX_SIGNALING_FRAME_BYTES)}\r\n`,
-      },
-    })).toEqual({ ok: false, error: { code: "size" } });
+    expect(
+      encodeSignalingMessageV1({
+        ...offer,
+        description: {
+          type: "offer",
+          sdp: `${APPLICATION_SDP}a=x:${"棋".repeat(MAX_SIGNALING_FRAME_BYTES)}\r\n`,
+        },
+      }),
+    ).toEqual({ ok: false, error: { code: "size" } });
   });
 });

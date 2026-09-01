@@ -63,9 +63,9 @@ export function formatCaptureDetail(captured: CapturedPiece): string {
   return `吃${side}${PIECE_GLYPHS[captured.side][captured.role]}`;
 }
 
-export function deriveCapturedPieceLedger(history: readonly MoveRecord[]): Readonly<
-  Record<Side, readonly CapturedPieceLedgerEntry[]>
-> {
+export function deriveCapturedPieceLedger(
+  history: readonly MoveRecord[],
+): Readonly<Record<Side, readonly CapturedPieceLedgerEntry[]>> {
   const grouped: Record<Side, Map<Role, number>> = {
     red: new Map<Role, number>(),
     black: new Map<Role, number>(),
@@ -77,7 +77,11 @@ export function deriveCapturedPieceLedger(history: readonly MoveRecord[]): Reado
   }
   return {
     red: [...grouped.red].map(([role, count]) => ({ count, glyph: PIECE_GLYPHS.red[role], role })),
-    black: [...grouped.black].map(([role, count]) => ({ count, glyph: PIECE_GLYPHS.black[role], role })),
+    black: [...grouped.black].map(([role, count]) => ({
+      count,
+      glyph: PIECE_GLYPHS.black[role],
+      role,
+    })),
   };
 }
 
@@ -88,17 +92,28 @@ export function deriveVisibleMoveHistory(
   return history.slice(expanded ? 0 : -8).reverse();
 }
 
-const CapturedPieceLedger = memo(function CapturedPieceLedger({ history }: {
+const CapturedPieceLedger = memo(function CapturedPieceLedger({
+  history,
+}: {
   history: readonly MoveRecord[];
 }) {
   const ledger = useMemo(() => deriveCapturedPieceLedger(history), [history]);
-  const format = (entries: readonly CapturedPieceLedgerEntry[]) => entries.length === 0
-    ? "—"
-    : entries.map((entry) => `${entry.glyph}${entry.count > 1 ? `×${entry.count}` : ""}`).join(" ");
+  const format = (entries: readonly CapturedPieceLedgerEntry[]) =>
+    entries.length === 0
+      ? "—"
+      : entries
+          .map((entry) => `${entry.glyph}${entry.count > 1 ? `×${entry.count}` : ""}`)
+          .join(" ");
   return (
     <div className="game-capture-ledger" aria-label="被吃棋子">
-      <span className="red"><small>红方损失</small><strong>{format(ledger.red)}</strong></span>
-      <span className="black"><small>黑方损失</small><strong>{format(ledger.black)}</strong></span>
+      <span className="red">
+        <small>红方损失</small>
+        <strong>{format(ledger.red)}</strong>
+      </span>
+      <span className="black">
+        <small>黑方损失</small>
+        <strong>{format(ledger.black)}</strong>
+      </span>
     </div>
   );
 });
@@ -126,20 +141,19 @@ export function deriveGameHudPermissions(
   commandBusy: boolean,
   online?: OnlineHudPermissionState,
 ): GameHudPermissions {
-  const resigningSide = match.config.mode === "computer"
-    ? match.config.humanSide
-    : match.game.sideToMove;
+  const resigningSide =
+    match.config.mode === "computer" ? match.config.humanSide : match.game.sideToMove;
   return {
     showUndo: match.config.mode === "local",
-    canUndo: match.config.mode === "local"
-      && match.game.lastAction?.kind === "move"
-      && !commandBusy,
-    canResign: match.game.status.kind === "playing"
-      && !commandBusy
-      && (match.config.mode === "online"
-        ? online?.peerOpen === true
-          && (online.coordinatorPhase === "playable" || online.coordinatorPhase === "awaiting-ack")
-          && !online.conflict
+    canUndo:
+      match.config.mode === "local" && match.game.lastAction?.kind === "move" && !commandBusy,
+    canResign:
+      match.game.status.kind === "playing" &&
+      !commandBusy &&
+      (match.config.mode === "online"
+        ? online?.peerOpen === true &&
+          (online.coordinatorPhase === "playable" || online.coordinatorPhase === "awaiting-ack") &&
+          !online.conflict
         : match.game.sideToMove === resigningSide),
   };
 }
@@ -148,20 +162,41 @@ export function describeOpponentStatus(opponent: OpponentHudState): string {
   const { phase } = opponent.snapshot;
   let activity: string;
   switch (phase) {
-    case "booting": activity = "正在加载电脑对手"; break;
-    case "searching": activity = "电脑正在思考"; break;
-    case "candidatePending": activity = "电脑已选定落点"; break;
-    case "committing": activity = "电脑正在落子"; break;
-    case "stopping": activity = "正在停止旧的计算"; break;
-    case "fallback": activity = "电脑对手正在降级恢复"; break;
-    case "hidden": activity = "页面已隐藏，电脑计算已暂停"; break;
-    case "terminal": activity = "棋局已经结束"; break;
-    case "failed": activity = "电脑对手暂时不可用，可重新开局重试"; break;
-    case "disposed": activity = "电脑对手已经关闭"; break;
-    default: activity = opponent.computerOwnsTurn ? "电脑准备思考" : "轮到你行动";
+    case "booting":
+      activity = "正在加载电脑对手";
+      break;
+    case "searching":
+      activity = "电脑正在思考";
+      break;
+    case "candidatePending":
+      activity = "电脑已选定落点";
+      break;
+    case "committing":
+      activity = "电脑正在落子";
+      break;
+    case "stopping":
+      activity = "正在停止旧的计算";
+      break;
+    case "fallback":
+      activity = "电脑对手正在降级恢复";
+      break;
+    case "hidden":
+      activity = "页面已隐藏，电脑计算已暂停";
+      break;
+    case "terminal":
+      activity = "棋局已经结束";
+      break;
+    case "failed":
+      activity = "电脑对手暂时不可用，可重新开局重试";
+      break;
+    case "disposed":
+      activity = "电脑对手已经关闭";
+      break;
+    default:
+      activity = opponent.computerOwnsTurn ? "电脑准备思考" : "轮到你行动";
   }
-  return opponent.config.requestedDifficulty === "master"
-    && opponent.config.effectiveTier === "lightweight-hard"
+  return opponent.config.requestedDifficulty === "master" &&
+    opponent.config.effectiveTier === "lightweight-hard"
     ? `大师引擎不可用，已保存并回退至困难；${activity}`
     : activity;
 }
@@ -208,27 +243,68 @@ export function GameMenu({
     <div className="game-menu game-overlay-panel" role="dialog" aria-labelledby="game-menu-title">
       <p className="game-kicker">QIN DIORAMA · 秦俑棋局</p>
       <h2 id="game-menu-title">兵临九宫</h2>
-      <p>选择本机双人、无需后端的人机对战，或与好友手动建立浏览器直连。规则均由同一套中国象棋引擎裁定。</p>
-      {warning ? <p className="game-warning" role="status">{warning}</p> : null}
+      <p>
+        选择本机双人、无需后端的人机对战，或与好友手动建立浏览器直连。规则均由同一套中国象棋引擎裁定。
+      </p>
+      {warning ? (
+        <p className="game-warning" role="status">
+          {warning}
+        </p>
+      ) : null}
       {hasSave && !preparedComputerMatch ? (
-        <button className="game-continue-action game-primary-action" disabled={loading || (resumeMode === "online" && !onlineEnabled)} type="button" onClick={onContinue}>
+        <button
+          className="game-continue-action game-primary-action"
+          disabled={loading || (resumeMode === "online" && !onlineEnabled)}
+          type="button"
+          onClick={onContinue}
+        >
           {resumeMode === "online"
-            ? onlineEnabled ? "重新配对继续在线棋局" : "在线模式当前未启用"
+            ? onlineEnabled
+              ? "重新配对继续在线棋局"
+              : "在线模式当前未启用"
             : "继续对局"}
         </button>
       ) : null}
 
       <div className="game-mode-switch" role="group" aria-label="对局模式">
-        <button aria-pressed={mode === "local"} disabled={loading} type="button" onClick={() => setMode("local")}>本机双人</button>
-        <button aria-pressed={mode === "computer"} disabled={loading} type="button" onClick={() => setMode("computer")}>人机对战</button>
-        {onlineEnabled ? <button aria-pressed={mode === "online"} disabled={loading} type="button" onClick={() => setMode("online")}>好友直连</button> : null}
+        <button
+          aria-pressed={mode === "local"}
+          disabled={loading}
+          type="button"
+          onClick={() => setMode("local")}
+        >
+          本机双人
+        </button>
+        <button
+          aria-pressed={mode === "computer"}
+          disabled={loading}
+          type="button"
+          onClick={() => setMode("computer")}
+        >
+          人机对战
+        </button>
+        {onlineEnabled ? (
+          <button
+            aria-pressed={mode === "online"}
+            disabled={loading}
+            type="button"
+            onClick={() => setMode("online")}
+          >
+            好友直连
+          </button>
+        ) : null}
       </div>
 
       {mode === "local" ? (
         <section className="local-match-setup" aria-labelledby="local-setup-title">
           <h3 id="local-setup-title">同屏对弈</h3>
           <p>红黑双方轮流操作；保留单步悔棋，所有走法、将军与终局规则保持不变。</p>
-          <button className="game-primary-action" disabled={loading} type="button" onClick={onStart}>
+          <button
+            className="game-primary-action"
+            disabled={loading}
+            type="button"
+            onClick={onStart}
+          >
             {hasSave ? "开始新的本机双人对局" : "开始本机双人对局"}
           </button>
         </section>
@@ -246,12 +322,32 @@ export function GameMenu({
       ) : (
         <section className="online-match-setup" aria-labelledby="online-setup-title">
           <h3 id="online-setup-title">手动信令直连</h3>
-          <p>房主生成 Offer，好友粘贴后生成 Answer，再由房主粘贴响应。不提供匹配大厅、账户或权威游戏服务端。</p>
+          <p>
+            房主生成 Offer，好友粘贴后生成
+            Answer，再由房主粘贴响应。不提供匹配大厅、账户或权威游戏服务端。
+          </p>
           <div className="online-inline-actions">
-            <button className="game-primary-action" disabled={loading} type="button" onClick={onCreateOnline}>创建邀请</button>
-            <button className="game-secondary-action" disabled={loading} type="button" onClick={onJoinOnline}>粘贴邀请加入</button>
+            <button
+              className="game-primary-action"
+              disabled={loading}
+              type="button"
+              onClick={onCreateOnline}
+            >
+              创建邀请
+            </button>
+            <button
+              className="game-secondary-action"
+              disabled={loading}
+              type="button"
+              onClick={onJoinOnline}
+            >
+              粘贴邀请加入
+            </button>
           </div>
-          <p className="online-disclosure">公共 STUN 只协助发现连接路径；首版无 TURN，某些网络会失败。本模式不提供防作弊或竞技级可靠性。</p>
+          <p className="online-disclosure">
+            公共 STUN 只协助发现连接路径；首版无
+            TURN，某些网络会失败。本模式不提供防作弊或竞技级可靠性。
+          </p>
         </section>
       )}
       <small>{loading ? "正在检查本地存档…" : "自动保存 · 无计时 · 无需登录"}</small>
@@ -278,12 +374,27 @@ export function ConfirmDialog({
 
   return (
     <div className="game-dialog-backdrop">
-      <div className="game-confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-description">
+      <div
+        className="game-confirm-dialog"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="confirm-title"
+        aria-describedby="confirm-description"
+      >
         <h2 id="confirm-title">{title}</h2>
         <p id="confirm-description">{description}</p>
         <div>
-          <button ref={cancelButton} className="game-secondary-action" type="button" onClick={onCancel}>取消</button>
-          <button className="game-danger-action" type="button" onClick={onConfirm}>{confirmLabel}</button>
+          <button
+            ref={cancelButton}
+            className="game-secondary-action"
+            type="button"
+            onClick={onCancel}
+          >
+            取消
+          </button>
+          <button className="game-danger-action" type="button" onClick={onConfirm}>
+            {confirmLabel}
+          </button>
         </div>
       </div>
     </div>
@@ -301,16 +412,18 @@ export function GameOverPanel({
   game: GameState;
   onRestart?: (() => void) | undefined;
   onUndo: () => void;
-  onlineRematch?: Readonly<{
-    supported: boolean;
-    available: boolean;
-    status: "idle" | "requested" | "received" | "agreed" | "declined" | "cancelled";
-    onRequest: () => void;
-    onAccept: () => void;
-    onDecline: () => void;
-    onCancel: () => void;
-    onReconnect: () => void;
-  }> | undefined;
+  onlineRematch?:
+    | Readonly<{
+        supported: boolean;
+        available: boolean;
+        status: "idle" | "requested" | "received" | "agreed" | "declined" | "cancelled";
+        onRequest: () => void;
+        onAccept: () => void;
+        onDecline: () => void;
+        onCancel: () => void;
+        onReconnect: () => void;
+      }>
+    | undefined;
 }) {
   return (
     <section className="game-over-panel game-overlay-panel" aria-labelledby="game-over-title">
@@ -318,31 +431,65 @@ export function GameOverPanel({
       <h2 id="game-over-title">{formatGameOutcome(game)}</h2>
       <p>将帅仍保留在规则棋盘中，后续战斗时间线可在这里叠加败亡演出。</p>
       <div className="game-menu-actions">
-        {canUndo ? <button className="game-secondary-action" type="button" onClick={onUndo}>悔棋复战</button> : null}
+        {canUndo ? (
+          <button className="game-secondary-action" type="button" onClick={onUndo}>
+            悔棋复战
+          </button>
+        ) : null}
         {onlineRematch ? (
           onlineRematch.status === "received" ? (
             <>
-              <button className="game-primary-action" type="button" onClick={onlineRematch.onAccept}>接受再来一局</button>
-              <button className="game-secondary-action" type="button" onClick={onlineRematch.onDecline}>拒绝</button>
+              <button
+                className="game-primary-action"
+                type="button"
+                onClick={onlineRematch.onAccept}
+              >
+                接受再来一局
+              </button>
+              <button
+                className="game-secondary-action"
+                type="button"
+                onClick={onlineRematch.onDecline}
+              >
+                拒绝
+              </button>
             </>
           ) : onlineRematch.status === "requested" ? (
             <>
               <span className="online-rematch-note">已邀请好友，等待回应…</span>
-              <button className="game-secondary-action" type="button" onClick={onlineRematch.onCancel}>取消邀请</button>
+              <button
+                className="game-secondary-action"
+                type="button"
+                onClick={onlineRematch.onCancel}
+              >
+                取消邀请
+              </button>
             </>
           ) : onlineRematch.status === "agreed" ? (
             <span className="online-rematch-note">双方已同意，正在核对并创建新局…</span>
           ) : onlineRematch.supported && onlineRematch.available ? (
-            <button className="game-primary-action" type="button" onClick={onlineRematch.onRequest}>邀请再来一局</button>
+            <button className="game-primary-action" type="button" onClick={onlineRematch.onRequest}>
+              邀请再来一局
+            </button>
           ) : onlineRematch.supported ? (
             <span className="online-rematch-note">当前连接不可用，请重新配对后继续。</span>
           ) : (
             <span className="online-rematch-note">好友版本不支持同连接重开。</span>
           )
         ) : onRestart ? (
-          <button className="game-primary-action" type="button" onClick={onRestart}>开始新局</button>
+          <button className="game-primary-action" type="button" onClick={onRestart}>
+            开始新局
+          </button>
         ) : null}
-        {onlineRematch ? <button className="game-secondary-action" type="button" onClick={onlineRematch.onReconnect}>返回菜单重新配对</button> : null}
+        {onlineRematch ? (
+          <button
+            className="game-secondary-action"
+            type="button"
+            onClick={onlineRematch.onReconnect}
+          >
+            返回菜单重新配对
+          </button>
+        ) : null}
       </div>
     </section>
   );
@@ -384,9 +531,14 @@ export function GameHud({
   const ended = game.status.kind === "ended";
   const check = game.status.kind === "playing" ? game.status.check : null;
   const opponentStatus = opponent ? describeOpponentStatus(opponent) : null;
-  const turnLabel = presentationBusy ? "演出处理中"
-    : ended ? "棋局结束"
-      : opponent ? opponent.computerOwnsTurn ? "电脑回合" : "你的回合"
+  const turnLabel = presentationBusy
+    ? "演出处理中"
+    : ended
+      ? "棋局结束"
+      : opponent
+        ? opponent.computerOwnsTurn
+          ? "电脑回合"
+          : "你的回合"
         : "当前行动";
   const toggleHistory = () => {
     const expanded = !historyExpanded;
@@ -411,19 +563,29 @@ export function GameHud({
         <span>{turnLabel}</span>
         <strong>{ended ? formatGameOutcome(game) : SIDE_LABELS[game.sideToMove]}</strong>
         <small>
-          {check ? `${SIDE_LABELS[check]}被将军` : selectedMoveCount > 0 ? `${selectedMoveCount} 个合法落点` : `第 ${game.history.length + 1} 手`}
+          {check
+            ? `${SIDE_LABELS[check]}被将军`
+            : selectedMoveCount > 0
+              ? `${selectedMoveCount} 个合法落点`
+              : `第 ${game.history.length + 1} 手`}
         </small>
       </section>
 
       {opponent ? (
-        <section className="game-opponent-status" aria-label="对手状态" aria-live="polite" role="status">
+        <section
+          className="game-opponent-status"
+          aria-label="对手状态"
+          aria-live="polite"
+          role="status"
+        >
           <div>
             <span>电脑对手</span>
             <strong>{DIFFICULTY_LABELS[opponent.config.requestedDifficulty]}</strong>
           </div>
           <p>{opponentStatus}</p>
           <small>
-            你执{SIDE_LABELS[opponent.config.humanSide]} · 实际强度 {TIER_LABELS[opponent.config.effectiveTier]}
+            你执{SIDE_LABELS[opponent.config.humanSide]} · 实际强度{" "}
+            {TIER_LABELS[opponent.config.effectiveTier]}
           </small>
           {opponent.snapshot.failure ? <em>当前局面保持不变，可使用“重新开局”重试。</em> : null}
         </section>
@@ -469,14 +631,32 @@ export function GameHud({
         )}
       </aside>
 
-      {warning ? <p className="game-persistence-warning" role="status">{warning}</p> : null}
+      {warning ? (
+        <p className="game-persistence-warning" role="status">
+          {warning}
+        </p>
+      ) : null}
 
       <nav className="game-action-bar" aria-label="棋局操作">
-        {presentationBusy ? <button className="game-skip-action" type="button" onClick={onSkip}>跳过演出</button> : null}
-        {permissions.showUndo ? <button disabled={!permissions.canUndo} type="button" onClick={onUndo}>悔棋</button> : null}
-        <button disabled={!permissions.canResign || ended} type="button" onClick={onResign}>认输</button>
-        <button type="button" onClick={onRestart}>{restartLabel}</button>
-        <button aria-expanded={settingsOpen} type="button" onClick={toggleSettings}>设置</button>
+        {presentationBusy ? (
+          <button className="game-skip-action" type="button" onClick={onSkip}>
+            跳过演出
+          </button>
+        ) : null}
+        {permissions.showUndo ? (
+          <button disabled={!permissions.canUndo} type="button" onClick={onUndo}>
+            悔棋
+          </button>
+        ) : null}
+        <button disabled={!permissions.canResign || ended} type="button" onClick={onResign}>
+          认输
+        </button>
+        <button type="button" onClick={onRestart}>
+          {restartLabel}
+        </button>
+        <button aria-expanded={settingsOpen} type="button" onClick={toggleSettings}>
+          设置
+        </button>
       </nav>
 
       {settingsOpen ? (
@@ -485,9 +665,18 @@ export function GameHud({
             <span>画质</span>
             <select
               value={settings.quality}
-              onChange={(event) => onSettingsChange({ ...settings, quality: event.target.value as GameSettings["quality"] })}
+              onChange={(event) =>
+                onSettingsChange({
+                  ...settings,
+                  quality: event.target.value as GameSettings["quality"],
+                })
+              }
             >
-              {Object.entries(QUALITY_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              {Object.entries(QUALITY_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
             </select>
           </label>
           {VOLUME_CONTROLS.map(([key, label]) => {
@@ -495,7 +684,9 @@ export function GameHud({
             if (typeof value !== "number") return null;
             return (
               <label key={key}>
-                <span>{label} · {Math.round(value * 100)}%</span>
+                <span>
+                  {label} · {Math.round(value * 100)}%
+                </span>
                 <input
                   aria-label={label}
                   max="1"
@@ -503,17 +694,29 @@ export function GameHud({
                   step="0.01"
                   type="range"
                   value={value}
-                  onChange={(event) => onSettingsChange({ ...settings, [key]: Number(event.target.value) })}
+                  onChange={(event) =>
+                    onSettingsChange({ ...settings, [key]: Number(event.target.value) })
+                  }
                 />
               </label>
             );
           })}
           <label className="game-toggle-row">
-            <input checked={settings.muted} type="checkbox" onChange={(event) => onSettingsChange({ ...settings, muted: event.target.checked })} />
+            <input
+              checked={settings.muted}
+              type="checkbox"
+              onChange={(event) => onSettingsChange({ ...settings, muted: event.target.checked })}
+            />
             <span>静音</span>
           </label>
           <label className="game-toggle-row">
-            <input checked={settings.reducedMotion} type="checkbox" onChange={(event) => onSettingsChange({ ...settings, reducedMotion: event.target.checked })} />
+            <input
+              checked={settings.reducedMotion}
+              type="checkbox"
+              onChange={(event) =>
+                onSettingsChange({ ...settings, reducedMotion: event.target.checked })
+              }
+            />
             <span>减少动态效果</span>
           </label>
           <p role="note">配乐与视觉采用秦风灵感的幻想沙盘设定，并非历史音乐或史实复原。</p>

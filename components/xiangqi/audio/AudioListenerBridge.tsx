@@ -27,7 +27,8 @@ export function AudioListenerBridge({ audio }: { audio: AudioEngine }) {
       lastPosition.current.distanceToSquared(POSITION) < 1e-10 &&
       lastForward.current.distanceToSquared(FORWARD) < 1e-10 &&
       lastUp.current.distanceToSquared(UP) < 1e-10
-    ) return;
+    )
+      return;
     lastPosition.current.copy(POSITION);
     lastForward.current.copy(FORWARD);
     lastUp.current.copy(UP);

@@ -32,14 +32,10 @@ const ROLE_TO_FEN: Readonly<Record<Piece["role"], string>> = Object.freeze({
 });
 
 const SIMD_PROBE = new Uint8Array([
-  0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
-  0x01, 0x04, 0x01, 0x60, 0x00, 0x00,
-  0x03, 0x03, 0x02, 0x00, 0x00,
-  0x05, 0x03, 0x01, 0x00, 0x01,
-  0x0c, 0x01, 0x00,
-  0x0a, 0x16, 0x02,
-  0x0c, 0x00, 0x41, 0x00, 0x41, 0x00, 0x41, 0x00, 0xfc, 0x0a, 0x00, 0x00, 0x0b,
-  0x07, 0x00, 0x41, 0x00, 0xfd, 0x0f, 0x1a, 0x0b,
+  0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, 0x01, 0x04, 0x01, 0x60, 0x00, 0x00, 0x03, 0x03,
+  0x02, 0x00, 0x00, 0x05, 0x03, 0x01, 0x00, 0x01, 0x0c, 0x01, 0x00, 0x0a, 0x16, 0x02, 0x0c, 0x00,
+  0x41, 0x00, 0x41, 0x00, 0x41, 0x00, 0xfc, 0x0a, 0x00, 0x00, 0x0b, 0x07, 0x00, 0x41, 0x00, 0xfd,
+  0x0f, 0x1a, 0x0b,
 ]);
 
 export type MissingMasterCapability =
@@ -96,13 +92,14 @@ export function assessMasterCapabilities(
 
 export function squareToUci(square: Square): string {
   if (
-    !Number.isInteger(square.file)
-    || square.file < 0
-    || square.file > 8
-    || !Number.isInteger(square.rank)
-    || square.rank < 0
-    || square.rank > 9
-  ) throw new Error("Xiangqi square is outside the 9 by 10 board.");
+    !Number.isInteger(square.file) ||
+    square.file < 0 ||
+    square.file > 8 ||
+    !Number.isInteger(square.rank) ||
+    square.rank < 0 ||
+    square.rank > 9
+  )
+    throw new Error("Xiangqi square is outside the 9 by 10 board.");
   return `${String.fromCharCode(97 + square.file)}${square.rank + 1}`;
 }
 
@@ -138,7 +135,7 @@ export function gameToXiangqiFen(game: GameState): string {
     let empty = 0;
     let fenRank = "";
     for (let file = 0; file < 9; file += 1) {
-      const piece = game.board[(rank * 9) + file];
+      const piece = game.board[rank * 9 + file];
       if (!piece) {
         empty += 1;
         continue;
@@ -221,9 +218,11 @@ function createMasterHostWorker(): MasterHostWorkerLike {
 }
 
 function sameIdentity(left: OpponentIdentityV1, right: OpponentIdentityV1): boolean {
-  return left.matchId === right.matchId
-    && left.generation === right.generation
-    && left.requestId === right.requestId;
+  return (
+    left.matchId === right.matchId &&
+    left.generation === right.generation &&
+    left.requestId === right.requestId
+  );
 }
 
 function failure(
@@ -250,11 +249,15 @@ function parseInfo(line: string): Readonly<{ depth?: number; nodes?: number; sco
     ...(nodes?.[1] ? { nodes: Number(nodes[1]) } : {}),
     ...(cp?.[1]
       ? { score: Number(cp[1]) }
-      : mate?.[1] ? { score: Math.sign(Number(mate[1])) * 100_000 } : {}),
+      : mate?.[1]
+        ? { score: Math.sign(Number(mate[1])) * 100_000 }
+        : {}),
   });
 }
 
-function parseHostMessage(value: unknown):
+function parseHostMessage(
+  value: unknown,
+):
   | Readonly<{ type: "booted" }>
   | Readonly<{ type: "boot-error"; message: string }>
   | Readonly<{ type: "line"; line: string }>
@@ -266,8 +269,10 @@ function parseHostMessage(value: unknown):
   if (message.type === "boot-error" && typeof message.message === "string") {
     return { type: "boot-error", message: message.message };
   }
-  if (message.type === "line" && typeof message.line === "string") return { type: "line", line: message.line };
-  if (message.type === "exit" && typeof message.code === "number") return { type: "exit", code: message.code };
+  if (message.type === "line" && typeof message.line === "string")
+    return { type: "line", line: message.line };
+  if (message.type === "exit" && typeof message.code === "number")
+    return { type: "exit", code: message.code };
   return null;
 }
 
@@ -302,12 +307,14 @@ export class MasterEngineAdapter implements OpponentProvider {
     if (this.#disposed) return Promise.reject(new Error("Master engine adapter is disposed."));
     if (this.#initialized) return Promise.resolve();
     if (this.#initialization) return this.#initialization;
-    this.#initialization = this.boot().catch((error) => {
-      this.destroyWorker();
-      throw error;
-    }).finally(() => {
-      if (!this.#initialized) this.#initialization = null;
-    });
+    this.#initialization = this.boot()
+      .catch((error) => {
+        this.destroyWorker();
+        throw error;
+      })
+      .finally(() => {
+        if (!this.#initialized) this.#initialization = null;
+      });
     return this.#initialization;
   }
 
@@ -316,7 +323,8 @@ export class MasterEngineAdapter implements OpponentProvider {
     if (this.#activeSearch || this.#startingRequest) {
       return failure("invalid-request", "Only one Master search may run at a time.");
     }
-    if (request.tier !== "fairy-master") return failure("invalid-request", "Master received a non-Master request.");
+    if (request.tier !== "fairy-master")
+      return failure("invalid-request", "Master received a non-Master request.");
 
     this.#startingRequest = request;
     try {
@@ -326,7 +334,10 @@ export class MasterEngineAdapter implements OpponentProvider {
         return failure("cancelled", "The Master search was stopped before it began.");
       }
       if (!validated.ok || validated.game.status.kind !== "playing") {
-        return failure("invalid-request", "Master request identity does not match its canonical position.");
+        return failure(
+          "invalid-request",
+          "Master request identity does not match its canonical position.",
+        );
       }
       const game = validated.game;
 
@@ -337,7 +348,11 @@ export class MasterEngineAdapter implements OpponentProvider {
       }
       if (this.#currentMatchId !== request.matchId) {
         this.command("ucinewgame");
-        await this.commandAndWait("isready", (line) => line === "readyok", "readyok after ucinewgame");
+        await this.commandAndWait(
+          "isready",
+          (line) => line === "readyok",
+          "readyok after ucinewgame",
+        );
         this.#currentMatchId = request.matchId;
       }
       if (this.#cancelledStartingRequest && sameIdentity(this.#cancelledStartingRequest, request)) {
@@ -366,7 +381,10 @@ export class MasterEngineAdapter implements OpponentProvider {
         this.command(`go depth ${request.depthCeiling} nodes ${request.nodeBudget}`);
       });
     } catch (error) {
-      return failure("unavailable", error instanceof Error ? error.message : "Master initialization failed.");
+      return failure(
+        "unavailable",
+        error instanceof Error ? error.message : "Master initialization failed.",
+      );
     } finally {
       if (this.#startingRequest === request) this.#startingRequest = null;
       if (this.#cancelledStartingRequest === request) this.#cancelledStartingRequest = null;
@@ -378,7 +396,9 @@ export class MasterEngineAdapter implements OpponentProvider {
     const active = this.#activeSearch;
     if (active && sameIdentity(active.request, identity)) {
       if (active.stopPromise) return active.stopPromise;
-      active.stopPromise = new Promise<void>((resolve) => { active.stopResolve = resolve; });
+      active.stopPromise = new Promise<void>((resolve) => {
+        active.stopResolve = resolve;
+      });
       this.beginStop("cancelled");
       return active.stopPromise;
     }
@@ -414,11 +434,14 @@ export class MasterEngineAdapter implements OpponentProvider {
     const wasm = assets.files["stockfish.wasm"];
     const pthread = assets.files["stockfish.worker.js"];
     const network = assets.files["xiangqi-c07e94a5c7cb.nnue"];
-    worker.postMessage({
-      type: "boot",
-      networkPath: NETWORK_PATH,
-      assets: { glue, wasm, pthread, network },
-    }, [glue, wasm, pthread, network]);
+    worker.postMessage(
+      {
+        type: "boot",
+        networkPath: NETWORK_PATH,
+        assets: { glue, wasm, pthread, network },
+      },
+      [glue, wasm, pthread, network],
+    );
     await booted;
 
     this.#advertisesVariant = false;
@@ -483,15 +506,19 @@ export class MasterEngineAdapter implements OpponentProvider {
       this.forceTerminateSearch();
       return;
     }
-    active.graceTimer = this.#timers.setTimeout(() => this.forceTerminateSearch(), this.#stopGraceMs);
+    active.graceTimer = this.#timers.setTimeout(
+      () => this.forceTerminateSearch(),
+      this.#stopGraceMs,
+    );
   }
 
   private forceTerminateSearch(): void {
     const active = this.#activeSearch;
     if (!active) return;
-    const outcome = active.mode === "timeout"
-      ? failure("timeout", "The Master search timed out.")
-      : failure("cancelled", "The Master search was stopped.");
+    const outcome =
+      active.mode === "timeout"
+        ? failure("timeout", "The Master search timed out.")
+        : failure("cancelled", "The Master search was stopped.");
     this.destroyWorker();
     this.settleSearch(outcome);
   }
@@ -549,36 +576,41 @@ export class MasterEngineAdapter implements OpponentProvider {
     const bestmoveUci = bestmove[1];
     if (!bestmoveUci) return;
     if (active.mode !== "searching") {
-      this.settleSearch(active.mode === "timeout"
-        ? failure("timeout", "The Master search timed out.")
-        : failure("cancelled", "The Master search was stopped."));
+      this.settleSearch(
+        active.mode === "timeout"
+          ? failure("timeout", "The Master search timed out.")
+          : failure("cancelled", "The Master search was stopped."),
+      );
       return;
     }
     try {
       const candidate = moveFromUci(bestmoveUci);
       const piece = getPieceAt(active.game, candidate.from);
-      const legal = piece?.side === active.game.sideToMove
-        && getLegalMoves(active.game, piece.id).some(
+      const legal =
+        piece?.side === active.game.sideToMove &&
+        getLegalMoves(active.game, piece.id).some(
           (square) => square.file === candidate.to.file && square.rank === candidate.to.rank,
         );
       if (!legal) throw new Error("Master bestmove is illegal in the authoritative position.");
-      this.settleSearch(Object.freeze({
-        ok: true,
-        result: Object.freeze({
-          protocolVersion: 1,
-          type: "result",
-          matchId: active.request.matchId,
-          generation: active.request.generation,
-          requestId: active.request.requestId,
-          positionRevision: active.request.positionRevision,
-          positionFingerprint: active.request.positionFingerprint,
-          sideToMove: active.request.sideToMove,
-          candidate,
-          completedDepth: active.depth,
-          nodes: active.nodes,
-          score: active.score,
+      this.settleSearch(
+        Object.freeze({
+          ok: true,
+          result: Object.freeze({
+            protocolVersion: 1,
+            type: "result",
+            matchId: active.request.matchId,
+            generation: active.request.generation,
+            requestId: active.request.requestId,
+            positionRevision: active.request.positionRevision,
+            positionFingerprint: active.request.positionFingerprint,
+            sideToMove: active.request.sideToMove,
+            candidate,
+            completedDepth: active.depth,
+            nodes: active.nodes,
+            score: active.score,
+          }),
         }),
-      }));
+      );
     } catch {
       this.settleSearch(failure("failed", "Master returned a malformed bestmove."));
     }

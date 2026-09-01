@@ -137,11 +137,13 @@ describe("verified Master engine cache", () => {
         if (url.pathname.endsWith("stockfish.wasm")) return response.clone();
         return runtimeFetch(input);
       };
-      await expect(loadVerifiedMasterAssets({
-        baseUrl: "https://game.test",
-        cacheStorage,
-        fetcher,
-      })).rejects.toThrow(/stockfish\.wasm|MIME|HTML|SHA-256|HTTP 404/i);
+      await expect(
+        loadVerifiedMasterAssets({
+          baseUrl: "https://game.test",
+          cacheStorage,
+          fetcher,
+        }),
+      ).rejects.toThrow(/stockfish\.wasm|MIME|HTML|SHA-256|HTTP 404/i);
       expect(cacheStorage.caches.size).toBe(0);
     }
   });
@@ -154,12 +156,14 @@ describe("verified Master engine cache", () => {
       return new Promise<Response>(() => undefined);
     });
 
-    await expect(loadVerifiedMasterAssets({
-      baseUrl: "https://game.test",
-      cacheStorage,
-      fetcher,
-      fetchTimeoutMs: 5,
-    })).rejects.toThrow(/timed out after 5 ms/i);
+    await expect(
+      loadVerifiedMasterAssets({
+        baseUrl: "https://game.test",
+        cacheStorage,
+        fetcher,
+        fetchTimeoutMs: 5,
+      }),
+    ).rejects.toThrow(/timed out after 5 ms/i);
     expect(cacheStorage.caches.size).toBe(0);
   });
 });

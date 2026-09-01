@@ -33,7 +33,9 @@ class FakeNode implements AudioNodeLike {
   disconnect = vi.fn();
 }
 
-class FakeGain extends FakeNode { gain = new FakeParam(); }
+class FakeGain extends FakeNode {
+  gain = new FakeParam();
+}
 
 class FakeSource extends FakeNode {
   buffer: AudioBuffer | null = null;
@@ -74,16 +76,24 @@ class FakeBuffer {
     this.numberOfChannels = channels;
     this.sampleRate = sampleRate;
   }
-  getChannelData(channel: number) { return this.channels[channel]!; }
+  getChannelData(channel: number) {
+    return this.channels[channel]!;
+  }
 }
 
 class FakeContext implements AudioContextLike {
   currentTime = 0;
   destination = new FakeNode();
   listener = {
-    positionX: new FakeParam(), positionY: new FakeParam(), positionZ: new FakeParam(),
-    forwardX: new FakeParam(), forwardY: new FakeParam(), forwardZ: new FakeParam(),
-    upX: new FakeParam(), upY: new FakeParam(), upZ: new FakeParam(),
+    positionX: new FakeParam(),
+    positionY: new FakeParam(),
+    positionZ: new FakeParam(),
+    forwardX: new FakeParam(),
+    forwardY: new FakeParam(),
+    forwardZ: new FakeParam(),
+    upX: new FakeParam(),
+    upY: new FakeParam(),
+    upZ: new FakeParam(),
   };
   sampleRate = 8_000;
   state: AudioContextState = "suspended";
@@ -91,8 +101,13 @@ class FakeContext implements AudioContextLike {
   failNextStart = false;
   gains: FakeGain[] = [];
   sources: FakeSource[] = [];
-  close = vi.fn(async () => { this.state = "closed"; });
-  createBuffer = vi.fn((channels: number, length: number, sampleRate: number) => new FakeBuffer(channels, length, sampleRate) as unknown as AudioBuffer);
+  close = vi.fn(async () => {
+    this.state = "closed";
+  });
+  createBuffer = vi.fn(
+    (channels: number, length: number, sampleRate: number) =>
+      new FakeBuffer(channels, length, sampleRate) as unknown as AudioBuffer,
+  );
   createBufferSource = vi.fn(() => {
     const source = new FakeSource();
     source.failStart = this.failNextStart;
@@ -110,17 +125,87 @@ class FakeContext implements AudioContextLike {
     if (!this.decodeImpl) throw new Error("Unexpected decode");
     return this.decodeImpl(data);
   });
-  resume = vi.fn(async () => { this.state = "running"; });
-  suspend = vi.fn(async () => { this.state = "suspended"; });
+  resume = vi.fn(async () => {
+    this.state = "running";
+  });
+  suspend = vi.fn(async () => {
+    this.state = "suspended";
+  });
 }
 
 const PACK_DEFINITIONS = [
-  ["music.qin-procession", "qin-procession-v1.mp3", "background", "critical", "music", "audio/mpeg", "mp3", 72, 2, "music.fortress"],
-  ["accent.capture-clay", "capture-clay-v1.wav", "transient", "deferred", "sfx", "audio/wav", "pcm_s16le", 0.42, 1, "system.capture"],
-  ["system.check", "check-bronze-v1.wav", "transient", "deferred", "sfx", "audio/wav", "pcm_s16le", 0.78, 1, "system.check"],
-  ["system.victory", "result-victory-v1.wav", "transient", "deferred", "sfx", "audio/wav", "pcm_s16le", 2.24, 1, "system.victory"],
-  ["system.defeat", "result-defeat-v1.wav", "transient", "deferred", "sfx", "audio/wav", "pcm_s16le", 2.24, 1, "system.defeat"],
-  ["system.draw", "result-draw-v1.wav", "transient", "deferred", "sfx", "audio/wav", "pcm_s16le", 2.24, 1, "system.draw"],
+  [
+    "music.qin-procession",
+    "qin-procession-v1.mp3",
+    "background",
+    "critical",
+    "music",
+    "audio/mpeg",
+    "mp3",
+    72,
+    2,
+    "music.fortress",
+  ],
+  [
+    "accent.capture-clay",
+    "capture-clay-v1.wav",
+    "transient",
+    "deferred",
+    "sfx",
+    "audio/wav",
+    "pcm_s16le",
+    0.42,
+    1,
+    "system.capture",
+  ],
+  [
+    "system.check",
+    "check-bronze-v1.wav",
+    "transient",
+    "deferred",
+    "sfx",
+    "audio/wav",
+    "pcm_s16le",
+    0.78,
+    1,
+    "system.check",
+  ],
+  [
+    "system.victory",
+    "result-victory-v1.wav",
+    "transient",
+    "deferred",
+    "sfx",
+    "audio/wav",
+    "pcm_s16le",
+    2.24,
+    1,
+    "system.victory",
+  ],
+  [
+    "system.defeat",
+    "result-defeat-v1.wav",
+    "transient",
+    "deferred",
+    "sfx",
+    "audio/wav",
+    "pcm_s16le",
+    2.24,
+    1,
+    "system.defeat",
+  ],
+  [
+    "system.draw",
+    "result-draw-v1.wav",
+    "transient",
+    "deferred",
+    "sfx",
+    "audio/wav",
+    "pcm_s16le",
+    2.24,
+    1,
+    "system.draw",
+  ],
 ] as const;
 
 function digest(bytes: Uint8Array) {
@@ -130,7 +215,18 @@ function digest(bytes: Uint8Array) {
 function makeRuntimePack() {
   const bodies = new Map<string, Uint8Array>();
   const assets = PACK_DEFINITIONS.map((definition, order) => {
-    const [id, filename, kind, group, bus, mimeType, codec, durationSeconds, channels, synthFallbackId] = definition;
+    const [
+      id,
+      filename,
+      kind,
+      group,
+      bus,
+      mimeType,
+      codec,
+      durationSeconds,
+      channels,
+      synthFallbackId,
+    ] = definition;
     const body = new Uint8Array([order + 1, 21, 34, 55]);
     const url = `/audio/qin-diorama/v1/${filename}`;
     bodies.set(url, body);
@@ -158,7 +254,8 @@ function makeRuntimePack() {
     schema: "xiangqi-audio-pack/v1",
     version: 1,
     packId: "qin-diorama",
-    claimBoundary: "Qin-inspired visual fantasy; not a historical reconstruction or claim of acoustic authenticity.",
+    claimBoundary:
+      "Qin-inspired visual fantasy; not a historical reconstruction or claim of acoustic authenticity.",
     loadOrder: [...QIN_AUDIO_ASSET_IDS],
     assets,
     sourceRecords: assets.map((asset) => ({
@@ -166,7 +263,8 @@ function makeRuntimePack() {
       author: "test",
       authorization: "test",
       sourcePaths: ["test.flac"],
-      claimBoundary: "Qin-inspired visual fantasy; not a historical reconstruction or claim of acoustic authenticity.",
+      claimBoundary:
+        "Qin-inspired visual fantasy; not a historical reconstruction or claim of acoustic authenticity.",
     })),
   };
   return { bodies, manifest };
@@ -188,12 +286,16 @@ function installPackDecoder(context: FakeContext, manifest: QinAudioPackManifest
 function responseForPackUrl(pack: ReturnType<typeof makeRuntimePack>, input: RequestInfo | URL) {
   const path = new URL(String(input), "https://example.test").pathname.replace(/^\/chess/, "");
   if (path.endsWith("/manifest.json")) {
-    return new Response(JSON.stringify(pack.manifest), { headers: { "content-type": "application/json" } });
+    return new Response(JSON.stringify(pack.manifest), {
+      headers: { "content-type": "application/json" },
+    });
   }
   const body = pack.bodies.get(path);
   if (!body) return new Response("missing", { status: 404 });
   const asset = pack.manifest.assets.find((candidate) => candidate.url === path)!;
-  return new Response(body.slice().buffer as ArrayBuffer, { headers: { "content-type": asset.mimeType } });
+  return new Response(body.slice().buffer as ArrayBuffer, {
+    headers: { "content-type": asset.mimeType },
+  });
 }
 
 async function settlePack(engine: AudioEngine) {
@@ -210,8 +312,12 @@ describe("AudioEngine", () => {
     let visibilityListener: (() => void) | null = null;
     let hidden = false;
     const documentLike = {
-      addEventListener: vi.fn((_name: string, listener: () => void) => { visibilityListener = listener; }),
-      get hidden() { return hidden; },
+      addEventListener: vi.fn((_name: string, listener: () => void) => {
+        visibilityListener = listener;
+      }),
+      get hidden() {
+        return hidden;
+      },
       removeEventListener: vi.fn(),
     };
 
@@ -237,7 +343,11 @@ describe("AudioEngine", () => {
     expect(documentLike.removeEventListener).toHaveBeenCalledOnce();
     expect(context.sources.every((source) => source.stop.mock.calls.length === 1)).toBe(true);
     expect(context.close).toHaveBeenCalledOnce();
-    expect(engine.debugSnapshot()).toMatchObject({ activeSources: 0, cachedBuffers: 0, state: "locked" });
+    expect(engine.debugSnapshot()).toMatchObject({
+      activeSources: 0,
+      cachedBuffers: 0,
+      state: "locked",
+    });
   });
 
   it("stays locked until a user gesture unlocks its one reusable context", async () => {
@@ -279,7 +389,9 @@ describe("AudioEngine", () => {
     const pack = makeRuntimePack();
     installPackDecoder(context, pack.manifest);
     let releaseManifest: (response: Response) => void = () => undefined;
-    const manifestResponse = new Promise<Response>((resolve) => { releaseManifest = resolve; });
+    const manifestResponse = new Promise<Response>((resolve) => {
+      releaseManifest = resolve;
+    });
     const fetcher = vi.fn((input: RequestInfo | URL) => {
       if (String(input).endsWith("manifest.json")) return manifestResponse;
       return Promise.resolve(responseForPackUrl(pack, input));
@@ -305,7 +417,9 @@ describe("AudioEngine", () => {
     });
     expect(fetcher.mock.calls.map(([url]) => String(url))).toEqual([
       "/chess/audio/qin-diorama/v1/manifest.json",
-      ...pack.manifest.loadOrder.map((id) => `/chess${pack.manifest.assets.find((asset) => asset.id === id)!.url}`),
+      ...pack.manifest.loadOrder.map(
+        (id) => `/chess${pack.manifest.assets.find((asset) => asset.id === id)!.url}`,
+      ),
     ]);
     expect(authored.loop).toBe(true);
     expect(authored.loopStart).toBe(4);
@@ -321,27 +435,52 @@ describe("AudioEngine", () => {
   });
 
   it.each([
-    ["manifest rejection", () => vi.fn(async () => { throw new Error("offline"); })],
+    [
+      "manifest rejection",
+      () =>
+        vi.fn(async () => {
+          throw new Error("offline");
+        }),
+    ],
     ["non-success response", () => vi.fn(async () => new Response("no", { status: 503 }))],
-    ["body failure", (pack: ReturnType<typeof makeRuntimePack>) => vi.fn(async (input: RequestInfo | URL) => {
-      if (String(input).endsWith("manifest.json")) return responseForPackUrl(pack, input);
-      return {
-        arrayBuffer: async () => { throw new Error("body interrupted"); },
-        headers: new Headers({ "content-type": "audio/mpeg" }),
-        ok: true,
-        status: 200,
-      } as unknown as Response;
-    })],
-    ["MIME mismatch", (pack: ReturnType<typeof makeRuntimePack>) => vi.fn(async (input: RequestInfo | URL) => {
-      if (String(input).endsWith("manifest.json")) return responseForPackUrl(pack, input);
-      return new Response(pack.bodies.get(pack.manifest.assets[0]!.url)!.slice().buffer as ArrayBuffer, {
-        headers: { "content-type": "audio/wav" },
-      });
-    })],
-    ["hash failure", (pack: ReturnType<typeof makeRuntimePack>) => vi.fn(async (input: RequestInfo | URL) => {
-      if (String(input).endsWith("manifest.json")) return responseForPackUrl(pack, input);
-      return new Response(new Uint8Array([99, 21, 34, 55]).buffer, { headers: { "content-type": "audio/mpeg" } });
-    })],
+    [
+      "body failure",
+      (pack: ReturnType<typeof makeRuntimePack>) =>
+        vi.fn(async (input: RequestInfo | URL) => {
+          if (String(input).endsWith("manifest.json")) return responseForPackUrl(pack, input);
+          return {
+            arrayBuffer: async () => {
+              throw new Error("body interrupted");
+            },
+            headers: new Headers({ "content-type": "audio/mpeg" }),
+            ok: true,
+            status: 200,
+          } as unknown as Response;
+        }),
+    ],
+    [
+      "MIME mismatch",
+      (pack: ReturnType<typeof makeRuntimePack>) =>
+        vi.fn(async (input: RequestInfo | URL) => {
+          if (String(input).endsWith("manifest.json")) return responseForPackUrl(pack, input);
+          return new Response(
+            pack.bodies.get(pack.manifest.assets[0]!.url)!.slice().buffer as ArrayBuffer,
+            {
+              headers: { "content-type": "audio/wav" },
+            },
+          );
+        }),
+    ],
+    [
+      "hash failure",
+      (pack: ReturnType<typeof makeRuntimePack>) =>
+        vi.fn(async (input: RequestInfo | URL) => {
+          if (String(input).endsWith("manifest.json")) return responseForPackUrl(pack, input);
+          return new Response(new Uint8Array([99, 21, 34, 55]).buffer, {
+            headers: { "content-type": "audio/mpeg" },
+          });
+        }),
+    ],
   ])("contains %s without stopping synth", async (_label, makeFetcher) => {
     const context = new FakeContext();
     const pack = makeRuntimePack();
@@ -356,7 +495,9 @@ describe("AudioEngine", () => {
       musicMode: "synth",
       packState: "unavailable",
     });
-    expect(context.sources.slice(0, 2).every((source) => source.stop.mock.calls.length === 0)).toBe(true);
+    expect(context.sources.slice(0, 2).every((source) => source.stop.mock.calls.length === 0)).toBe(
+      true,
+    );
     await engine.unlock();
     expect(engine.debugSnapshot().packState).toBe("unavailable");
   });
@@ -373,7 +514,10 @@ describe("AudioEngine", () => {
     await settlePack(engine);
 
     expect(context.decodeAudioData).toHaveBeenCalledOnce();
-    expect(engine.debugSnapshot()).toMatchObject({ authoredDecodedBytes: 0, packState: "unavailable" });
+    expect(engine.debugSnapshot()).toMatchObject({
+      authoredDecodedBytes: 0,
+      packState: "unavailable",
+    });
     expect(engine.debugSnapshot().totalDecodedBytes).toBeLessThanOrEqual(40 * 1024 * 1024);
   });
 
@@ -384,15 +528,23 @@ describe("AudioEngine", () => {
     let hidden = false;
     let visibilityListener: (() => void) | null = null;
     const documentLike = {
-      addEventListener: (_name: string, listener: () => void) => { visibilityListener = listener; },
-      get hidden() { return hidden; },
+      addEventListener: (_name: string, listener: () => void) => {
+        visibilityListener = listener;
+      },
+      get hidden() {
+        return hidden;
+      },
       removeEventListener: vi.fn(),
     };
     let releaseManifest: (response: Response) => void = () => undefined;
-    const manifestResponse = new Promise<Response>((resolve) => { releaseManifest = resolve; });
-    const fetcher = vi.fn((input: RequestInfo | URL) => String(input).endsWith("manifest.json")
-      ? manifestResponse
-      : Promise.resolve(responseForPackUrl(pack, input)));
+    const manifestResponse = new Promise<Response>((resolve) => {
+      releaseManifest = resolve;
+    });
+    const fetcher = vi.fn((input: RequestInfo | URL) =>
+      String(input).endsWith("manifest.json")
+        ? manifestResponse
+        : Promise.resolve(responseForPackUrl(pack, input)),
+    );
     const engine = new AudioEngine({ contextFactory: () => context, fetcher });
     engine.attachVisibility(documentLike);
     await engine.unlock();
@@ -402,7 +554,11 @@ describe("AudioEngine", () => {
     expect(engine.isTransientEligible()).toBe(false);
     releaseManifest(responseForPackUrl(pack, "/audio/qin-diorama/v1/manifest.json"));
     await settlePack(engine);
-    expect(engine.debugSnapshot()).toMatchObject({ foregroundEligible: false, musicMode: "synth", packState: "ready" });
+    expect(engine.debugSnapshot()).toMatchObject({
+      foregroundEligible: false,
+      musicMode: "synth",
+      packState: "ready",
+    });
     expect(context.sources).toHaveLength(2);
 
     hidden = false;
@@ -417,25 +573,38 @@ describe("AudioEngine", () => {
     const context = new FakeContext();
     let releaseInitialResume: () => void = () => undefined;
     let releaseSuspend: () => void = () => undefined;
-    context.resume = vi.fn()
-      .mockImplementationOnce(() => new Promise<void>((resolve) => {
-        releaseInitialResume = () => {
-          context.state = "running";
-          resolve();
-        };
-      }))
-      .mockImplementation(async () => { context.state = "running"; });
-    context.suspend = vi.fn(() => new Promise<void>((resolve) => {
-      releaseSuspend = () => {
-        context.state = "suspended";
-        resolve();
-      };
-    }));
+    context.resume = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            releaseInitialResume = () => {
+              context.state = "running";
+              resolve();
+            };
+          }),
+      )
+      .mockImplementation(async () => {
+        context.state = "running";
+      });
+    context.suspend = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseSuspend = () => {
+            context.state = "suspended";
+            resolve();
+          };
+        }),
+    );
     let hidden = false;
     let visibilityListener: (() => void) | null = null;
     const documentLike = {
-      addEventListener: (_name: string, listener: () => void) => { visibilityListener = listener; },
-      get hidden() { return hidden; },
+      addEventListener: (_name: string, listener: () => void) => {
+        visibilityListener = listener;
+      },
+      get hidden() {
+        return hidden;
+      },
       removeEventListener: vi.fn(),
     };
     const engine = new AudioEngine({
@@ -475,27 +644,44 @@ describe("AudioEngine", () => {
     const deadlineEngine = new AudioEngine({
       contextFactory: () => deadlineContext,
       fetcher: vi.fn(() => new Promise<Response>(() => undefined)),
-      scheduleDeadline: (callback) => { deadline = callback; return 1; },
+      scheduleDeadline: (callback) => {
+        deadline = callback;
+        return 1;
+      },
       clearDeadline: vi.fn(),
     });
     await deadlineEngine.unlock();
     deadline();
     await settlePack(deadlineEngine);
-    expect(deadlineEngine.debugSnapshot()).toMatchObject({ abortCount: 1, packState: "unavailable" });
+    expect(deadlineEngine.debugSnapshot()).toMatchObject({
+      abortCount: 1,
+      packState: "unavailable",
+    });
 
     const context = new FakeContext();
     const pack = makeRuntimePack();
     let resolveDecode: (buffer: AudioBuffer) => void = () => undefined;
-    context.decodeImpl = () => new Promise<AudioBuffer>((resolve) => { resolveDecode = resolve; });
+    context.decodeImpl = () =>
+      new Promise<AudioBuffer>((resolve) => {
+        resolveDecode = resolve;
+      });
     const engine = new AudioEngine({
       contextFactory: () => context,
       fetcher: vi.fn(async (input: RequestInfo | URL) => responseForPackUrl(pack, input)),
     });
     await engine.unlock();
-    for (let turn = 0; turn < 20 && context.decodeAudioData.mock.calls.length === 0; turn += 1) await Promise.resolve();
+    for (let turn = 0; turn < 20 && context.decodeAudioData.mock.calls.length === 0; turn += 1)
+      await Promise.resolve();
     const generations = engine.debugSnapshot();
     const disposal = engine.dispose();
-    resolveDecode(new FakeBuffer(2, 72 * context.sampleRate, context.sampleRate, false) as unknown as AudioBuffer);
+    resolveDecode(
+      new FakeBuffer(
+        2,
+        72 * context.sampleRate,
+        context.sampleRate,
+        false,
+      ) as unknown as AudioBuffer,
+    );
     await disposal;
     await Promise.resolve();
 
@@ -537,10 +723,14 @@ describe("AudioEngine", () => {
     const pack = makeRuntimePack();
     installPackDecoder(context, pack.manifest);
     let releaseManifest: (response: Response) => void = () => undefined;
-    const manifestResponse = new Promise<Response>((resolve) => { releaseManifest = resolve; });
-    const fetcher = vi.fn((input: RequestInfo | URL) => String(input).endsWith("manifest.json")
-      ? manifestResponse
-      : Promise.resolve(responseForPackUrl(pack, input)));
+    const manifestResponse = new Promise<Response>((resolve) => {
+      releaseManifest = resolve;
+    });
+    const fetcher = vi.fn((input: RequestInfo | URL) =>
+      String(input).endsWith("manifest.json")
+        ? manifestResponse
+        : Promise.resolve(responseForPackUrl(pack, input)),
+    );
     const engine = new AudioEngine({ contextFactory: () => context, fetcher });
 
     await engine.unlock();
@@ -576,32 +766,46 @@ describe("AudioEngine", () => {
   it("keeps synth music when authored background decode or startup fails", async () => {
     const decodeContext = new FakeContext();
     const decodePack = makeRuntimePack();
-    decodeContext.decodeImpl = async () => { throw new Error("unsupported codec"); };
+    decodeContext.decodeImpl = async () => {
+      throw new Error("unsupported codec");
+    };
     const decodeEngine = new AudioEngine({
       contextFactory: () => decodeContext,
       fetcher: vi.fn(async (input: RequestInfo | URL) => responseForPackUrl(decodePack, input)),
     });
     await decodeEngine.unlock();
     await settlePack(decodeEngine);
-    expect(decodeEngine.debugSnapshot()).toMatchObject({ authoredDecodedBytes: 0, packState: "unavailable" });
-    expect(decodeContext.sources.slice(0, 2).every((source) => source.stop.mock.calls.length === 0)).toBe(true);
+    expect(decodeEngine.debugSnapshot()).toMatchObject({
+      authoredDecodedBytes: 0,
+      packState: "unavailable",
+    });
+    expect(
+      decodeContext.sources.slice(0, 2).every((source) => source.stop.mock.calls.length === 0),
+    ).toBe(true);
 
     const startContext = new FakeContext();
     const startPack = makeRuntimePack();
     installPackDecoder(startContext, startPack.manifest);
     let releaseManifest: (response: Response) => void = () => undefined;
-    const manifestResponse = new Promise<Response>((resolve) => { releaseManifest = resolve; });
+    const manifestResponse = new Promise<Response>((resolve) => {
+      releaseManifest = resolve;
+    });
     const startEngine = new AudioEngine({
       contextFactory: () => startContext,
-      fetcher: vi.fn((input: RequestInfo | URL) => String(input).endsWith("manifest.json")
-        ? manifestResponse
-        : Promise.resolve(responseForPackUrl(startPack, input))),
+      fetcher: vi.fn((input: RequestInfo | URL) =>
+        String(input).endsWith("manifest.json")
+          ? manifestResponse
+          : Promise.resolve(responseForPackUrl(startPack, input)),
+      ),
     });
     await startEngine.unlock();
     startContext.failNextStart = true;
     releaseManifest(responseForPackUrl(startPack, "/audio/qin-diorama/v1/manifest.json"));
     await settlePack(startEngine);
-    expect(startEngine.debugSnapshot()).toMatchObject({ musicMode: "synth", packState: "unavailable" });
+    expect(startEngine.debugSnapshot()).toMatchObject({
+      musicMode: "synth",
+      packState: "unavailable",
+    });
     expect(startContext.sources[0]?.stop).not.toHaveBeenCalled();
   });
 
@@ -612,8 +816,12 @@ describe("AudioEngine", () => {
     let visibilityListener: (() => void) | null = null;
     let hidden = false;
     const documentLike = {
-      addEventListener: (_name: string, listener: () => void) => { visibilityListener = listener; },
-      get hidden() { return hidden; },
+      addEventListener: (_name: string, listener: () => void) => {
+        visibilityListener = listener;
+      },
+      get hidden() {
+        return hidden;
+      },
       removeEventListener: vi.fn(),
     };
     engine.attachVisibility(documentLike);
@@ -673,8 +881,12 @@ describe("AudioEngine", () => {
     let visibilityListener: (() => void) | null = null;
     let hidden = true;
     const documentLike = {
-      addEventListener: (_name: string, listener: () => void) => { visibilityListener = listener; },
-      get hidden() { return hidden; },
+      addEventListener: (_name: string, listener: () => void) => {
+        visibilityListener = listener;
+      },
+      get hidden() {
+        return hidden;
+      },
       removeEventListener: vi.fn(),
     };
     const detach = engine.attachVisibility(documentLike);
@@ -736,7 +948,10 @@ describe("AudioEngine", () => {
   it("limits optional platform speech voices and silently frees a completed line", async () => {
     const context = new FakeContext();
     const spoken: SpeechSynthesisUtterance[] = [];
-    const speech = { cancel: vi.fn(), speak: vi.fn((utterance: SpeechSynthesisUtterance) => spoken.push(utterance)) };
+    const speech = {
+      cancel: vi.fn(),
+      speak: vi.fn((utterance: SpeechSynthesisUtterance) => spoken.push(utterance)),
+    };
     const utteranceFactory = (text: string) => ({ text }) as SpeechSynthesisUtterance;
     const engine = new AudioEngine({ contextFactory: () => context, speech, utteranceFactory });
     await engine.unlock();

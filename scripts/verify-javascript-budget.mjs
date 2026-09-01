@@ -59,7 +59,9 @@ export function evaluateBudget(actual, budget) {
     failures.push(`raw JavaScript is ${actual.rawBytes} bytes; budget is ${budget.rawBytes} bytes`);
   }
   if (actual.gzipBytes > budget.gzipBytes) {
-    failures.push(`gzip JavaScript is ${actual.gzipBytes} bytes; budget is ${budget.gzipBytes} bytes`);
+    failures.push(
+      `gzip JavaScript is ${actual.gzipBytes} bytes; budget is ${budget.gzipBytes} bytes`,
+    );
   }
   return failures;
 }
@@ -87,10 +89,13 @@ function createChunkMeasurer(manifest) {
 
   return async (keys) => {
     const chunks = await Promise.all([...keys].map(measureChunk));
-    return chunks.reduce((total, chunk) => ({
-      rawBytes: total.rawBytes + chunk.rawBytes,
-      gzipBytes: total.gzipBytes + chunk.gzipBytes,
-    }), { rawBytes: 0, gzipBytes: 0 });
+    return chunks.reduce(
+      (total, chunk) => ({
+        rawBytes: total.rawBytes + chunk.rawBytes,
+        gzipBytes: total.gzipBytes + chunk.gzipBytes,
+      }),
+      { rawBytes: 0, gzipBytes: 0 },
+    );
   };
 }
 
@@ -108,19 +113,27 @@ async function main() {
     measureChunks(collectStaticChunkKeys(manifest, GAME_ENTRY)),
   ]);
   const failures = [
-    ...evaluateBudget(primary, PRIMARY_CHUNK_BUDGET).map((message) => `Primary game chunk ${message}.`),
-    ...evaluateBudget(initial, INITIAL_GAME_BUDGET).map((message) => `Initial game closure ${message}.`),
+    ...evaluateBudget(primary, PRIMARY_CHUNK_BUDGET).map(
+      (message) => `Primary game chunk ${message}.`,
+    ),
+    ...evaluateBudget(initial, INITIAL_GAME_BUDGET).map(
+      (message) => `Initial game closure ${message}.`,
+    ),
   ];
   if (failures.length > 0) throw new Error(failures.join("\n"));
 
   console.log("JavaScript budget validation passed.");
-  console.log(`Primary game chunk: ${formatKiB(primary.rawBytes)} raw / ${formatKiB(primary.gzipBytes)} gzip`);
-  console.log(`Initial game closure: ${formatKiB(initial.rawBytes)} raw / ${formatKiB(initial.gzipBytes)} gzip`);
+  console.log(
+    `Primary game chunk: ${formatKiB(primary.rawBytes)} raw / ${formatKiB(primary.gzipBytes)} gzip`,
+  );
+  console.log(
+    `Initial game closure: ${formatKiB(initial.rawBytes)} raw / ${formatKiB(initial.gzipBytes)} gzip`,
+  );
   console.log(`Optional dynamic chunks: ${OPTIONAL_ENTRIES.length}`);
 }
 
-const isDirectRun = process.argv[1]
-  && import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
+const isDirectRun =
+  process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
 if (isDirectRun) {
   main().catch((error) => {
     console.error(error instanceof Error ? error.message : error);

@@ -6,13 +6,13 @@
 
 主要资产边界：
 
-| 范围 | 用途 | 来源记录 |
-| --- | --- | --- |
-| `assets/concepts/`、`assets/background/` | 原创概念与全景源 | 同目录 prompt/source 文件 |
-| `assets/models/`、`assets/characters/` | 可编辑模型、导出与验证证据 | README、lock manifest、生成脚本 |
-| `assets/audio/`、`public/audio/` | 音频源与网页运行时版本 | 音频 manifest、QA 与校验脚本 |
-| `public/models/` | 游戏实际加载的模型 | 角色 manifest 与资产管线 |
-| `public/engines/`、`public/basis/` | 第三方运行时 | `THIRD_PARTY_NOTICES.md` 与目录 README |
+| 范围                                     | 用途                       | 来源记录                               |
+| ---------------------------------------- | -------------------------- | -------------------------------------- |
+| `assets/concepts/`、`assets/background/` | 原创概念与全景源           | 同目录 prompt/source 文件              |
+| `assets/models/`、`assets/characters/`   | 可编辑模型、导出与验证证据 | README、lock manifest、生成脚本        |
+| `assets/audio/`、`public/audio/`         | 音频源与网页运行时版本     | 音频 manifest、QA 与校验脚本           |
+| `public/models/`                         | 游戏实际加载的模型         | 角色 manifest 与资产管线               |
+| `public/engines/`、`public/basis/`       | 第三方运行时               | `THIRD_PARTY_NOTICES.md` 与目录 README |
 
 ## Contributing assets
 

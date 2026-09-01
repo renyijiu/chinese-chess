@@ -25,7 +25,9 @@ import {
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((next) => { resolve = next; });
+  const promise = new Promise<T>((next) => {
+    resolve = next;
+  });
   return { promise, resolve };
 }
 
@@ -103,7 +105,8 @@ class ManualTimers implements OnlineMatchCoordinatorTimers {
 
 class Endpoint {
   readonly sent: string[] = [];
-  readonly commitCalls: Array<Readonly<{ command: GameCommand; context: OnlineCommitContext }>> = [];
+  readonly commitCalls: Array<Readonly<{ command: GameCommand; context: OnlineCommitContext }>> =
+    [];
   readonly installCalls: GameState[] = [];
   readonly blockedTypes = new Set<OnlineMessageTypeV1>();
   readonly deliveries = new Set<Promise<void>>();
@@ -179,16 +182,18 @@ class Endpoint {
   }
 }
 
-function pair(input: Readonly<{
-  hostGame?: GameState;
-  guestGame?: GameState;
-  intent?: "new" | "resume";
-  hostTimers?: OnlineMatchCoordinatorOptions["timers"];
-  guestTimers?: OnlineMatchCoordinatorOptions["timers"];
-  ackTimeoutMs?: number;
-  heartbeatIntervalMs?: number;
-  pongTimeoutMs?: number;
-}> = {}) {
+function pair(
+  input: Readonly<{
+    hostGame?: GameState;
+    guestGame?: GameState;
+    intent?: "new" | "resume";
+    hostTimers?: OnlineMatchCoordinatorOptions["timers"];
+    guestTimers?: OnlineMatchCoordinatorOptions["timers"];
+    ackTimeoutMs?: number;
+    heartbeatIntervalMs?: number;
+    pongTimeoutMs?: number;
+  }> = {},
+) {
   const host = new Endpoint({
     role: "host",
     side: "red",
@@ -313,15 +318,19 @@ describe("OnlineMatchCoordinator", () => {
     await readyPair(host, guest);
     const beforeFrames = guest.sent.length;
 
-    await expect(guest.coordinator.submitLocalMove({ ...RED_MOVE }))
-      .resolves.toEqual({ ok: false, reason: "not-local-turn" });
+    await expect(guest.coordinator.submitLocalMove({ ...RED_MOVE })).resolves.toEqual({
+      ok: false,
+      reason: "not-local-turn",
+    });
     expect(guest.commitCalls).toHaveLength(0);
     expect(guest.sent).toHaveLength(beforeFrames);
 
     await host.coordinator.submitLocalMove(RED_MOVE);
     await settle(host, guest);
-    await expect(host.coordinator.submitLocalMove({ ...BLACK_MOVE }))
-      .resolves.toEqual({ ok: false, reason: "not-local-turn" });
+    await expect(host.coordinator.submitLocalMove({ ...BLACK_MOVE })).resolves.toEqual({
+      ok: false,
+      reason: "not-local-turn",
+    });
   });
 
   it("rejects a remote command that claims the local actor side before committing it", async () => {
@@ -333,17 +342,19 @@ describe("OnlineMatchCoordinator", () => {
     const afterHash = await sha256Hex(serializeGame(apply(host.game, RED_MOVE)));
     const nextGuestSeq = Math.max(...messages(guest.sent).map((message) => message.seq)) + 1;
 
-    await host.coordinator.handleFrame(encode({
-      ...remoteIdentity(guest, nextGuestSeq),
-      type: "command",
-      commandId: "wrong-actor",
-      actorSide: "red",
-      expectedRevision: 0,
-      beforeHash,
-      command: { type: "move", from: RED_MOVE.from, to: RED_MOVE.to },
-      afterRevision: 1,
-      afterHash,
-    }));
+    await host.coordinator.handleFrame(
+      encode({
+        ...remoteIdentity(guest, nextGuestSeq),
+        type: "command",
+        commandId: "wrong-actor",
+        actorSide: "red",
+        expectedRevision: 0,
+        beforeHash,
+        command: { type: "move", from: RED_MOVE.from, to: RED_MOVE.to },
+        afterRevision: 1,
+        afterHash,
+      }),
+    );
 
     expect(host.commitCalls).toHaveLength(0);
     expect(host.game.revision).toBe(0);
@@ -370,7 +381,9 @@ describe("OnlineMatchCoordinator", () => {
     await guest.coordinator.handleFrame(commandFrame);
     await settle(host, guest);
     expect(guest.commitCalls).toHaveLength(1);
-    expect(messages(guest.sent).filter((message) => message.type === "ack")).toHaveLength(ackCount + 1);
+    expect(messages(guest.sent).filter((message) => message.type === "ack")).toHaveLength(
+      ackCount + 1,
+    );
     expect(host.coordinator.getSnapshot().phase).toBe("playable");
   });
 
@@ -381,14 +394,16 @@ describe("OnlineMatchCoordinator", () => {
     const gameHash = first.host.coordinator.getSnapshot().hash;
     if (!gameHash) throw new Error("missing hash");
 
-    await first.host.coordinator.handleFrame(encode({
-      ...remoteIdentity(first.guest, lastGuestSeq + 2),
-      type: "ping",
-      nonce: "gap",
-      purpose: "heartbeat",
-      revision: 0,
-      positionHash: gameHash,
-    }));
+    await first.host.coordinator.handleFrame(
+      encode({
+        ...remoteIdentity(first.guest, lastGuestSeq + 2),
+        type: "ping",
+        nonce: "gap",
+        purpose: "heartbeat",
+        revision: 0,
+        positionHash: gameHash,
+      }),
+    );
     expect(first.host.coordinator.getSnapshot()).toMatchObject({
       phase: "repair-required",
       error: { code: "sequence-gap" },
@@ -436,23 +451,25 @@ describe("OnlineMatchCoordinator", () => {
     await foreign.host.coordinator.start();
     const initialHash = foreign.host.coordinator.getSnapshot().hash;
     if (!initialHash) throw new Error("missing hash");
-    await foreign.host.coordinator.handleFrame(encode({
-      v: ONLINE_PROTOCOL_VERSION,
-      type: "hello",
-      pairingId: "foreign-pairing",
-      sessionId: "session-1",
-      matchId: "match-1",
-      senderPeerId: "peer-guest",
-      seq: 1,
-      intent: "new",
-      signalingRole: "guest",
-      side: "black",
-      gameSchemaVersion: 1,
-      ruleset: "popular-v1",
-      revision: 0,
-      positionHash: initialHash,
-      features: ["snapshot-v1"],
-    }));
+    await foreign.host.coordinator.handleFrame(
+      encode({
+        v: ONLINE_PROTOCOL_VERSION,
+        type: "hello",
+        pairingId: "foreign-pairing",
+        sessionId: "session-1",
+        matchId: "match-1",
+        senderPeerId: "peer-guest",
+        seq: 1,
+        intent: "new",
+        signalingRole: "guest",
+        side: "black",
+        gameSchemaVersion: 1,
+        ruleset: "popular-v1",
+        revision: 0,
+        positionHash: initialHash,
+        features: ["snapshot-v1"],
+      }),
+    );
     expect(foreign.host.coordinator.getSnapshot()).toMatchObject({
       phase: "failed",
       error: { code: "identity-mismatch" },
@@ -471,8 +488,9 @@ describe("OnlineMatchCoordinator", () => {
       phase: "awaiting-ready",
       revision: 2,
     });
-    expect(messages(guest.sent).filter((message) => message.type === "snapshot-request"))
-      .toHaveLength(1);
+    expect(
+      messages(guest.sent).filter((message) => message.type === "snapshot-request"),
+    ).toHaveLength(1);
     expect(messages(host.sent).filter((message) => message.type === "snapshot")).toHaveLength(1);
     expect(messages(guest.sent).filter((message) => message.type === "hello")).toHaveLength(2);
 
@@ -494,23 +512,25 @@ describe("OnlineMatchCoordinator", () => {
     await host.coordinator.start();
     const initialHash = await sha256Hex(serializeGame(createInitialGame()));
 
-    await host.coordinator.handleFrame(encode({
-      v: ONLINE_PROTOCOL_VERSION,
-      type: "hello",
-      pairingId: "pairing-1",
-      sessionId: "session-1",
-      matchId: "match-1",
-      senderPeerId: "peer-guest",
-      seq: 1,
-      intent: "resume",
-      signalingRole: "guest",
-      side: "black",
-      gameSchemaVersion: 1,
-      ruleset: "popular-v1",
-      revision: 0,
-      positionHash: initialHash,
-      features: [],
-    }));
+    await host.coordinator.handleFrame(
+      encode({
+        v: ONLINE_PROTOCOL_VERSION,
+        type: "hello",
+        pairingId: "pairing-1",
+        sessionId: "session-1",
+        matchId: "match-1",
+        senderPeerId: "peer-guest",
+        seq: 1,
+        intent: "resume",
+        signalingRole: "guest",
+        side: "black",
+        gameSchemaVersion: 1,
+        ruleset: "popular-v1",
+        revision: 0,
+        positionHash: initialHash,
+        features: [],
+      }),
+    );
 
     expect(host.coordinator.getSnapshot()).toMatchObject({
       phase: "repair-required",
@@ -550,15 +570,20 @@ describe("OnlineMatchCoordinator", () => {
       remotePeerId: "peer-guest",
     });
     failedSend.sendFailure = true;
-    await expect(failedSend.coordinator.start()).resolves.toEqual({ ok: false, reason: "send-failed" });
+    await expect(failedSend.coordinator.start()).resolves.toEqual({
+      ok: false,
+      reason: "send-failed",
+    });
     expect(failedSend.coordinator.getSnapshot().phase).toBe("failed");
 
     const commit = pair();
     await startPair(commit.host, commit.guest);
     await readyPair(commit.host, commit.guest);
     commit.host.commitStatus = "rejected";
-    await expect(commit.host.coordinator.submitLocalMove(RED_MOVE))
-      .resolves.toEqual({ ok: false, reason: "commit-failed" });
+    await expect(commit.host.coordinator.submitLocalMove(RED_MOVE)).resolves.toEqual({
+      ok: false,
+      reason: "commit-failed",
+    });
     expect(commit.host.coordinator.getSnapshot().phase).toBe("failed");
     expect(messages(commit.host.sent).some((message) => message.type === "command")).toBe(false);
     expect(commit.guest.game.revision).toBe(0);
@@ -577,7 +602,9 @@ describe("OnlineMatchCoordinator", () => {
       side: "red",
       peerId: "peer-host",
       remotePeerId: "peer-guest",
-      digest: async () => { throw new Error("digest unavailable"); },
+      digest: async () => {
+        throw new Error("digest unavailable");
+      },
     });
     await digestFailure.coordinator.start();
     expect(digestFailure.coordinator.getSnapshot()).toMatchObject({
@@ -592,14 +619,16 @@ describe("OnlineMatchCoordinator", () => {
     const guestNextSeq = Math.max(...messages(guest.sent).map((message) => message.seq)) + 1;
     const hash = host.coordinator.getSnapshot().hash;
     if (!hash) throw new Error("missing hash");
-    await host.coordinator.handleFrame(encode({
-      ...remoteIdentity(guest, guestNextSeq),
-      type: "ping",
-      nonce: "ping-1",
-      purpose: "heartbeat",
-      revision: 0,
-      positionHash: hash,
-    }));
+    await host.coordinator.handleFrame(
+      encode({
+        ...remoteIdentity(guest, guestNextSeq),
+        type: "ping",
+        nonce: "ping-1",
+        purpose: "heartbeat",
+        revision: 0,
+        positionHash: hash,
+      }),
+    );
     expect(messages(host.sent).at(-1)).toMatchObject({
       type: "pong",
       nonce: "ping-1",
@@ -609,15 +638,17 @@ describe("OnlineMatchCoordinator", () => {
     });
 
     const before = serializeGame(host.game);
-    await host.coordinator.handleFrame(encode({
-      ...remoteIdentity(guest, guestNextSeq + 1),
-      type: "resign",
-      action: "request",
-      proposalId: "proposal-resign-1",
-      resigningSide: "black",
-      knownRevision: 0,
-      knownHash: hash,
-    }));
+    await host.coordinator.handleFrame(
+      encode({
+        ...remoteIdentity(guest, guestNextSeq + 1),
+        type: "resign",
+        action: "request",
+        proposalId: "proposal-resign-1",
+        resigningSide: "black",
+        knownRevision: 0,
+        knownHash: hash,
+      }),
+    );
     expect(serializeGame(host.game)).toBe(before);
     expect(messages(host.sent).at(-1)).toMatchObject({
       type: "error",
@@ -625,17 +656,19 @@ describe("OnlineMatchCoordinator", () => {
       fatal: false,
     });
 
-    await host.coordinator.handleFrame(encode({
-      ...remoteIdentity(guest, guestNextSeq + 2),
-      type: "rematch",
-      action: "request",
-      proposalId: "proposal-1",
-      nextMatchId: "match-2",
-      nextRematchIndex: 1,
-      hostSide: "black",
-      terminalRevision: 0,
-      terminalHash: hash,
-    }));
+    await host.coordinator.handleFrame(
+      encode({
+        ...remoteIdentity(guest, guestNextSeq + 2),
+        type: "rematch",
+        action: "request",
+        proposalId: "proposal-1",
+        nextMatchId: "match-2",
+        nextRematchIndex: 1,
+        hostSide: "black",
+        terminalRevision: 0,
+        terminalHash: hash,
+      }),
+    );
     expect(serializeGame(host.game)).toBe(before);
     expect(messages(host.sent).at(-1)).toMatchObject({
       type: "error",
@@ -660,14 +693,22 @@ describe("OnlineMatchCoordinator", () => {
     });
     expect(host.coordinator.getSnapshot()).toMatchObject({ phase: "terminal", pending: null });
     expect(guest.coordinator.getSnapshot()).toMatchObject({ phase: "terminal", pending: null });
-    expect(messages(guest.sent).filter((message) => message.type === "resign"))
-      .toEqual([expect.objectContaining({ action: "request", resigningSide: "black" })]);
-    expect(messages(host.sent).filter((message) => message.type === "resign"))
-      .toEqual([expect.objectContaining({ action: "commit", resigningSide: "black" })]);
-    expect(host.commitCalls.at(-1)?.context).toMatchObject({ origin: "remote", actorSide: "black" });
+    expect(messages(guest.sent).filter((message) => message.type === "resign")).toEqual([
+      expect.objectContaining({ action: "request", resigningSide: "black" }),
+    ]);
+    expect(messages(host.sent).filter((message) => message.type === "resign")).toEqual([
+      expect.objectContaining({ action: "commit", resigningSide: "black" }),
+    ]);
+    expect(host.commitCalls.at(-1)?.context).toMatchObject({
+      origin: "remote",
+      actorSide: "black",
+    });
     // The requester's commit arrives in a remote frame, but the resigning
     // actor remains its own local side.
-    expect(guest.commitCalls.at(-1)?.context).toMatchObject({ origin: "remote", actorSide: "black" });
+    expect(guest.commitCalls.at(-1)?.context).toMatchObject({
+      origin: "remote",
+      actorSide: "black",
+    });
   });
 
   it("serializes a legal move racing a resignation and gives simultaneous host resign priority", async () => {
@@ -844,14 +885,16 @@ describe("OnlineMatchCoordinator", () => {
 
     const nextGuestSeq = Math.max(...messages(guest.sent).map((message) => message.seq)) + 1;
     const initialHash = await sha256Hex(serializeGame(createInitialGame()));
-    await host.coordinator.handleFrame(encode({
-      ...remoteIdentity(guest, nextGuestSeq),
-      type: "ping",
-      nonce: "historical-heartbeat",
-      purpose: "heartbeat",
-      revision: 0,
-      positionHash: initialHash,
-    }));
+    await host.coordinator.handleFrame(
+      encode({
+        ...remoteIdentity(guest, nextGuestSeq),
+        type: "ping",
+        nonce: "historical-heartbeat",
+        purpose: "heartbeat",
+        revision: 0,
+        positionHash: initialHash,
+      }),
+    );
     expect(messages(host.sent).at(-1)).toMatchObject({
       type: "pong",
       nonce: "historical-heartbeat",
@@ -887,14 +930,16 @@ describe("OnlineMatchCoordinator", () => {
     const lastGuestSeq = Math.max(...messages(repair.guest.sent).map((message) => message.seq));
     const hash = repair.host.coordinator.getSnapshot().hash;
     if (!hash) throw new Error("missing hash");
-    await repair.host.coordinator.handleFrame(encode({
-      ...remoteIdentity(repair.guest, lastGuestSeq + 2),
-      type: "ping",
-      nonce: "gap",
-      purpose: "heartbeat",
-      revision: 0,
-      positionHash: hash,
-    }));
+    await repair.host.coordinator.handleFrame(
+      encode({
+        ...remoteIdentity(repair.guest, lastGuestSeq + 2),
+        type: "ping",
+        nonce: "gap",
+        purpose: "heartbeat",
+        revision: 0,
+        positionHash: hash,
+      }),
+    );
     await repair.host.coordinator.setVisible(false);
     await repair.host.coordinator.setVisible(true);
     await repair.host.coordinator.setTransportAvailable(false);
@@ -910,7 +955,9 @@ describe("OnlineMatchCoordinator", () => {
       side: "red",
       peerId: "peer-host",
       remotePeerId: "peer-guest",
-      digest: async () => { throw new Error("digest unavailable"); },
+      digest: async () => {
+        throw new Error("digest unavailable");
+      },
     });
     await failed.coordinator.start();
     await failed.coordinator.setVisible(false);
@@ -945,9 +992,9 @@ describe("OnlineMatchCoordinator", () => {
     await host.coordinator.setTransportAvailable(true);
     await settle(host, guest);
 
-    const reconnectFrames = messages(host.sent).filter((message) => (
-      message.type === "command" || message.type === "ping"
-    ));
+    const reconnectFrames = messages(host.sent).filter(
+      (message) => message.type === "command" || message.type === "ping",
+    );
     expect(reconnectFrames.slice(-2).map((message) => message.type)).toEqual(["command", "ping"]);
     expect(reconnectFrames.at(-1)).toMatchObject({ purpose: "revalidation", revision: 1 });
     expect(guest.game).toEqual(host.game);
@@ -975,9 +1022,9 @@ describe("OnlineMatchCoordinator", () => {
     await guest.coordinator.setTransportAvailable(true);
     await settle(host, guest);
 
-    const reconnectFrames = messages(guest.sent).filter((message) => (
-      message.type === "ack" || message.type === "ping"
-    ));
+    const reconnectFrames = messages(guest.sent).filter(
+      (message) => message.type === "ack" || message.type === "ping",
+    );
     expect(reconnectFrames.slice(-2).map((message) => message.type)).toEqual(["ack", "ping"]);
     expect(host.game).toEqual(guest.game);
     expect(host.coordinator.getSnapshot()).toMatchObject({ phase: "playable", pending: null });
@@ -1010,28 +1057,32 @@ describe("OnlineMatchCoordinator", () => {
     const nextGuestSeq = Math.max(...messages(guest.sent).map((message) => message.seq)) + 1;
     const currentHash = host.coordinator.getSnapshot().hash;
     if (!currentHash) throw new Error("missing hash");
-    await host.coordinator.handleFrame(encode({
-      ...remoteIdentity(guest, nextGuestSeq),
-      type: "ping",
-      nonce: "unrelated-ping",
-      purpose: "heartbeat",
-      revision: 0,
-      positionHash: currentHash,
-    }));
+    await host.coordinator.handleFrame(
+      encode({
+        ...remoteIdentity(guest, nextGuestSeq),
+        type: "ping",
+        nonce: "unrelated-ping",
+        purpose: "heartbeat",
+        revision: 0,
+        positionHash: currentHash,
+      }),
+    );
     expect(host.coordinator.getSnapshot()).toMatchObject({
       phase: "stalled",
       issue: { kind: "pong-timeout", relatedId: ping.nonce },
       control: { outstandingPingNonce: ping.nonce },
     });
 
-    await host.coordinator.handleFrame(encode({
-      ...remoteIdentity(guest, nextGuestSeq + 1),
-      type: "pong",
-      nonce: ping.nonce,
-      purpose: ping.purpose,
-      revision: ping.revision,
-      positionHash: ping.positionHash,
-    }));
+    await host.coordinator.handleFrame(
+      encode({
+        ...remoteIdentity(guest, nextGuestSeq + 1),
+        type: "pong",
+        nonce: ping.nonce,
+        purpose: ping.purpose,
+        revision: ping.revision,
+        positionHash: ping.positionHash,
+      }),
+    );
     expect(host.coordinator.getSnapshot()).toMatchObject({
       phase: "playable",
       issue: null,
@@ -1048,19 +1099,20 @@ describe("OnlineMatchCoordinator", () => {
     await agreed.host.coordinator.requestRematch();
     await settle(agreed.host, agreed.guest);
     expect(agreed.guest.coordinator.getSnapshot().rematch).toMatchObject({ status: "received" });
-    await expect(agreed.host.coordinator.requestRematch())
-      .resolves.toEqual({ ok: false, reason: "invalid-phase" });
+    await expect(agreed.host.coordinator.requestRematch()).resolves.toEqual({
+      ok: false,
+      reason: "invalid-phase",
+    });
     await agreed.guest.coordinator.acceptRematch();
     await settle(agreed.host, agreed.guest);
     const hostAgreement = agreed.host.coordinator.getSnapshot().rematch.agreedProposal;
     expect(hostAgreement).toMatchObject({ nextRematchIndex: 1, hostSide: "black" });
-    expect(agreed.guest.coordinator.getSnapshot().rematch.agreedProposal)
-      .toMatchObject({
-        proposalId: hostAgreement?.proposalId,
-        nextMatchId: hostAgreement?.nextMatchId,
-        nextRematchIndex: 1,
-        hostSide: "black",
-      });
+    expect(agreed.guest.coordinator.getSnapshot().rematch.agreedProposal).toMatchObject({
+      proposalId: hostAgreement?.proposalId,
+      nextMatchId: hostAgreement?.nextMatchId,
+      nextRematchIndex: 1,
+      hostSide: "black",
+    });
 
     const declined = pair();
     await startPair(declined.host, declined.guest);
@@ -1091,8 +1143,10 @@ describe("OnlineMatchCoordinator", () => {
     await settle(raced.host, raced.guest);
     const hostProposal = raced.host.coordinator.getSnapshot().rematch.proposal;
     expect(hostProposal?.owner).toBe("local");
-    expect(raced.guest.coordinator.getSnapshot().rematch.proposal)
-      .toMatchObject({ proposalId: hostProposal?.proposalId, owner: "remote" });
+    expect(raced.guest.coordinator.getSnapshot().rematch.proposal).toMatchObject({
+      proposalId: hostProposal?.proposalId,
+      owner: "remote",
+    });
   });
 
   it("drops late commit work after dispose and never sends its command", async () => {

@@ -1,8 +1,22 @@
 import type { Role, Side } from "../../../lib/xiangqi/index";
 import { cssHex, QIN_DIORAMA_THEME } from "../scene/scene-theme";
 
-export type VfxMotif = "qin-command-seal" | "tiger-tally" | "clay-earthshock" | "bronze-wheel" | "qin-lance" | "siege-bolt" | "spear-rank";
-export type VfxPayload = "command-blade" | "tally" | "earthshock" | "wheel" | "lance" | "bolt" | "spear";
+export type VfxMotif =
+  | "qin-command-seal"
+  | "tiger-tally"
+  | "clay-earthshock"
+  | "bronze-wheel"
+  | "qin-lance"
+  | "siege-bolt"
+  | "spear-rank";
+export type VfxPayload =
+  | "command-blade"
+  | "tally"
+  | "earthshock"
+  | "wheel"
+  | "lance"
+  | "bolt"
+  | "spear";
 
 export type PieceVfxProfile = Readonly<{
   colors: Readonly<{ bright: string; core: string; smoke: string }>;

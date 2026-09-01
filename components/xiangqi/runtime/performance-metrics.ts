@@ -32,11 +32,13 @@ export type FrameIntervalSummary = Readonly<{
 
 export function summarizeFrameIntervals(intervals: readonly number[]): FrameIntervalSummary {
   const sorted = [...intervals].sort((left, right) => left - right);
-  const percentile = (value: number) => sorted[Math.max(0, Math.ceil(sorted.length * value) - 1)] ?? 0;
+  const percentile = (value: number) =>
+    sorted[Math.max(0, Math.ceil(sorted.length * value) - 1)] ?? 0;
   return {
-    averageFrameIntervalMs: sorted.length > 0
-      ? sorted.reduce((total, interval) => total + interval, 0) / sorted.length
-      : 0,
+    averageFrameIntervalMs:
+      sorted.length > 0
+        ? sorted.reduce((total, interval) => total + interval, 0) / sorted.length
+        : 0,
     maximumFrameIntervalMs: sorted.at(-1) ?? 0,
     p50FrameIntervalMs: percentile(0.5),
     p90FrameIntervalMs: percentile(0.9),
@@ -71,7 +73,11 @@ export class PerformanceMetrics {
     this.current = sample;
     this.peakDrawCalls = Math.max(this.peakDrawCalls, sample.drawCalls);
     this.peakTriangles = Math.max(this.peakTriangles, sample.triangles);
-    if (Number.isFinite(sample.frameIntervalMs) && sample.frameIntervalMs > 0 && sample.frameIntervalMs <= 250) {
+    if (
+      Number.isFinite(sample.frameIntervalMs) &&
+      sample.frameIntervalMs > 0 &&
+      sample.frameIntervalMs <= 250
+    ) {
       this.intervals.push(sample.frameIntervalMs);
       while (this.intervals.length > Math.max(1, this.maximumSamples)) this.intervals.shift();
     }

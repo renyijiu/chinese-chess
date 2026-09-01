@@ -7,10 +7,9 @@ export function signalingTextFitsQr(signal: string): boolean {
 }
 
 export function isShareCancellation(error: unknown): boolean {
-  return typeof error === "object"
-    && error !== null
-    && "name" in error
-    && error.name === "AbortError";
+  return (
+    typeof error === "object" && error !== null && "name" in error && error.name === "AbortError"
+  );
 }
 
 export async function createSignalingQrDataUrl(

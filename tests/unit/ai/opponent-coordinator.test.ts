@@ -17,7 +17,9 @@ import {
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((next) => { resolve = next; });
+  const promise = new Promise<T>((next) => {
+    resolve = next;
+  });
   return { promise, resolve };
 }
 
@@ -104,18 +106,20 @@ async function flush(): Promise<void> {
   await Promise.resolve();
 }
 
-function createHarness(options: {
-  providers?: FakeProvider[];
-  factory?: (tier: OpponentTier) => OpponentProvider | Promise<OpponentProvider>;
-  onFallback?: (from: OpponentTier, to: OpponentTier) => void | Promise<void>;
-} = {}) {
+function createHarness(
+  options: {
+    providers?: FakeProvider[];
+    factory?: (tier: OpponentTier) => OpponentProvider | Promise<OpponentProvider>;
+    onFallback?: (from: OpponentTier, to: OpponentTier) => void | Promise<void>;
+  } = {},
+) {
   const providers = options.providers ?? [new FakeProvider()];
   let factoryCalls = 0;
   const coordinator = new OpponentCoordinator({
     providerFactory: async (tier) => {
       factoryCalls += 1;
-      const provider = options.factory?.(tier)
-        ?? providers[Math.min(factoryCalls - 1, providers.length - 1)];
+      const provider =
+        options.factory?.(tier) ?? providers[Math.min(factoryCalls - 1, providers.length - 1)];
       if (!provider) throw new Error("Opponent provider fixture is empty");
       return provider;
     },
@@ -139,7 +143,10 @@ async function activateAndSearch(
   await coordinator.requestTurn(turn());
 }
 
-function matchingReceipt(snapshot: OpponentCoordinatorSnapshot, status: OpponentCommitReceipt["status"]): OpponentCommitReceipt {
+function matchingReceipt(
+  snapshot: OpponentCoordinatorSnapshot,
+  status: OpponentCommitReceipt["status"],
+): OpponentCommitReceipt {
   if (!snapshot.turn) throw new Error("Expected an active turn token.");
   return { status, ...snapshot.turn };
 }
@@ -230,8 +237,9 @@ describe("OpponentCoordinator", () => {
     provider.resolveResult(1);
     await flush();
     const gate = vi.fn();
-    await expect(coordinator.commitPending(commitContext({ positionFingerprint: "f".repeat(64) }), gate))
-      .resolves.toBe("superseded");
+    await expect(
+      coordinator.commitPending(commitContext({ positionFingerprint: "f".repeat(64) }), gate),
+    ).resolves.toBe("superseded");
     expect(gate).not.toHaveBeenCalled();
     expect(coordinator.getSnapshot()).toMatchObject({ phase: "ready", turn: null });
     expect(provider.searches).toHaveLength(2);
@@ -240,7 +248,11 @@ describe("OpponentCoordinator", () => {
   it("restores visibility without starting work until the controller supplies one current turn", async () => {
     const provider = new FakeProvider();
     const { coordinator } = createHarness({ providers: [provider] });
-    await coordinator.activateMatch({ matchId: "match-a", seed: "seed-a", tier: "lightweight-normal" });
+    await coordinator.activateMatch({
+      matchId: "match-a",
+      seed: "seed-a",
+      tier: "lightweight-normal",
+    });
     coordinator.setVisible(false);
     await flush();
     await expect(coordinator.requestTurn(turn())).resolves.toBe(false);
@@ -301,10 +313,10 @@ describe("OpponentCoordinator", () => {
     await flush();
     const snapshot = coordinator.getSnapshot();
     const wrong = matchingReceipt(snapshot, "committed");
-    const rejected = await coordinator.commitPending(
-      commitContext(),
-      async () => ({ ...wrong, requestId: "older-request" }),
-    );
+    const rejected = await coordinator.commitPending(commitContext(), async () => ({
+      ...wrong,
+      requestId: "older-request",
+    }));
     expect(rejected).toBe("superseded");
     expect(coordinator.getSnapshot().phase).toBe("ready");
 
@@ -373,7 +385,11 @@ describe("OpponentCoordinator", () => {
     const { coordinator } = createHarness({ providers: [provider] });
     const observed: OpponentCoordinatorSnapshot[] = [];
     const unsubscribe = coordinator.subscribe((snapshot) => observed.push(snapshot));
-    await coordinator.activateMatch({ matchId: "match-a", seed: "seed-a", tier: "lightweight-easy" });
+    await coordinator.activateMatch({
+      matchId: "match-a",
+      seed: "seed-a",
+      tier: "lightweight-easy",
+    });
     expect(Object.isFrozen(coordinator.getSnapshot())).toBe(true);
     expect(observed.length).toBeGreaterThan(0);
     unsubscribe();

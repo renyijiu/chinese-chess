@@ -83,18 +83,28 @@ describe("Fairy-Stockfish Master asset contract", () => {
 
     const wrongBytes = fixture();
     wrongBytes.manifest.runtimeFiles[2].bytes += 1;
-    expect(() => validateAiEngineAssets(wrongBytes)).toThrow(/stockfish\.worker\.js byte count differs/i);
+    expect(() => validateAiEngineAssets(wrongBytes)).toThrow(
+      /stockfish\.worker\.js byte count differs/i,
+    );
 
-    for (const [suffix, expected] of [["draco", /forbidden Draco/i], ["https://evil.example/runtime", /unexpected network URL/i]] as const) {
+    for (const [suffix, expected] of [
+      ["draco", /forbidden Draco/i],
+      ["https://evil.example/runtime", /unexpected network URL/i],
+    ] as const) {
       const altered = fixture();
-      const original = readFileSync(resolve(ROOT, "public/engines/fairy-stockfish-nnue/1.1.12/stockfish.js"));
+      const original = readFileSync(
+        resolve(ROOT, "public/engines/fairy-stockfish-nnue/1.1.12/stockfish.js"),
+      );
       const changed = Buffer.concat([original, Buffer.from(`\n/* ${suffix} */\n`)]);
       altered.manifest.runtimeFiles[0].bytes = changed.byteLength;
       altered.manifest.runtimeFiles[0].sha256 = sha256(changed);
-      expect(() => validateAiEngineAssets({
-        ...altered,
-        readBytes: (path: string) => path.endsWith("/stockfish.js") ? changed : readFileSync(path),
-      })).toThrow(expected);
+      expect(() =>
+        validateAiEngineAssets({
+          ...altered,
+          readBytes: (path: string) =>
+            path.endsWith("/stockfish.js") ? changed : readFileSync(path),
+        }),
+      ).toThrow(expected);
     }
   });
 
@@ -103,31 +113,42 @@ describe("Fairy-Stockfish Master asset contract", () => {
     const pointer = Buffer.from(
       `version https://git-lfs.github.com/spec/v1\noid sha256:${ENGINE_ASSET_EXPECTATIONS.networkHash}\nsize 11261932\n`,
     );
-    expect(() => validateAiEngineAssets({
-      ...current,
-      readBytes: (path: string) => path.endsWith(".nnue") ? pointer : readFileSync(path),
-    })).toThrow(/NNUE pointer|unhydrated Git LFS pointer/i);
+    expect(() =>
+      validateAiEngineAssets({
+        ...current,
+        readBytes: (path: string) => (path.endsWith(".nnue") ? pointer : readFileSync(path)),
+      }),
+    ).toThrow(/NNUE pointer|unhydrated Git LFS pointer/i);
   });
 
   it("proves every distributed upstream runtime byte equals its pinned npm member", () => {
     const current = fixture();
-    expect(() => validateAiEngineAssets({
-      ...current,
-      readArchiveMember: (path: string, member: string) => {
-        const bytes = archiveMember(path, member);
-        return member.endsWith("/stockfish.js") ? Buffer.concat([bytes, Buffer.from("drift")]) : bytes;
-      },
-    })).toThrow(/stockfish\.js differs from the pinned npm package member/i);
+    expect(() =>
+      validateAiEngineAssets({
+        ...current,
+        readArchiveMember: (path: string, member: string) => {
+          const bytes = archiveMember(path, member);
+          return member.endsWith("/stockfish.js")
+            ? Buffer.concat([bytes, Buffer.from("drift")])
+            : bytes;
+        },
+      }),
+    ).toThrow(/stockfish\.js differs from the pinned npm package member/i);
   });
 
   it("rejects incomplete corresponding source and source/package provenance drift", () => {
     const incompleteSource = fixture();
-    expect(() => validateAiEngineAssets({
-      ...incompleteSource,
-      probeArchive: (path: string) => path.includes("source.tar.gz")
-        ? archiveMembers(path).filter((member) => !member.endsWith("src/nnue/evaluate_nnue.cpp"))
-        : archiveMembers(path),
-    })).toThrow(/corresponding-source archive is incomplete.*evaluate_nnue/i);
+    expect(() =>
+      validateAiEngineAssets({
+        ...incompleteSource,
+        probeArchive: (path: string) =>
+          path.includes("source.tar.gz")
+            ? archiveMembers(path).filter(
+                (member) => !member.endsWith("src/nnue/evaluate_nnue.cpp"),
+              )
+            : archiveMembers(path),
+      }),
+    ).toThrow(/corresponding-source archive is incomplete.*evaluate_nnue/i);
 
     const wrongPackage = fixture();
     wrongPackage.provenance.package.sha256 = "1".repeat(64);
@@ -145,7 +166,9 @@ describe("Fairy-Stockfish Master asset contract", () => {
 
     const movingNetworkUrl = fixture();
     movingNetworkUrl.provenance.network.url = "https://example.test/latest.nnue";
-    expect(() => validateAiEngineAssets(movingNetworkUrl)).toThrow(/network URL is not commit-pinned/i);
+    expect(() => validateAiEngineAssets(movingNetworkUrl)).toThrow(
+      /network URL is not commit-pinned/i,
+    );
 
     const incompleteBuild = fixture();
     incompleteBuild.provenance.build.commands = ["make"];
@@ -158,79 +181,182 @@ describe("Fairy-Stockfish Master asset contract", () => {
 
   it("rejects project license and third-party notice mismatches", () => {
     const current = fixture();
-    expect(() => validateAiEngineAssets({
-      ...current,
-      packageJson: { ...readJson(resolve(ROOT, "package.json")), license: "MIT" },
-    })).toThrow(/package\.json license/i);
-    expect(() => validateAiEngineAssets({ ...current, projectLicense: Buffer.from("not GPL") })).toThrow(/project LICENSE/i);
-    expect(() => validateAiEngineAssets({
-      ...current,
-      notices: readFileSync(resolve(ROOT, "THIRD_PARTY_NOTICES.md"), "utf8").replace(ENGINE_ASSET_EXPECTATIONS.networkHash, "missing"),
-    })).toThrow(/THIRD_PARTY_NOTICES.*c07e94/i);
+    expect(() =>
+      validateAiEngineAssets({
+        ...current,
+        packageJson: { ...readJson(resolve(ROOT, "package.json")), license: "MIT" },
+      }),
+    ).toThrow(/package\.json license/i);
+    expect(() =>
+      validateAiEngineAssets({ ...current, projectLicense: Buffer.from("not GPL") }),
+    ).toThrow(/project LICENSE/i);
+    expect(() =>
+      validateAiEngineAssets({
+        ...current,
+        notices: readFileSync(resolve(ROOT, "THIRD_PARTY_NOTICES.md"), "utf8").replace(
+          ENGINE_ASSET_EXPECTATIONS.networkHash,
+          "missing",
+        ),
+      }),
+    ).toThrow(/THIRD_PARTY_NOTICES.*c07e94/i);
   });
 
   it("hard-fails every manifest identity and provenance-pointer field when corrupted", () => {
     for (const mutate of [
-      (current: ReturnType<typeof fixture>) => { current.manifest.engineId = "other"; },
-      (current: ReturnType<typeof fixture>) => { current.manifest.version = "latest"; },
-      (current: ReturnType<typeof fixture>) => { current.manifest.license = "unknown"; },
-      (current: ReturnType<typeof fixture>) => { current.manifest.variant = "chess"; },
-      (current: ReturnType<typeof fixture>) => { current.manifest.requirements.wasmSimd = false; },
-      (current: ReturnType<typeof fixture>) => { current.manifest.provenance.path = "../outside.json"; },
-      (current: ReturnType<typeof fixture>) => { current.manifest.provenance.bytes += 1; },
-      (current: ReturnType<typeof fixture>) => { current.manifest.provenance.sha256 = "0".repeat(64); },
-      (current: ReturnType<typeof fixture>) => { current.manifest.unexpected = true; },
-    ]) expectHardFailure(mutate);
+      (current: ReturnType<typeof fixture>) => {
+        current.manifest.engineId = "other";
+      },
+      (current: ReturnType<typeof fixture>) => {
+        current.manifest.version = "latest";
+      },
+      (current: ReturnType<typeof fixture>) => {
+        current.manifest.license = "unknown";
+      },
+      (current: ReturnType<typeof fixture>) => {
+        current.manifest.variant = "chess";
+      },
+      (current: ReturnType<typeof fixture>) => {
+        current.manifest.requirements.wasmSimd = false;
+      },
+      (current: ReturnType<typeof fixture>) => {
+        current.manifest.provenance.path = "../outside.json";
+      },
+      (current: ReturnType<typeof fixture>) => {
+        current.manifest.provenance.bytes += 1;
+      },
+      (current: ReturnType<typeof fixture>) => {
+        current.manifest.provenance.sha256 = "0".repeat(64);
+      },
+      (current: ReturnType<typeof fixture>) => {
+        current.manifest.unexpected = true;
+      },
+    ])
+      expectHardFailure(mutate);
   });
 
   it("hard-fails every runtime record field when corrupted", () => {
     for (const mutate of [
-      (current: ReturnType<typeof fixture>) => { current.manifest.runtimeFiles[0].name = "other.js"; },
-      (current: ReturnType<typeof fixture>) => { current.manifest.runtimeFiles[0].role = "other"; },
-      (current: ReturnType<typeof fixture>) => { current.manifest.runtimeFiles[0].mimeType = "text/plain"; },
-      (current: ReturnType<typeof fixture>) => { current.manifest.runtimeFiles[0].bytes += 1; },
-      (current: ReturnType<typeof fixture>) => { current.manifest.runtimeFiles[0].sha256 = "0".repeat(64); },
-      (current: ReturnType<typeof fixture>) => { current.manifest.runtimeFiles[0].unexpected = true; },
-    ]) expectHardFailure(mutate);
+      (current: ReturnType<typeof fixture>) => {
+        current.manifest.runtimeFiles[0].name = "other.js";
+      },
+      (current: ReturnType<typeof fixture>) => {
+        current.manifest.runtimeFiles[0].role = "other";
+      },
+      (current: ReturnType<typeof fixture>) => {
+        current.manifest.runtimeFiles[0].mimeType = "text/plain";
+      },
+      (current: ReturnType<typeof fixture>) => {
+        current.manifest.runtimeFiles[0].bytes += 1;
+      },
+      (current: ReturnType<typeof fixture>) => {
+        current.manifest.runtimeFiles[0].sha256 = "0".repeat(64);
+      },
+      (current: ReturnType<typeof fixture>) => {
+        current.manifest.runtimeFiles[0].unexpected = true;
+      },
+    ])
+      expectHardFailure(mutate);
   });
 
   it("hard-fails every component/package/source provenance field when corrupted", () => {
     for (const mutate of [
-      (current: ReturnType<typeof fixture>) => { current.provenance.schema = "other"; },
-      (current: ReturnType<typeof fixture>) => { current.provenance.component = "other"; },
-      (current: ReturnType<typeof fixture>) => { current.provenance.version = "latest"; },
-      (current: ReturnType<typeof fixture>) => { current.provenance.license = "unknown"; },
-      (current: ReturnType<typeof fixture>) => { current.provenance.package.name = "other"; },
-      (current: ReturnType<typeof fixture>) => { current.provenance.package.url = "https://example.test/latest.tgz"; },
-      (current: ReturnType<typeof fixture>) => { current.provenance.package.path = "LICENSE"; },
-      (current: ReturnType<typeof fixture>) => { current.provenance.package.bytes += 1; },
-      (current: ReturnType<typeof fixture>) => { current.provenance.package.sha256 = "0".repeat(64); },
-      (current: ReturnType<typeof fixture>) => { current.provenance.source.repository = "https://example.test/source"; },
-      (current: ReturnType<typeof fixture>) => { current.provenance.source.commit = "0".repeat(40); },
-      (current: ReturnType<typeof fixture>) => { current.provenance.source.tag = "latest"; },
-      (current: ReturnType<typeof fixture>) => { current.provenance.source.url = "https://example.test/source.tar.gz"; },
-      (current: ReturnType<typeof fixture>) => { current.provenance.source.path = "LICENSE"; },
-      (current: ReturnType<typeof fixture>) => { current.provenance.source.bytes += 1; },
-      (current: ReturnType<typeof fixture>) => { current.provenance.source.sha256 = "0".repeat(64); },
-    ]) expectHardFailure(mutate);
+      (current: ReturnType<typeof fixture>) => {
+        current.provenance.schema = "other";
+      },
+      (current: ReturnType<typeof fixture>) => {
+        current.provenance.component = "other";
+      },
+      (current: ReturnType<typeof fixture>) => {
+        current.provenance.version = "latest";
+      },
+      (current: ReturnType<typeof fixture>) => {
+        current.provenance.license = "unknown";
+      },
+      (current: ReturnType<typeof fixture>) => {
+        current.provenance.package.name = "other";
+      },
+      (current: ReturnType<typeof fixture>) => {
+        current.provenance.package.url = "https://example.test/latest.tgz";
+      },
+      (current: ReturnType<typeof fixture>) => {
+        current.provenance.package.path = "LICENSE";
+      },
+      (current: ReturnType<typeof fixture>) => {
+        current.provenance.package.bytes += 1;
+      },
+      (current: ReturnType<typeof fixture>) => {
+        current.provenance.package.sha256 = "0".repeat(64);
+      },
+      (current: ReturnType<typeof fixture>) => {
+        current.provenance.source.repository = "https://example.test/source";
+      },
+      (current: ReturnType<typeof fixture>) => {
+        current.provenance.source.commit = "0".repeat(40);
+      },
+      (current: ReturnType<typeof fixture>) => {
+        current.provenance.source.tag = "latest";
+      },
+      (current: ReturnType<typeof fixture>) => {
+        current.provenance.source.url = "https://example.test/source.tar.gz";
+      },
+      (current: ReturnType<typeof fixture>) => {
+        current.provenance.source.path = "LICENSE";
+      },
+      (current: ReturnType<typeof fixture>) => {
+        current.provenance.source.bytes += 1;
+      },
+      (current: ReturnType<typeof fixture>) => {
+        current.provenance.source.sha256 = "0".repeat(64);
+      },
+    ])
+      expectHardFailure(mutate);
   });
 
   it("hard-fails every NNUE and build provenance field when corrupted", () => {
     for (const mutate of [
-      (current: ReturnType<typeof fixture>) => { current.provenance.network.repository = "https://example.test/network"; },
-      (current: ReturnType<typeof fixture>) => { current.provenance.network.commit = "0".repeat(40); },
-      (current: ReturnType<typeof fixture>) => { current.provenance.network.url = "https://example.test/latest.nnue"; },
-      (current: ReturnType<typeof fixture>) => { current.provenance.network.runtimePath = "public/latest.nnue"; },
-      (current: ReturnType<typeof fixture>) => { current.provenance.network.bytes += 1; },
-      (current: ReturnType<typeof fixture>) => { current.provenance.network.sha256 = "0".repeat(64); },
-      (current: ReturnType<typeof fixture>) => { current.provenance.network.author = ""; },
-      (current: ReturnType<typeof fixture>) => { current.provenance.network.license = "unknown"; },
-      (current: ReturnType<typeof fixture>) => { current.provenance.network.redistributionEvidence = ""; },
-      (current: ReturnType<typeof fixture>) => { current.provenance.build.documentation = "README.md"; },
-      (current: ReturnType<typeof fixture>) => { current.provenance.build.containerImage = "emscripten/emsdk:latest"; },
-      (current: ReturnType<typeof fixture>) => { current.provenance.build.workingDirectory = "."; },
-      (current: ReturnType<typeof fixture>) => { current.provenance.build.commands = []; },
-      (current: ReturnType<typeof fixture>) => { current.provenance.build.localPatches = ["undisclosed.patch"]; },
-    ]) expectHardFailure(mutate);
+      (current: ReturnType<typeof fixture>) => {
+        current.provenance.network.repository = "https://example.test/network";
+      },
+      (current: ReturnType<typeof fixture>) => {
+        current.provenance.network.commit = "0".repeat(40);
+      },
+      (current: ReturnType<typeof fixture>) => {
+        current.provenance.network.url = "https://example.test/latest.nnue";
+      },
+      (current: ReturnType<typeof fixture>) => {
+        current.provenance.network.runtimePath = "public/latest.nnue";
+      },
+      (current: ReturnType<typeof fixture>) => {
+        current.provenance.network.bytes += 1;
+      },
+      (current: ReturnType<typeof fixture>) => {
+        current.provenance.network.sha256 = "0".repeat(64);
+      },
+      (current: ReturnType<typeof fixture>) => {
+        current.provenance.network.author = "";
+      },
+      (current: ReturnType<typeof fixture>) => {
+        current.provenance.network.license = "unknown";
+      },
+      (current: ReturnType<typeof fixture>) => {
+        current.provenance.network.redistributionEvidence = "";
+      },
+      (current: ReturnType<typeof fixture>) => {
+        current.provenance.build.documentation = "README.md";
+      },
+      (current: ReturnType<typeof fixture>) => {
+        current.provenance.build.containerImage = "emscripten/emsdk:latest";
+      },
+      (current: ReturnType<typeof fixture>) => {
+        current.provenance.build.workingDirectory = ".";
+      },
+      (current: ReturnType<typeof fixture>) => {
+        current.provenance.build.commands = [];
+      },
+      (current: ReturnType<typeof fixture>) => {
+        current.provenance.build.localPatches = ["undisclosed.patch"];
+      },
+    ])
+      expectHardFailure(mutate);
   });
 });

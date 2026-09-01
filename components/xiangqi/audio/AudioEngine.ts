@@ -1,6 +1,12 @@
 import type { AudioBus, AudioCueId, AudioMix, AudioTransientCueId } from "./audio-types";
 import { DEFAULT_AUDIO_MIX } from "./audio-types";
-import { AUDIO_PACK_BUDGETS, QIN_AUDIO_MANIFEST_URL, type QinAudioAssetId, type QinAudioAssetV1, type QinAudioPackManifestV1 } from "./qin-audio-pack-contract";
+import {
+  AUDIO_PACK_BUDGETS,
+  QIN_AUDIO_MANIFEST_URL,
+  type QinAudioAssetId,
+  type QinAudioAssetV1,
+  type QinAudioPackManifestV1,
+} from "./qin-audio-pack-contract";
 import {
   AUTHORED_ASSET_BY_TRANSIENT,
   ENGINE_DECODED_BUDGET_BYTES,
@@ -20,7 +26,9 @@ export interface AudioNodeLike {
   disconnect(): void;
 }
 
-interface GainNodeLike extends AudioNodeLike { gain: AudioParamLike }
+interface GainNodeLike extends AudioNodeLike {
+  gain: AudioParamLike;
+}
 interface BufferSourceLike extends AudioNodeLike {
   buffer: AudioBuffer | null;
   loop: boolean;
@@ -51,7 +59,14 @@ export type AudioListenerLike = Readonly<{
   upX?: AudioParamLike;
   upY?: AudioParamLike;
   upZ?: AudioParamLike;
-  setOrientation?: (forwardX: number, forwardY: number, forwardZ: number, upX: number, upY: number, upZ: number) => void;
+  setOrientation?: (
+    forwardX: number,
+    forwardY: number,
+    forwardZ: number,
+    upX: number,
+    upY: number,
+    upZ: number,
+  ) => void;
   setPosition?: (x: number, y: number, z: number) => void;
 }>;
 
@@ -71,7 +86,12 @@ export interface AudioContextLike {
   suspend(): Promise<void>;
 }
 
-type ActiveSourceKind = "ambient" | "authored-music" | "authored-transient" | "synth-music" | "synth-transient";
+type ActiveSourceKind =
+  | "ambient"
+  | "authored-music"
+  | "authored-transient"
+  | "synth-music"
+  | "synth-transient";
 
 type ActiveSource = {
   buffer: AudioBuffer;
@@ -126,7 +146,9 @@ const BUS_BY_PREFIX: Readonly<Record<string, AudioBus>> = Object.freeze({
 });
 
 function contextFactory(options?: AudioContextOptions): AudioContextLike {
-  const Constructor = window.AudioContext ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  const Constructor =
+    window.AudioContext ??
+    (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   if (!Constructor) throw new Error("Web Audio is unavailable");
   return new Constructor(options) as unknown as AudioContextLike;
 }
@@ -169,11 +191,11 @@ function fillLoop(buffer: AudioBuffer, cue: "music.fortress" | "ambient.fortress
         const pentatonic = [0, 3, 5, 7, 10, 7, 5, 3][phrase]!;
         const frequency = 82.41 * 2 ** (pentatonic / 12);
         const breath = 0.58 + 0.42 * Math.sin(Math.PI * ((time * 1.5) % 1));
-        data[sample] = (
-          Math.sin(Math.PI * 2 * frequency * time) * 0.055 +
-          Math.sin(Math.PI * 2 * frequency * 0.5 * time + channel * 0.4) * 0.035 +
-          Math.sin(Math.PI * 2 * 41.2 * time) * 0.025
-        ) * breath;
+        data[sample] =
+          (Math.sin(Math.PI * 2 * frequency * time) * 0.055 +
+            Math.sin(Math.PI * 2 * frequency * 0.5 * time + channel * 0.4) * 0.035 +
+            Math.sin(Math.PI * 2 * 41.2 * time) * 0.025) *
+          breath;
       } else {
         wind = wind * 0.993 + random() * 0.007;
         const firePulse = Math.max(0, Math.sin(time * 13.7 + channel * 1.3)) ** 18;
@@ -199,8 +221,15 @@ function cueDuration(cue: AudioCueId) {
 function fillCue(buffer: AudioBuffer, cue: AudioCueId) {
   const data = buffer.getChannelData(0);
   const random = seededNoise(cueHash(cue));
-  const roleIndex = ["marshal", "advisor", "elephant", "chariot", "horse", "cannon", "soldier"]
-    .findIndex((role) => cue.startsWith(role));
+  const roleIndex = [
+    "marshal",
+    "advisor",
+    "elephant",
+    "chariot",
+    "horse",
+    "cannon",
+    "soldier",
+  ].findIndex((role) => cue.startsWith(role));
   const base = roleIndex < 0 ? 220 : [150, 330, 72, 105, 205, 235, 180][roleIndex]!;
   const kind = cue.split(".")[1]!;
   for (let sample = 0; sample < data.length; sample += 1) {
@@ -217,21 +246,33 @@ function fillCue(buffer: AudioBuffer, cue: AudioCueId) {
         const clayBody = Math.sin(Math.PI * 2 * (118 - phase * 32) * time) * 0.32;
         value = (clayBody + random() * Math.exp(-phase * 12) * 0.58) * envelope;
       } else if (cue === "system.draw") {
-        const balanced = Math.sin(Math.PI * 2 * 174 * time) + Math.sin(Math.PI * 2 * 232 * time) * 0.72;
+        const balanced =
+          Math.sin(Math.PI * 2 * 174 * time) + Math.sin(Math.PI * 2 * 232 * time) * 0.72;
         value = balanced * envelope * 0.13;
       } else {
         const rising = cue !== "system.defeat";
         const frequency = (rising ? 185 : 150) * 2 ** ((rising ? phase : -phase) * 0.8);
-        value = (Math.sin(Math.PI * 2 * frequency * time) + Math.sin(Math.PI * 4 * frequency * time) * 0.35) * envelope * 0.16;
+        value =
+          (Math.sin(Math.PI * 2 * frequency * time) +
+            Math.sin(Math.PI * 4 * frequency * time) * 0.35) *
+          envelope *
+          0.16;
       }
     } else if (kind === "move") {
-      value = (Math.sin(Math.PI * 2 * base * 0.45 * time) * 0.5 + random() * 0.22) * envelope * 0.22;
+      value =
+        (Math.sin(Math.PI * 2 * base * 0.45 * time) * 0.5 + random() * 0.22) * envelope * 0.22;
     } else if (kind === "release") {
       const sweep = base * (cue.startsWith("cannon.") ? 1.4 + phase * 1.2 : 1.35 - phase * 0.55);
-      const tensionSnap = cue.startsWith("cannon.") ? Math.exp(-phase * 15) * Math.sin(Math.PI * 2 * 760 * time) : 0;
-      value = (Math.sin(Math.PI * 2 * sweep * time) * 0.68 + tensionSnap * 0.65 + random() * 0.18) * envelope * 0.25;
+      const tensionSnap = cue.startsWith("cannon.")
+        ? Math.exp(-phase * 15) * Math.sin(Math.PI * 2 * 760 * time)
+        : 0;
+      value =
+        (Math.sin(Math.PI * 2 * sweep * time) * 0.68 + tensionSnap * 0.65 + random() * 0.18) *
+        envelope *
+        0.25;
     } else if (kind === "impact") {
-      value = (Math.sin(Math.PI * 2 * base * 0.42 * time) * 0.75 + random() * 0.55) * envelope * 0.3;
+      value =
+        (Math.sin(Math.PI * 2 * base * 0.42 * time) * 0.75 + random() * 0.55) * envelope * 0.3;
     } else {
       value = (random() * 0.7 + Math.sin(Math.PI * 2 * base * 0.3 * time) * 0.3) * envelope * 0.22;
     }
@@ -248,7 +289,10 @@ const SOURCE_KINDS: readonly ActiveSourceKind[] = [
 ];
 
 function emptySourceKindCounts() {
-  return Object.fromEntries(SOURCE_KINDS.map((kind) => [kind, 0])) as Record<ActiveSourceKind, number>;
+  return Object.fromEntries(SOURCE_KINDS.map((kind) => [kind, 0])) as Record<
+    ActiveSourceKind,
+    number
+  >;
 }
 
 function buffersByteSize(buffers: Iterable<AudioBuffer>) {
@@ -313,23 +357,32 @@ export class AudioEngine {
   constructor(options: AudioEngineOptions = {}) {
     this.contextFactory = options.contextFactory ?? contextFactory;
     this.maxVoicesPerCue = Math.max(1, options.maxVoicesPerCue ?? 4);
-    this.baseUrl = options.baseUrl ?? (
-      (import.meta as ImportMeta & { env?: { BASE_URL?: string } }).env?.BASE_URL ?? "/"
-    );
-    this.fetcher = options.fetcher === undefined
-      ? typeof window !== "undefined" && typeof fetch === "function" ? fetch.bind(globalThis) : null
-      : options.fetcher;
+    this.baseUrl =
+      options.baseUrl ??
+      (import.meta as ImportMeta & { env?: { BASE_URL?: string } }).env?.BASE_URL ??
+      "/";
+    this.fetcher =
+      options.fetcher === undefined
+        ? typeof window !== "undefined" && typeof fetch === "function"
+          ? fetch.bind(globalThis)
+          : null
+        : options.fetcher;
     this.packDeadlineMs = Math.max(1, options.packDeadlineMs ?? 30_000);
-    this.scheduleDeadline = options.scheduleDeadline ?? ((callback, delayMs) => setTimeout(callback, delayMs));
-    this.clearDeadline = options.clearDeadline ?? (
-      (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>)
-    );
-    this.speech = options.speech === undefined
-      ? typeof speechSynthesis === "undefined" ? null : speechSynthesis
-      : options.speech;
-    this.utteranceFactory = options.utteranceFactory ?? (
-      typeof SpeechSynthesisUtterance === "undefined" ? null : (text) => new SpeechSynthesisUtterance(text)
-    );
+    this.scheduleDeadline =
+      options.scheduleDeadline ?? ((callback, delayMs) => setTimeout(callback, delayMs));
+    this.clearDeadline =
+      options.clearDeadline ?? ((handle) => clearTimeout(handle as ReturnType<typeof setTimeout>));
+    this.speech =
+      options.speech === undefined
+        ? typeof speechSynthesis === "undefined"
+          ? null
+          : speechSynthesis
+        : options.speech;
+    this.utteranceFactory =
+      options.utteranceFactory ??
+      (typeof SpeechSynthesisUtterance === "undefined"
+        ? null
+        : (text) => new SpeechSynthesisUtterance(text));
   }
 
   get state(): AudioEngineState {
@@ -395,7 +448,10 @@ export class AudioEngine {
     return this.playInternal(cue, false, options.position);
   }
 
-  playTransient(cue: AudioTransientCueId, options: { position?: readonly [number, number, number] } = {}) {
+  playTransient(
+    cue: AudioTransientCueId,
+    options: { position?: readonly [number, number, number] } = {},
+  ) {
     if (!this.isTransientEligible()) return false;
     const authoredId = AUTHORED_ASSET_BY_TRANSIENT[cue];
     const authoredBuffer = this.packState === "ready" ? this.authoredBuffers.get(authoredId) : null;
@@ -414,14 +470,22 @@ export class AudioEngine {
   }
 
   speak(text: string, options: { rate?: number; volumeScale?: number } = {}) {
-    if (!this.isTransientEligible() || !this.speech || !this.utteranceFactory || this.voiceCount >= 2) return false;
+    if (
+      !this.isTransientEligible() ||
+      !this.speech ||
+      !this.utteranceFactory ||
+      this.voiceCount >= 2
+    )
+      return false;
     const utterance = this.utteranceFactory(text);
     utterance.lang = "zh-CN";
     utterance.pitch = 0.82;
     utterance.rate = options.rate ?? 0.92;
     utterance.volume = clamp01(this.mix.master * this.mix.voice * (options.volumeScale ?? 1));
     this.voiceCount += 1;
-    const settle = () => { this.voiceCount = Math.max(0, this.voiceCount - 1); };
+    const settle = () => {
+      this.voiceCount = Math.max(0, this.voiceCount - 1);
+    };
     utterance.onend = settle;
     utterance.onerror = settle;
     this.speech.speak(utterance);
@@ -444,7 +508,14 @@ export class AudioEngine {
     } else {
       listener.setPosition?.(position[0], position[1], position[2]);
     }
-    if (listener.forwardX && listener.forwardY && listener.forwardZ && listener.upX && listener.upY && listener.upZ) {
+    if (
+      listener.forwardX &&
+      listener.forwardY &&
+      listener.forwardZ &&
+      listener.upX &&
+      listener.upY &&
+      listener.upZ
+    ) {
       listener.forwardX.setValueAtTime(forward[0], at);
       listener.forwardY.setValueAtTime(forward[1], at);
       listener.forwardZ.setValueAtTime(forward[2], at);
@@ -484,7 +555,8 @@ export class AudioEngine {
             contextGeneration !== this.contextGeneration ||
             !this.foregroundVisible ||
             this.disposed
-          ) return;
+          )
+            return;
           this.foregroundEligible = this.computeForegroundEligibility();
           this.maybeStartAuthoredMusic();
         });
@@ -571,7 +643,11 @@ export class AudioEngine {
     this.synthMusic = null;
     this.authoredMusic = null;
     Object.values(this.buses).forEach((node) => {
-      try { node?.disconnect(); } catch { /* Best-effort Web Audio cleanup. */ }
+      try {
+        node?.disconnect();
+      } catch {
+        /* Best-effort Web Audio cleanup. */
+      }
     });
     this.buses = {};
     const context = this.context;
@@ -611,7 +687,7 @@ export class AudioEngine {
       this.unlocked &&
       !this.muted &&
       this.foregroundVisible &&
-      this.context?.state === "running"
+      this.context?.state === "running",
     );
   }
 
@@ -627,11 +703,15 @@ export class AudioEngine {
         this.disposed ||
         contextGeneration !== this.contextGeneration ||
         context.state === "closed"
-      ) return;
+      )
+        return;
       result = await operation(context);
     });
     this.contextQueue = run.catch(() => undefined);
-    return run.then(() => result, () => false);
+    return run.then(
+      () => result,
+      () => false,
+    );
   }
 
   private getBuffer(cue: AudioCueId) {
@@ -644,7 +724,8 @@ export class AudioEngine {
       Math.ceil(cueDuration(cue) * this.context.sampleRate),
       this.context.sampleRate,
     );
-    if (loop) fillLoop(buffer, cue); else fillCue(buffer, cue);
+    if (loop) fillLoop(buffer, cue);
+    else fillCue(buffer, cue);
     this.buffers.set(cue, buffer);
     if (
       (this.packState === "loading" || this.packState === "ready") &&
@@ -655,21 +736,31 @@ export class AudioEngine {
     return buffer;
   }
 
-  private playInternal(cue: AudioCueId, loop: boolean, position?: readonly [number, number, number]) {
-    const kind: ActiveSourceKind = cue === "music.fortress"
-      ? "synth-music"
-      : cue === "ambient.fortress" ? "ambient" : "synth-transient";
-    return Boolean(this.startSource(this.getBuffer(cue), {
-      bus: cueBus(cue),
-      cue,
-      kind,
-      loop,
-      ...(position ? { position } : {}),
-    }));
+  private playInternal(
+    cue: AudioCueId,
+    loop: boolean,
+    position?: readonly [number, number, number],
+  ) {
+    const kind: ActiveSourceKind =
+      cue === "music.fortress"
+        ? "synth-music"
+        : cue === "ambient.fortress"
+          ? "ambient"
+          : "synth-transient";
+    return Boolean(
+      this.startSource(this.getBuffer(cue), {
+        bus: cueBus(cue),
+        cue,
+        kind,
+        loop,
+        ...(position ? { position } : {}),
+      }),
+    );
   }
 
   private startSynthMusic(initialGain: number) {
-    if (this.synthMusic && this.active.has(this.synthMusic) && !this.synthMusic.stopRequested) return this.synthMusic;
+    if (this.synthMusic && this.active.has(this.synthMusic) && !this.synthMusic.stopRequested)
+      return this.synthMusic;
     const context = this.context;
     if (!context) return null;
     const entry = this.startSource(this.getBuffer("music.fortress"), {
@@ -721,7 +812,16 @@ export class AudioEngine {
     } else {
       gain.connect(busNode);
     }
-    const entry: ActiveSource = { buffer, cue, gain, kind, nodes, source, stopRequested: false, stopWhen: null };
+    const entry: ActiveSource = {
+      buffer,
+      cue,
+      gain,
+      kind,
+      nodes,
+      source,
+      stopRequested: false,
+      stopWhen: null,
+    };
     source.onended = () => {
       this.sourceEnds += 1;
       this.sourceEndsByKind[kind] += 1;
@@ -731,7 +831,8 @@ export class AudioEngine {
     this.activeByCue.set(cue, activeCount + 1);
     this.sourceStartAttemptsByKind[kind] += 1;
     try {
-      if (scheduleStart) scheduleStart(source, gain); else source.start();
+      if (scheduleStart) scheduleStart(source, gain);
+      else source.start();
       this.sourceStarts += 1;
       this.sourceStartsByCue.set(cue, (this.sourceStartsByCue.get(cue) ?? 0) + 1);
       this.sourceStartsByKind[kind] += 1;
@@ -749,7 +850,11 @@ export class AudioEngine {
     if (this.synthMusic === entry) this.synthMusic = null;
     if (this.authoredMusic === entry) this.authoredMusic = null;
     entry.nodes.forEach((node) => {
-      try { node.disconnect(); } catch { /* Browser may already have disconnected it. */ }
+      try {
+        node.disconnect();
+      } catch {
+        /* Browser may already have disconnected it. */
+      }
     });
   }
 
@@ -759,7 +864,11 @@ export class AudioEngine {
     entry.stopWhen = when ?? null;
     this.sourceStops += 1;
     this.sourceStopsByKind[entry.kind] += 1;
-    try { entry.source.stop(when); } catch { this.cleanupEntry(entry); }
+    try {
+      entry.source.stop(when);
+    } catch {
+      this.cleanupEntry(entry);
+    }
   }
 
   private startPackLoading() {
@@ -776,7 +885,9 @@ export class AudioEngine {
       this.abortPack();
       this.failPack(packGeneration, false);
     }, this.packDeadlineMs);
-    void this.loadPack(packGeneration, this.packAbort.signal).catch(() => this.failPack(packGeneration));
+    void this.loadPack(packGeneration, this.packAbort.signal).catch(() =>
+      this.failPack(packGeneration),
+    );
   }
 
   private async loadPack(packGeneration: number, signal: AbortSignal) {
@@ -786,7 +897,9 @@ export class AudioEngine {
       signal,
     );
     this.guardPackGeneration(packGeneration);
-    const manifest = validateQinAudioPackManifest(JSON.parse(new TextDecoder().decode(manifestBytes)));
+    const manifest = validateQinAudioPackManifest(
+      JSON.parse(new TextDecoder().decode(manifestBytes)),
+    );
     const decoded = new Map<QinAudioAssetId, AudioBuffer>();
     this.loadingAuthoredBuffers = decoded;
 
@@ -798,7 +911,8 @@ export class AudioEngine {
         signal,
       );
       if (encoded.byteLength !== asset.bytes) throw new Error(asset.id + " byte count mismatch");
-      if (await this.sha256(encoded) !== asset.sha256) throw new Error(asset.id + " SHA-256 mismatch");
+      if ((await this.sha256(encoded)) !== asset.sha256)
+        throw new Error(asset.id + " SHA-256 mismatch");
       this.guardPackGeneration(packGeneration);
       const buffer = await this.decode(encoded);
       encoded = null;
@@ -831,8 +945,13 @@ export class AudioEngine {
     try {
       const response = await this.abortable(fetcher(url, { signal }), signal);
       if (!response.ok) throw new Error("Audio request failed with " + response.status);
-      const contentType = response.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
-      if (contentType !== expectedMime) throw new Error("Unexpected audio MIME " + (contentType ?? "missing"));
+      const contentType = response.headers
+        .get("content-type")
+        ?.split(";", 1)[0]
+        ?.trim()
+        .toLowerCase();
+      if (contentType !== expectedMime)
+        throw new Error("Unexpected audio MIME " + (contentType ?? "missing"));
       return await this.abortable(response.arrayBuffer(), signal);
     } finally {
       this.pendingFetches = Math.max(0, this.pendingFetches - 1);
@@ -854,7 +973,9 @@ export class AudioEngine {
   private async abortable<T>(promise: Promise<T>, signal: AbortSignal) {
     if (signal.aborted) throw new DOMException("Aborted", "AbortError");
     let rejectAbort: ((reason: unknown) => void) | null = null;
-    const aborted = new Promise<never>((_resolve, reject) => { rejectAbort = reject; });
+    const aborted = new Promise<never>((_resolve, reject) => {
+      rejectAbort = reject;
+    });
     const handleAbort = () => rejectAbort?.(new DOMException("Aborted", "AbortError"));
     signal.addEventListener("abort", handleAbort, { once: true });
     try {
@@ -894,8 +1015,11 @@ export class AudioEngine {
       context.state !== "running" ||
       this.packState !== "ready" ||
       this.authoredMusic
-    ) return;
-    const asset = this.manifest?.assets.find((candidate) => candidate.id === "music.qin-procession");
+    )
+      return;
+    const asset = this.manifest?.assets.find(
+      (candidate) => candidate.id === "music.qin-procession",
+    );
     const buffer = this.authoredBuffers.get("music.qin-procession");
     const synth = this.synthMusic;
     if (!asset?.loop || !buffer || !synth) return;
@@ -932,7 +1056,8 @@ export class AudioEngine {
       packGeneration !== this.packGeneration ||
       this.packState === "unavailable" ||
       this.packState === "unrequested"
-    ) return;
+    )
+      return;
     if (abort) this.abortPack();
     this.clearPackDeadline();
     this.packState = "unavailable";
@@ -954,9 +1079,10 @@ export class AudioEngine {
     const synth = this.startSynthMusic(0);
     if (synth) {
       const now = context.currentTime;
-      const fadeEnd = retiringSynth?.stopRequested && retiringSynth.stopWhen !== null
-        ? Math.max(now + 1, retiringSynth.stopWhen)
-        : now + 1;
+      const fadeEnd =
+        retiringSynth?.stopRequested && retiringSynth.stopWhen !== null
+          ? Math.max(now + 1, retiringSynth.stopWhen)
+          : now + 1;
       synth.gain.gain.setValueAtTime(0, now);
       synth.gain.gain.linearRampToValueAtTime(1, fadeEnd);
       authored.gain.gain.setValueAtTime(1, now);

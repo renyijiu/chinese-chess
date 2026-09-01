@@ -97,8 +97,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function hasExactKeys(value: Record<string, unknown>, expected: ReadonlyArray<string>): boolean {
   const actual = Object.keys(value).sort();
   const sortedExpected = [...expected].sort();
-  return actual.length === sortedExpected.length
-    && actual.every((key, index) => key === sortedExpected[index]);
+  return (
+    actual.length === sortedExpected.length &&
+    actual.every((key, index) => key === sortedExpected[index])
+  );
 }
 
 function isDifficulty(value: unknown): value is ComputerDifficulty {
@@ -110,9 +112,7 @@ function isOpponentTier(value: unknown): value is OpponentTier {
 }
 
 function isBoundedId(value: unknown): value is string {
-  return typeof value === "string"
-    && value.trim().length > 0
-    && value.length <= 128;
+  return typeof value === "string" && value.trim().length > 0 && value.length <= 128;
 }
 
 export function onlineSideForRematch(
@@ -126,10 +126,14 @@ export function onlineSideForRematch(
 
 function defaultTier(difficulty: ComputerDifficulty): OpponentTier {
   switch (difficulty) {
-    case "easy": return "lightweight-easy";
-    case "normal": return "lightweight-normal";
-    case "hard": return "lightweight-hard";
-    case "master": return "fairy-master";
+    case "easy":
+      return "lightweight-easy";
+    case "normal":
+      return "lightweight-normal";
+    case "hard":
+      return "lightweight-hard";
+    case "master":
+      return "fairy-master";
   }
 }
 
@@ -137,8 +141,10 @@ export function isValidTierTransition(
   requestedDifficulty: ComputerDifficulty,
   effectiveTier: OpponentTier,
 ): boolean {
-  return effectiveTier === defaultTier(requestedDifficulty)
-    || (requestedDifficulty === "master" && effectiveTier === "lightweight-hard");
+  return (
+    effectiveTier === defaultTier(requestedDifficulty) ||
+    (requestedDifficulty === "master" && effectiveTier === "lightweight-hard")
+  );
 }
 
 export function humanSideForDie(dieResult: number): Side {
@@ -153,7 +159,8 @@ export function rollFairDie(entropy: EntropySource = systemEntropy): DieResult {
   for (;;) {
     entropy(sample);
     const value = sample[0];
-    if (value === undefined) throw new MatchConfigError("Entropy source did not fill the sample byte.");
+    if (value === undefined)
+      throw new MatchConfigError("Entropy source did not fill the sample byte.");
     // 252 is the largest multiple of six that fits in one byte's 256 outcomes.
     if (value < 252) return ((value % 6) + 1) as DieResult;
   }
@@ -180,22 +187,24 @@ export function parseMatchConfig(value: unknown): MatchConfig {
       throw new MatchConfigError("Online match config is incomplete or contains unknown fields.");
     }
     if (
-      value.protocolVersion !== ONLINE_MATCH_PROTOCOL_VERSION
-      || !isBoundedId(value.pairingId)
-      || !isBoundedId(value.matchId)
-      || typeof value.rematchIndex !== "number"
-      || !Number.isSafeInteger(value.rematchIndex)
-      || value.rematchIndex < 0
-      || !isBoundedId(value.localPeerId)
-      || !isBoundedId(value.remotePeerId)
-      || value.localPeerId === value.remotePeerId
-      || (value.localSide !== "red" && value.localSide !== "black")
-      || (value.signalingRole !== "host" && value.signalingRole !== "guest")
+      value.protocolVersion !== ONLINE_MATCH_PROTOCOL_VERSION ||
+      !isBoundedId(value.pairingId) ||
+      !isBoundedId(value.matchId) ||
+      typeof value.rematchIndex !== "number" ||
+      !Number.isSafeInteger(value.rematchIndex) ||
+      value.rematchIndex < 0 ||
+      !isBoundedId(value.localPeerId) ||
+      !isBoundedId(value.remotePeerId) ||
+      value.localPeerId === value.remotePeerId ||
+      (value.localSide !== "red" && value.localSide !== "black") ||
+      (value.signalingRole !== "host" && value.signalingRole !== "guest")
     ) {
       throw new MatchConfigError("Online match config contains an invalid field.");
     }
     if (value.localSide !== onlineSideForRematch(value.rematchIndex, value.signalingRole)) {
-      throw new MatchConfigError("Online side does not match the signaling role and rematch index.");
+      throw new MatchConfigError(
+        "Online side does not match the signaling role and rematch index.",
+      );
     }
     return {
       mode: "online",
@@ -213,14 +222,14 @@ export function parseMatchConfig(value: unknown): MatchConfig {
     throw new MatchConfigError("Computer match config is incomplete or contains unknown fields.");
   }
   if (
-    typeof value.matchId !== "string"
-    || value.matchId.trim().length === 0
-    || typeof value.seed !== "string"
-    || value.seed.trim().length === 0
-    || !isDifficulty(value.requestedDifficulty)
-    || !isOpponentTier(value.effectiveTier)
-    || (value.humanSide !== "red" && value.humanSide !== "black")
-    || typeof value.dieResult !== "number"
+    typeof value.matchId !== "string" ||
+    value.matchId.trim().length === 0 ||
+    typeof value.seed !== "string" ||
+    value.seed.trim().length === 0 ||
+    !isDifficulty(value.requestedDifficulty) ||
+    !isOpponentTier(value.effectiveTier) ||
+    (value.humanSide !== "red" && value.humanSide !== "black") ||
+    typeof value.dieResult !== "number"
   ) {
     throw new MatchConfigError("Computer match config contains an invalid field.");
   }

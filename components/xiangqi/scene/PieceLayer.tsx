@@ -4,11 +4,7 @@
 
 import type { ReactNode } from "react";
 
-import {
-  squareToWorld,
-  type BoardSquare,
-  type WorldPosition,
-} from "../runtime/board-coordinates";
+import { squareToWorld, type BoardSquare, type WorldPosition } from "../runtime/board-coordinates";
 
 export type ScenePieceSlot<T = unknown> = Readonly<{
   data: T;
@@ -34,10 +30,7 @@ export function PieceLayer<T>({
           name={`piece-slot:${slot.id}`}
           position={resolveWorldPosition?.(slot) ?? squareToWorld(slot.square)}
         >
-          <group
-            name={`piece-facing:${slot.id}`}
-            rotation={[0, slot.rotationY ?? 0, 0]}
-          >
+          <group name={`piece-facing:${slot.id}`} rotation={[0, slot.rotationY ?? 0, 0]}>
             {renderPiece(slot)}
           </group>
         </group>

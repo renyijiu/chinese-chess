@@ -28,7 +28,10 @@ function commit(state: GameState, from: [number, number], to: [number, number]):
   return result.state;
 }
 
-function assertLegal(state: GameState, candidate: { from: { file: number; rank: number }; to: { file: number; rank: number } }): void {
+function assertLegal(
+  state: GameState,
+  candidate: { from: { file: number; rank: number }; to: { file: number; rank: number } },
+): void {
   const result = dispatch(state, {
     type: "move",
     expectedRevision: state.revision,
@@ -50,17 +53,18 @@ describe("lightweight Xiangqi search", () => {
 
   it("returns a fixed-seed repeatable legal move from the last completed depth", async () => {
     const state = createInitialGame();
-    const run = () => runLightweightSearchBatched(state, {
-      tier: "lightweight-easy",
-      seed: "repeatable",
-      nodeBudget: 2_000,
-      depthCeiling: 3,
-      safetyDeadlineMs: 60_000,
-      batchNodes: 17,
-      now: () => 0,
-      yieldTask: async () => undefined,
-      isCancelled: () => false,
-    });
+    const run = () =>
+      runLightweightSearchBatched(state, {
+        tier: "lightweight-easy",
+        seed: "repeatable",
+        nodeBudget: 2_000,
+        depthCeiling: 3,
+        safetyDeadlineMs: 60_000,
+        batchNodes: 17,
+        now: () => 0,
+        yieldTask: async () => undefined,
+        isCancelled: () => false,
+      });
     const first = await run();
     const second = await run();
     expect(first).toEqual(second);
@@ -158,7 +162,9 @@ describe("lightweight Xiangqi search", () => {
 
   it("uses a real task timer as the default cooperative-yield boundary", async () => {
     let cancelled = false;
-    setTimeout(() => { cancelled = true; }, 0);
+    setTimeout(() => {
+      cancelled = true;
+    }, 0);
     const result = await runLightweightSearchBatched(createInitialGame(), {
       tier: "lightweight-hard",
       seed: "default-task-yield",
@@ -197,18 +203,25 @@ describe("lightweight Xiangqi search", () => {
     expect(capturedHorse?.side).toBe("red");
     expect(evaluatePosition(state)).toBeLessThan(0);
 
-    const checked = makeState([
-      piece("red:general:0", "red", "general", 4, 0),
-      piece("black:general:0", "black", "general", 4, 9),
-      piece("red:chariot:0", "red", "chariot", 4, 8),
-      piece("red:soldier:screen", "red", "soldier", 4, 5),
-    ], "black", { status: { kind: "playing", check: "black" } });
-    const safe = makeState([
-      piece("red:general:0", "red", "general", 4, 0),
-      piece("black:general:0", "black", "general", 4, 9),
-      piece("red:chariot:0", "red", "chariot", 3, 8),
-      piece("red:soldier:screen", "red", "soldier", 4, 5),
-    ], "black");
+    const checked = makeState(
+      [
+        piece("red:general:0", "red", "general", 4, 0),
+        piece("black:general:0", "black", "general", 4, 9),
+        piece("red:chariot:0", "red", "chariot", 4, 8),
+        piece("red:soldier:screen", "red", "soldier", 4, 5),
+      ],
+      "black",
+      { status: { kind: "playing", check: "black" } },
+    );
+    const safe = makeState(
+      [
+        piece("red:general:0", "red", "general", 4, 0),
+        piece("black:general:0", "black", "general", 4, 9),
+        piece("red:chariot:0", "red", "chariot", 3, 8),
+        piece("red:soldier:screen", "red", "soldier", 4, 5),
+      ],
+      "black",
+    );
     expect(evaluatePosition(checked)).toBeLessThan(evaluatePosition(safe));
   });
 
@@ -232,47 +245,50 @@ describe("lightweight Xiangqi search", () => {
     "lightweight-easy",
     "lightweight-normal",
     "lightweight-hard",
-  ] satisfies LightweightTier[])("finishes a forced terminal path exactly once at %s", async (tier) => {
-    const state = makeState([
-      piece("red:general:0", "red", "general", 4, 0),
-      piece("black:general:0", "black", "general", 4, 9),
-      piece("red:chariot:mate", "red", "chariot", 4, 7),
-      piece("red:soldier:left", "red", "soldier", 3, 8),
-      piece("red:soldier:right", "red", "soldier", 5, 8),
-      piece("black:soldier:block", "black", "soldier", 4, 8),
-    ]);
-    expect(state.status).toEqual({ kind: "playing", check: null });
-    expect(isInCheck(state, "red")).toBe(false);
-    expect(isInCheck(state, "black")).toBe(false);
-    const limits = LIGHTWEIGHT_TIER_LIMITS[tier];
-    const search = await runLightweightSearchBatched(state, {
-      tier,
-      seed: "s2",
-      ...limits,
-      safetyDeadlineMs: 60_000,
-      now: () => 0,
-      yieldTask: async () => undefined,
-      isCancelled: () => false,
-    });
-    expect(search.candidate).toEqual({
-      from: { file: 4, rank: 7 },
-      to: { file: 4, rank: 8 },
-    });
-    const result = dispatch(state, {
-      type: "move",
-      expectedRevision: state.revision,
-      ...search.candidate!,
-    });
-    expect(result.error).toBeUndefined();
-    expect(result.state.revision).toBe(1);
-    expect(result.state.status).toMatchObject({ kind: "ended", reason: "checkmate" });
-    expect(result.events.map((event) => event.type)).toEqual([
-      "MoveCommitted",
-      "PieceCaptured",
-      "CheckDeclared",
-      "GameEnded",
-    ]);
-  });
+  ] satisfies LightweightTier[])(
+    "finishes a forced terminal path exactly once at %s",
+    async (tier) => {
+      const state = makeState([
+        piece("red:general:0", "red", "general", 4, 0),
+        piece("black:general:0", "black", "general", 4, 9),
+        piece("red:chariot:mate", "red", "chariot", 4, 7),
+        piece("red:soldier:left", "red", "soldier", 3, 8),
+        piece("red:soldier:right", "red", "soldier", 5, 8),
+        piece("black:soldier:block", "black", "soldier", 4, 8),
+      ]);
+      expect(state.status).toEqual({ kind: "playing", check: null });
+      expect(isInCheck(state, "red")).toBe(false);
+      expect(isInCheck(state, "black")).toBe(false);
+      const limits = LIGHTWEIGHT_TIER_LIMITS[tier];
+      const search = await runLightweightSearchBatched(state, {
+        tier,
+        seed: "s2",
+        ...limits,
+        safetyDeadlineMs: 60_000,
+        now: () => 0,
+        yieldTask: async () => undefined,
+        isCancelled: () => false,
+      });
+      expect(search.candidate).toEqual({
+        from: { file: 4, rank: 7 },
+        to: { file: 4, rank: 8 },
+      });
+      const result = dispatch(state, {
+        type: "move",
+        expectedRevision: state.revision,
+        ...search.candidate!,
+      });
+      expect(result.error).toBeUndefined();
+      expect(result.state.revision).toBe(1);
+      expect(result.state.status).toMatchObject({ kind: "ended", reason: "checkmate" });
+      expect(result.events.map((event) => event.type)).toEqual([
+        "MoveCommitted",
+        "PieceCaptured",
+        "CheckDeclared",
+        "GameEnded",
+      ]);
+    },
+  );
 
   it("completes a representative engine game with one revision and capture event per move", () => {
     let state = createInitialGame();
@@ -284,7 +300,9 @@ describe("lightweight Xiangqi search", () => {
         safetyDeadlineMs: 60_000,
         now: () => 0,
       });
-      while (!search.step(2_048).done) { /* drain deterministic cooperative batches */ }
+      while (!search.step(2_048).done) {
+        /* drain deterministic cooperative batches */
+      }
       const candidate = search.result().candidate;
       expect(candidate).not.toBeNull();
       const beforeRevision = state.revision;
@@ -297,8 +315,9 @@ describe("lightweight Xiangqi search", () => {
       expect(result.state.revision).toBe(beforeRevision + 1);
       expect(result.events.filter((event) => event.type === "MoveCommitted")).toHaveLength(1);
       const captureEvents = result.events.filter((event) => event.type === "PieceCaptured");
-      expect(captureEvents).toHaveLength(result.state.lastAction?.kind === "move"
-        && result.state.lastAction.move.captured ? 1 : 0);
+      expect(captureEvents).toHaveLength(
+        result.state.lastAction?.kind === "move" && result.state.lastAction.move.captured ? 1 : 0,
+      );
       capturedMoves += captureEvents.length;
       state = result.state;
     }

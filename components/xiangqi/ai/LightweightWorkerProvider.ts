@@ -25,9 +25,11 @@ type PendingSearch = Readonly<{
 }>;
 
 function sameIdentity(left: OpponentIdentityV1, right: OpponentIdentityV1): boolean {
-  return left.matchId === right.matchId
-    && left.generation === right.generation
-    && left.requestId === right.requestId;
+  return (
+    left.matchId === right.matchId &&
+    left.generation === right.generation &&
+    left.requestId === right.requestId
+  );
 }
 
 function failure(
@@ -38,10 +40,7 @@ function failure(
 }
 
 export function createLightweightWorker(): OpponentWorkerLike {
-  return new Worker(
-    lightweightWorkerUrl,
-    { type: "module", name: "xiangqi-lightweight-opponent" },
-  );
+  return new Worker(lightweightWorkerUrl, { type: "module", name: "xiangqi-lightweight-opponent" });
 }
 
 export class LightweightWorkerProvider implements OpponentProvider {
@@ -62,7 +61,9 @@ export class LightweightWorkerProvider implements OpponentProvider {
       return Promise.resolve(failure("failed", "The opponent Worker has been disposed."));
     }
     if (this.#pending) {
-      return Promise.resolve(failure("invalid-request", "Only one opponent search may run at a time."));
+      return Promise.resolve(
+        failure("invalid-request", "Only one opponent search may run at a time."),
+      );
     }
     return new Promise((resolve) => {
       this.#pending = { request, resolve };

@@ -85,11 +85,21 @@ describe("PresentationStore", () => {
     store.subscribeCue(cueListener);
     const finished = store.play(firstSoldierMove());
 
-    expect(store.resourceCounts).toEqual({ activeTimelines: 1, cueListeners: 1, listeners: 1, timers: 1 });
+    expect(store.resourceCounts).toEqual({
+      activeTimelines: 1,
+      cueListeners: 1,
+      listeners: 1,
+      timers: 1,
+    });
     store.dispose();
 
     await expect(finished).resolves.toMatchObject({ reason: "dispose" });
-    expect(store.resourceCounts).toEqual({ activeTimelines: 0, cueListeners: 0, listeners: 0, timers: 0 });
+    expect(store.resourceCounts).toEqual({
+      activeTimelines: 0,
+      cueListeners: 0,
+      listeners: 0,
+      timers: 0,
+    });
     expect(store.debugSnapshot().completedActionIds).toEqual([]);
     await vi.runAllTimersAsync();
     expect(cueListener).not.toHaveBeenCalled();
@@ -108,7 +118,12 @@ describe("PresentationStore", () => {
       await finished;
       unsubscribeCue();
       unsubscribeState();
-      expect(store.resourceCounts).toEqual({ activeTimelines: 0, cueListeners: 0, listeners: 0, timers: 0 });
+      expect(store.resourceCounts).toEqual({
+        activeTimelines: 0,
+        cueListeners: 0,
+        listeners: 0,
+        timers: 0,
+      });
     }
   });
 

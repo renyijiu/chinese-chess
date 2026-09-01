@@ -18,7 +18,14 @@ export const DEFAULT_AUDIO_MIX: AudioMix = Object.freeze({
   voice: 0.75,
 });
 
-export type AudioRole = "marshal" | "advisor" | "elephant" | "chariot" | "horse" | "cannon" | "soldier";
+export type AudioRole =
+  | "marshal"
+  | "advisor"
+  | "elephant"
+  | "chariot"
+  | "horse"
+  | "cannon"
+  | "soldier";
 export type AudioTransientCueId =
   | "system.capture"
   | "system.check"

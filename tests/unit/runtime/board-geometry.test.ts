@@ -16,28 +16,21 @@ import {
 
 type Point = readonly [number, number];
 
-function segmentMatches(
-  segment: readonly [Point, Point],
-  start: Point,
-  end: Point,
-) {
+function segmentMatches(segment: readonly [Point, Point], start: Point, end: Point) {
   return (
-    (segment[0][0] === start[0]
-      && segment[0][1] === start[1]
-      && segment[1][0] === end[0]
-      && segment[1][1] === end[1])
-    || (segment[0][0] === end[0]
-      && segment[0][1] === end[1]
-      && segment[1][0] === start[0]
-      && segment[1][1] === start[1])
+    (segment[0][0] === start[0] &&
+      segment[0][1] === start[1] &&
+      segment[1][0] === end[0] &&
+      segment[1][1] === end[1]) ||
+    (segment[0][0] === end[0] &&
+      segment[0][1] === end[1] &&
+      segment[1][0] === start[0] &&
+      segment[1][1] === start[1])
   );
 }
 
 function segmentLength(segment: readonly [Point, Point]) {
-  return Math.hypot(
-    segment[1][0] - segment[0][0],
-    segment[1][1] - segment[0][1],
-  );
+  return Math.hypot(segment[1][0] - segment[0][0], segment[1][1] - segment[0][1]);
 }
 
 describe("Qin board geometry", () => {
@@ -50,24 +43,50 @@ describe("Qin board geometry", () => {
     const ascendingRanks = [...BOARD_RANK_POSITIONS].sort((a, b) => a - b);
 
     for (const rank of BOARD_RANK_POSITIONS) {
-      expect(segments.some((segment) => segmentMatches(segment, [fileMin, rank], [fileMax, rank]))).toBe(true);
+      expect(
+        segments.some((segment) => segmentMatches(segment, [fileMin, rank], [fileMax, rank])),
+      ).toBe(true);
     }
 
     for (const [index, file] of BOARD_FILE_POSITIONS.entries()) {
       if (index === 0 || index === BOARD_FILE_POSITIONS.length - 1) {
-        expect(segments.some((segment) => segmentMatches(segment, [file, rankMin], [file, rankMax]))).toBe(true);
+        expect(
+          segments.some((segment) => segmentMatches(segment, [file, rankMin], [file, rankMax])),
+        ).toBe(true);
       } else {
-        expect(segments.some((segment) => segmentMatches(segment, [file, rankMin], [file, ascendingRanks[4]!]))).toBe(true);
-        expect(segments.some((segment) => segmentMatches(segment, [file, ascendingRanks[5]!], [file, rankMax]))).toBe(true);
-        expect(segments.some((segment) => segmentMatches(segment, [file, rankMin], [file, rankMax]))).toBe(false);
+        expect(
+          segments.some((segment) =>
+            segmentMatches(segment, [file, rankMin], [file, ascendingRanks[4]!]),
+          ),
+        ).toBe(true);
+        expect(
+          segments.some((segment) =>
+            segmentMatches(segment, [file, ascendingRanks[5]!], [file, rankMax]),
+          ),
+        ).toBe(true);
+        expect(
+          segments.some((segment) => segmentMatches(segment, [file, rankMin], [file, rankMax])),
+        ).toBe(false);
       }
     }
 
     const palaceDiagonals = [
-      [[-BOARD_SPACING, rankMin], [BOARD_SPACING, ascendingRanks[2]!]],
-      [[BOARD_SPACING, rankMin], [-BOARD_SPACING, ascendingRanks[2]!]],
-      [[-BOARD_SPACING, ascendingRanks[7]!], [BOARD_SPACING, rankMax]],
-      [[BOARD_SPACING, ascendingRanks[7]!], [-BOARD_SPACING, rankMax]],
+      [
+        [-BOARD_SPACING, rankMin],
+        [BOARD_SPACING, ascendingRanks[2]!],
+      ],
+      [
+        [BOARD_SPACING, rankMin],
+        [-BOARD_SPACING, ascendingRanks[2]!],
+      ],
+      [
+        [-BOARD_SPACING, ascendingRanks[7]!],
+        [BOARD_SPACING, rankMax],
+      ],
+      [
+        [BOARD_SPACING, ascendingRanks[7]!],
+        [-BOARD_SPACING, rankMax],
+      ],
     ] as const;
     for (const [start, end] of palaceDiagonals) {
       expect(segments.some((segment) => segmentMatches(segment, start, end))).toBe(true);
@@ -83,12 +102,9 @@ describe("Qin board geometry", () => {
 
     expect(first).toEqual(second);
     expect(first).not.toBe(second);
-    expect(new Set(first.map(({ kind }) => kind))).toEqual(new Set([
-      "brick-impression",
-      "gate-cue",
-      "tile-medallion",
-      "water-swirl",
-    ]));
+    expect(new Set(first.map(({ kind }) => kind))).toEqual(
+      new Set(["brick-impression", "gate-cue", "tile-medallion", "water-swirl"]),
+    );
 
     for (const ornament of first) {
       expect(ornament.interactive).toBe(false);

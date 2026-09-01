@@ -53,14 +53,42 @@ describe("PerformanceMetrics", () => {
 
   it("ignores invalid intervals, bounds its sample window, and can reset measurements", () => {
     const metrics = new PerformanceMetrics(2);
-    metrics.record({ drawCalls: 5, frameIntervalMs: Number.NaN, geometries: 1, textures: 1, triangles: 10 });
-    metrics.record({ drawCalls: 8, frameIntervalMs: 10, geometries: 2, textures: 2, triangles: 20 });
-    metrics.record({ drawCalls: 9, frameIntervalMs: 12, geometries: 3, textures: 3, triangles: 30 });
-    metrics.record({ drawCalls: 10, frameIntervalMs: 14, geometries: 4, textures: 4, triangles: 40 });
+    metrics.record({
+      drawCalls: 5,
+      frameIntervalMs: Number.NaN,
+      geometries: 1,
+      textures: 1,
+      triangles: 10,
+    });
+    metrics.record({
+      drawCalls: 8,
+      frameIntervalMs: 10,
+      geometries: 2,
+      textures: 2,
+      triangles: 20,
+    });
+    metrics.record({
+      drawCalls: 9,
+      frameIntervalMs: 12,
+      geometries: 3,
+      textures: 3,
+      triangles: 30,
+    });
+    metrics.record({
+      drawCalls: 10,
+      frameIntervalMs: 14,
+      geometries: 4,
+      textures: 4,
+      triangles: 40,
+    });
 
     expect(metrics.snapshot().sampleCount).toBe(2);
     expect(metrics.snapshot().p95FrameIntervalMs).toBe(14);
     metrics.reset();
-    expect(metrics.snapshot()).toMatchObject({ peakDrawCalls: 0, p95FrameIntervalMs: 0, sampleCount: 0 });
+    expect(metrics.snapshot()).toMatchObject({
+      peakDrawCalls: 0,
+      p95FrameIntervalMs: 0,
+      sampleCount: 0,
+    });
   });
 });

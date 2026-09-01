@@ -145,11 +145,13 @@ describe("match config validation", () => {
     expect(() => parseMatchConfig({ ...validComputer, dieResult: 4 })).toThrow();
     expect(() => parseMatchConfig({ ...validComputer, matchId: "" })).toThrow();
     expect(() => parseMatchConfig({ ...validComputer, seed: "" })).toThrow();
-    expect(() => parseMatchConfig({
-      ...validComputer,
-      requestedDifficulty: "normal",
-      effectiveTier: "lightweight-hard",
-    })).toThrow();
+    expect(() =>
+      parseMatchConfig({
+        ...validComputer,
+        requestedDifficulty: "normal",
+        effectiveTier: "lightweight-hard",
+      }),
+    ).toThrow();
   });
 
   it("strictly validates online identities, protocol, peers, and rematch index", () => {

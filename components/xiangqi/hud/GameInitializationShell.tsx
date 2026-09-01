@@ -21,20 +21,23 @@ export function GameInitializationShell({
       </div>
       <div className="viewer-hud" aria-hidden="true">
         <div className="viewer-controls">
-          <button className="viewer-control" disabled type="button">俯视棋盘</button>
-          <button className="viewer-control" disabled type="button">自动巡游</button>
-          <button className="viewer-control" disabled type="button">换边视角 · 红</button>
+          <button className="viewer-control" disabled type="button">
+            俯视棋盘
+          </button>
+          <button className="viewer-control" disabled type="button">
+            自动巡游
+          </button>
+          <button className="viewer-control" disabled type="button">
+            换边视角 · 红
+          </button>
         </div>
       </div>
       <div className="game-overlay">
-        <GameMenu
-          hasSave={false}
-          loading
-          onContinue={onContinue}
-          onStart={onStart}
-        />
+        <GameMenu hasSave={false} loading onContinue={onContinue} onStart={onStart} />
       </div>
-      <p className="sr-only" role="status">正在读取本地棋局与画质设置。</p>
+      <p className="sr-only" role="status">
+        正在读取本地棋局与画质设置。
+      </p>
     </section>
   );
 }

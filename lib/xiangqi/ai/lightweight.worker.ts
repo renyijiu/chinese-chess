@@ -24,9 +24,11 @@ const scope = globalThis as typeof globalThis & {
 let active: ActiveSearch | null = null;
 
 function sameIdentity(left: OpponentIdentityV1, right: OpponentIdentityV1): boolean {
-  return left.matchId === right.matchId
-    && left.generation === right.generation
-    && left.requestId === right.requestId;
+  return (
+    left.matchId === right.matchId &&
+    left.generation === right.generation &&
+    left.requestId === right.requestId
+  );
 }
 
 function postError(request: OpponentIdentityV1, code: OpponentErrorCode, message: string): void {
@@ -55,7 +57,11 @@ async function sha256Hex(value: string): Promise<string> {
 async function execute(request: OpponentRequestV1, search: ActiveSearch): Promise<void> {
   try {
     if (!isLightweightTier(request.tier)) {
-      postError(request, "unsupported-tier", "The lightweight engine cannot run the requested tier.");
+      postError(
+        request,
+        "unsupported-tier",
+        "The lightweight engine cannot run the requested tier.",
+      );
       return;
     }
     const validated = await validateOpponentRequestPosition(request, sha256Hex);

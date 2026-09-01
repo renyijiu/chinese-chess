@@ -1,7 +1,11 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 
-const tracked = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "-z"], { encoding: "utf8" })
+const tracked = execFileSync(
+  "git",
+  ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+  { encoding: "utf8" },
+)
   .split("\0")
   .filter(Boolean);
 
@@ -50,13 +54,17 @@ for (const file of tracked) {
   }
 }
 
-for (const workflow of tracked.filter((file) => file.startsWith(".github/workflows/") && file.endsWith(".yml"))) {
+for (const workflow of tracked.filter(
+  (file) => file.startsWith(".github/workflows/") && file.endsWith(".yml"),
+)) {
   const content = readFileSync(workflow, "utf8");
   for (const match of content.matchAll(/^\s*uses:\s*([^\s#]+).*$/gm)) {
     const action = match[1];
     if (action?.startsWith("./")) continue;
     if (!/@[0-9a-f]{40}$/.test(action ?? "")) {
-      findings.push(`${workflow}: GitHub Action is not pinned to a full commit SHA (${action ?? "unknown"})`);
+      findings.push(
+        `${workflow}: GitHub Action is not pinned to a full commit SHA (${action ?? "unknown"})`,
+      );
     }
   }
 }

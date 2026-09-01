@@ -13,6 +13,7 @@
    git lfs pull
    npm ci
    npm audit --audit-level=low
+   npm run format:check
    npm run typecheck
    npm run lint
    npm run test:unit

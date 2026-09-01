@@ -1,9 +1,5 @@
 import type { MoveRecord, Side } from "../../../lib/xiangqi/index";
-import {
-  BOARD_SURFACE_Y,
-  squareToWorld,
-  type WorldPosition,
-} from "../runtime/board-coordinates";
+import { BOARD_SURFACE_Y, squareToWorld, type WorldPosition } from "../runtime/board-coordinates";
 
 export const LAST_MOVE_MARKER_HEIGHT = BOARD_SURFACE_Y + 0.052;
 
@@ -17,9 +13,7 @@ type LastMoveMarkerGeometry = Readonly<{
   start: WorldPosition;
 }>;
 
-export function resolveLastMoveMarkerGeometry(
-  move: MoveRecord,
-): LastMoveMarkerGeometry | null {
+export function resolveLastMoveMarkerGeometry(move: MoveRecord): LastMoveMarkerGeometry | null {
   const [startX, , startZ] = squareToWorld(move.from);
   const [endX, , endZ] = squareToWorld(move.to);
   const deltaX = endX - startX;

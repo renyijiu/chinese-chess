@@ -18,47 +18,76 @@ export const CLIP_CONTRACT = {
   move_loop: {
     clip: "move_loop",
     loop: true,
-    markers: [{ name: "contact_left", at: 0.25 }, { name: "contact_right", at: 0.75 }],
+    markers: [
+      { name: "contact_left", at: 0.25 },
+      { name: "contact_right", at: 0.75 },
+    ],
   },
   move_end: { clip: "move_end", loop: false, markers: [{ name: "settle", at: 0.82 }] },
   attack_primary: {
     clip: "attack_primary",
     loop: false,
-    markers: [{ name: "telegraph", at: 0.25 }, { name: "release", at: 0.58 }, { name: "recover", at: 0.88 }],
+    markers: [
+      { name: "telegraph", at: 0.25 },
+      { name: "release", at: 0.58 },
+      { name: "recover", at: 0.88 },
+    ],
   },
   hit_react: {
     clip: "hit_react",
     loop: false,
-    markers: [{ name: "impact", at: 0.25 }, { name: "recover", at: 0.86 }],
+    markers: [
+      { name: "impact", at: 0.25 },
+      { name: "recover", at: 0.86 },
+    ],
   },
   destroy: {
     clip: "destroy",
     loop: false,
-    markers: [{ name: "fracture", at: 0.38 }, { name: "vanish", at: 0.78 }, { name: "complete", at: 1 }],
+    markers: [
+      { name: "fracture", at: 0.38 },
+      { name: "vanish", at: 0.78 },
+      { name: "complete", at: 1 },
+    ],
   },
 };
 
 function roleManifest(role, spec, metrics) {
-  const lods = Object.fromEntries(LODS.map((lod) => [lod, `/models/pieces/v1/${role}/${role}-${lod}.glb`]));
+  const lods = Object.fromEntries(
+    LODS.map((lod) => [lod, `/models/pieces/v1/${role}/${role}-${lod}.glb`]),
+  );
   return {
     displayNames: spec.displayNames,
     source: {
       blend: `assets/characters/${role}/source/${role}.blend`,
       metadata: `assets/characters/${role}/${role}.asset.json`,
-      rawLods: Object.fromEntries(LODS.map((lod) => [lod, `assets/characters/${role}/exports/${role}-${lod}-raw.glb`])),
+      rawLods: Object.fromEntries(
+        LODS.map((lod) => [lod, `assets/characters/${role}/exports/${role}-${lod}-raw.glb`]),
+      ),
     },
     dimensions: {
       baseDiameter: 0.89,
       maxFootprint: metrics?.maxFootprint ?? 0,
       approximateHeight: metrics?.height ?? 0,
     },
-    lodBudgets: Object.fromEntries(LODS.map((lod, index) => [lod, {
-      triangles: spec.budgets[index],
-      textureMax: [2048, 1024, 512][index],
-    }])),
+    lodBudgets: Object.fromEntries(
+      LODS.map((lod, index) => [
+        lod,
+        {
+          triangles: spec.budgets[index],
+          textureMax: [2048, 1024, 512][index],
+        },
+      ]),
+    ),
     requiredNodes: [
-      "piece_root", "rig_root", "character_mesh", "socket_attack_origin",
-      "socket_hit_center", "socket_ground", "socket_trail_start", "socket_trail_end",
+      "piece_root",
+      "rig_root",
+      "character_mesh",
+      "socket_attack_origin",
+      "socket_hit_center",
+      "socket_ground",
+      "socket_trail_start",
+      "socket_trail_end",
     ],
     clips: CLIP_CONTRACT,
     variants: {
@@ -76,7 +105,8 @@ export function createManifest(metrics = {}) {
     textureCompression: {
       status: "not-applicable-no-bitmap-textures",
       bitmapTextureCount: 0,
-      policy: "When bitmap textures are introduced, BaseColor uses ETC1S and normal/ORM use UASTC with mipmaps.",
+      policy:
+        "When bitmap textures are introduced, BaseColor uses ETC1S and normal/ORM use UASTC with mipmaps.",
     },
     geometryCompression: "EXT_meshopt_compression",
     vertexColorEncoding: {
@@ -97,16 +127,22 @@ export function createManifest(metrics = {}) {
         displayName: "红方",
         emblem: "qin-cinnabar-command-seal",
         palette: {
-          faction_cloth_primary: "#6a4937", faction_cloth_secondary: "#6faf95",
-          faction_trim: "#c44b2f", aged_bronze: "#5b4031", energy: "#d7a35d",
+          faction_cloth_primary: "#6a4937",
+          faction_cloth_secondary: "#6faf95",
+          faction_trim: "#c44b2f",
+          aged_bronze: "#5b4031",
+          energy: "#d7a35d",
         },
       },
       black: {
         displayName: "黑方",
         emblem: "qin-verdigris-command-seal",
         palette: {
-          faction_cloth_primary: "#284e43", faction_cloth_secondary: "#122621",
-          faction_trim: "#688a72", aged_bronze: "#3f5d50", energy: "#9dc8ae",
+          faction_cloth_primary: "#284e43",
+          faction_cloth_secondary: "#122621",
+          faction_trim: "#688a72",
+          aged_bronze: "#3f5d50",
+          energy: "#9dc8ae",
         },
       },
     },

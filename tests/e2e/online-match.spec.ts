@@ -35,10 +35,7 @@ async function resumeSavedMatch(host: Page, guest: Page) {
     host.reload({ waitUntil: "domcontentloaded" }),
     guest.reload({ waitUntil: "domcontentloaded" }),
   ]);
-  await Promise.all([
-    waitForEnvironmentSettled(host),
-    waitForEnvironmentSettled(guest),
-  ]);
+  await Promise.all([waitForEnvironmentSettled(host), waitForEnvironmentSettled(guest)]);
 
   const hostContinue = host.getByRole("button", { name: "重新配对继续在线棋局" });
   const guestContinue = guest.getByRole("button", { name: "重新配对继续在线棋局" });
@@ -102,10 +99,7 @@ test("@online two browsers can pair, play, resign off-turn, and rematch with swa
     const host = await hostContext.newPage();
     const guest = await guestContext.newPage();
 
-    await Promise.all([
-      openCleanGame(host, "low", true),
-      openCleanGame(guest, "low", true),
-    ]);
+    await Promise.all([openCleanGame(host, "low", true), openCleanGame(guest, "low", true)]);
     await completeManualSignaling(host, guest);
     await readyBoth(host, guest);
 
@@ -165,9 +159,6 @@ test("@online two browsers can pair, play, resign off-turn, and rematch with swa
     await expect(guest.locator(".xiangqi-game-shell")).toHaveAttribute("data-human-side", "red");
     await waitForBothRevisions(host, guest, 0);
   } finally {
-    await Promise.allSettled([
-      hostContext?.close(),
-      guestContext?.close(),
-    ]);
+    await Promise.allSettled([hostContext?.close(), guestContext?.close()]);
   }
 });

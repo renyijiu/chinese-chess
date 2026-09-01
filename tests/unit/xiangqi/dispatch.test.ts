@@ -70,17 +70,32 @@ describe("command dispatch", () => {
   it.each([
     {
       name: "off-board coordinates",
-      command: { type: "move", expectedRevision: 0, from: { file: -1, rank: 3 }, to: { file: 0, rank: 4 } } as const,
+      command: {
+        type: "move",
+        expectedRevision: 0,
+        from: { file: -1, rank: 3 },
+        to: { file: 0, rank: 4 },
+      } as const,
       code: "invalid-square",
     },
     {
       name: "empty source",
-      command: { type: "move", expectedRevision: 0, from: { file: 0, rank: 4 }, to: { file: 0, rank: 5 } } as const,
+      command: {
+        type: "move",
+        expectedRevision: 0,
+        from: { file: 0, rank: 4 },
+        to: { file: 0, rank: 5 },
+      } as const,
       code: "no-piece",
     },
     {
       name: "illegal destination",
-      command: { type: "move", expectedRevision: 0, from: { file: 0, rank: 3 }, to: { file: 1, rank: 3 } } as const,
+      command: {
+        type: "move",
+        expectedRevision: 0,
+        from: { file: 0, rank: 3 },
+        to: { file: 1, rank: 3 },
+      } as const,
       code: "illegal-move",
     },
   ])("rejects $name without mutation", ({ command, code }) => {
@@ -92,11 +107,15 @@ describe("command dispatch", () => {
   });
 
   it("emits capture after move and resets the no-capture counter", () => {
-    const state = makeState([
-      ...guardedGenerals(),
-      piece("red:chariot:0", "red", "chariot", 0, 0),
-      piece("black:soldier:0", "black", "soldier", 0, 2),
-    ], "red", { noCapturePlies: 41 });
+    const state = makeState(
+      [
+        ...guardedGenerals(),
+        piece("red:chariot:0", "red", "chariot", 0, 0),
+        piece("black:soldier:0", "black", "soldier", 0, 2),
+      ],
+      "red",
+      { noCapturePlies: 41 },
+    );
     const result = dispatch(state, {
       type: "move",
       expectedRevision: 0,
@@ -106,10 +125,7 @@ describe("command dispatch", () => {
 
     expect(result.error).toBeUndefined();
     expect(result.state.noCapturePlies).toBe(0);
-    expect(result.events.map((event) => event.type)).toEqual([
-      "MoveCommitted",
-      "PieceCaptured",
-    ]);
+    expect(result.events.map((event) => event.type)).toEqual(["MoveCommitted", "PieceCaptured"]);
     expect(getPieceAt(result.state, { file: 0, rank: 2 })?.id).toBe("red:chariot:0");
 
     const undone = dispatch(result.state, { type: "undo", expectedRevision: 1 });
@@ -173,10 +189,22 @@ describe("command dispatch", () => {
       piece("black:chariot:0", "black", "chariot", 8, 9),
     ]);
     const cycle: Array<[Square, Square]> = [
-      [{ file: 0, rank: 0 }, { file: 0, rank: 1 }],
-      [{ file: 8, rank: 9 }, { file: 8, rank: 8 }],
-      [{ file: 0, rank: 1 }, { file: 0, rank: 0 }],
-      [{ file: 8, rank: 8 }, { file: 8, rank: 9 }],
+      [
+        { file: 0, rank: 0 },
+        { file: 0, rank: 1 },
+      ],
+      [
+        { file: 8, rank: 9 },
+        { file: 8, rank: 8 },
+      ],
+      [
+        { file: 0, rank: 1 },
+        { file: 0, rank: 0 },
+      ],
+      [
+        { file: 8, rank: 8 },
+        { file: 8, rank: 9 },
+      ],
     ];
     const initialKey = getPositionKey(state);
     for (const [from, to] of [...cycle, ...cycle]) {
@@ -188,18 +216,26 @@ describe("command dispatch", () => {
   });
 
   it("draws at 100 quiet half-moves", () => {
-    const state = makeState([
-      ...guardedGenerals(),
-      piece("red:chariot:0", "red", "chariot", 0, 0),
-      piece("black:chariot:0", "black", "chariot", 8, 9),
-    ], "red", { noCapturePlies: 99 });
+    const state = makeState(
+      [
+        ...guardedGenerals(),
+        piece("red:chariot:0", "red", "chariot", 0, 0),
+        piece("black:chariot:0", "black", "chariot", 8, 9),
+      ],
+      "red",
+      { noCapturePlies: 99 },
+    );
     const result = dispatch(state, {
       type: "move",
       expectedRevision: 0,
       from: { file: 0, rank: 0 },
       to: { file: 0, rank: 1 },
     });
-    expect(result.state.status).toMatchObject({ kind: "ended", reason: "no-capture", winner: null });
+    expect(result.state.status).toMatchObject({
+      kind: "ended",
+      reason: "no-capture",
+      winner: null,
+    });
   });
 
   it("allows only one consecutive undo and allows another after a new move", () => {
@@ -208,12 +244,18 @@ describe("command dispatch", () => {
     expect(undone.error).toBeUndefined();
     expect(getPieceAt(undone.state, { file: 0, rank: 3 })?.id).toBe("red:soldier:0");
 
-    const repeated = dispatch(undone.state, { type: "undo", expectedRevision: undone.state.revision });
+    const repeated = dispatch(undone.state, {
+      type: "undo",
+      expectedRevision: undone.state.revision,
+    });
     expect(repeated.state).toBe(undone.state);
     expect(repeated.error?.code).toBe("cannot-undo");
 
     const movedAgain = move(undone.state, { file: 2, rank: 3 }, { file: 2, rank: 4 });
-    const secondUndo = dispatch(movedAgain, { type: "undo", expectedRevision: movedAgain.revision });
+    const secondUndo = dispatch(movedAgain, {
+      type: "undo",
+      expectedRevision: movedAgain.revision,
+    });
     expect(secondUndo.error).toBeUndefined();
   });
 
@@ -262,7 +304,9 @@ describe("command dispatch", () => {
         const pieces = state.board.filter((candidate) => candidate !== null);
         expect(new Set(pieces.map((candidate) => candidate.id)).size).toBe(pieces.length);
         expect(pieces.filter((candidate) => candidate.role === "general")).toHaveLength(2);
-        expect(pieces.every((candidate) => getPieceAt(state, candidate.square)?.id === candidate.id)).toBe(true);
+        expect(
+          pieces.every((candidate) => getPieceAt(state, candidate.square)?.id === candidate.id),
+        ).toBe(true);
       }
     }
   });

@@ -25,8 +25,13 @@ function readGlb(path) {
     triangles,
     joints: skin?.joints?.length ?? 0,
     clips: (gltf.animations ?? []).length,
-    primitives: (gltf.meshes ?? []).reduce((total, mesh) => total + (mesh.primitives?.length ?? 0), 0),
-    meshopt: [...(gltf.extensionsUsed ?? []), ...(gltf.extensionsRequired ?? [])].includes("EXT_meshopt_compression"),
+    primitives: (gltf.meshes ?? []).reduce(
+      (total, mesh) => total + (mesh.primitives?.length ?? 0),
+      0,
+    ),
+    meshopt: [...(gltf.extensionsUsed ?? []), ...(gltf.extensionsRequired ?? [])].includes(
+      "EXT_meshopt_compression",
+    ),
     bitmapTextures: gltf.textures?.length ?? 0,
   };
 }
@@ -39,10 +44,16 @@ if (!existsSync(manifestPath)) {
 const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
 console.log("# Xiangqi piece asset report\n");
 console.log(`- Contract: ${manifest.schema}`);
-console.log(`- Coordinates: ${manifest.coordinateSystem.units}, ${manifest.coordinateSystem.up} up, ${manifest.coordinateSystem.forward} forward`);
+console.log(
+  `- Coordinates: ${manifest.coordinateSystem.units}, ${manifest.coordinateSystem.up} up, ${manifest.coordinateSystem.forward} forward`,
+);
 console.log(`- KTX2: ${manifest.textureCompression.status}`);
-console.log(`- Coverage: ${ROLE_NAMES.length} geometry families / ${ROLE_NAMES.length * 2} faction variants / ${ROLE_NAMES.length * LODS.length} GLBs\n`);
-console.log("| Role | Faction names | LOD | Triangles | Budget | Joints | Clips | Primitives | Meshopt | Footprint | Size |\n|---|---|---|---:|---:|---:|---:|---:|---|---:|---:|");
+console.log(
+  `- Coverage: ${ROLE_NAMES.length} geometry families / ${ROLE_NAMES.length * 2} faction variants / ${ROLE_NAMES.length * LODS.length} GLBs\n`,
+);
+console.log(
+  "| Role | Faction names | LOD | Triangles | Budget | Joints | Clips | Primitives | Meshopt | Footprint | Size |\n|---|---|---|---:|---:|---:|---:|---:|---|---:|---:|",
+);
 let lod1Bytes = 0;
 for (const role of ROLE_NAMES) {
   const asset = manifest.roles[role];
@@ -50,7 +61,9 @@ for (const role of ROLE_NAMES) {
     const relative = asset.variants.red.lods[lod];
     const path = resolve(root, "public", relative.replace(/^\//, ""));
     if (!existsSync(path)) {
-      console.log(`| ${role} | ${asset.displayNames.red}/${asset.displayNames.black} | ${lod} | MISSING | ${asset.lodBudgets[lod].triangles} | — | — | — | — | — | — |`);
+      console.log(
+        `| ${role} | ${asset.displayNames.red}/${asset.displayNames.black} | ${lod} | MISSING | ${asset.lodBudgets[lod].triangles} | — | — | — | — | — | — |`,
+      );
       continue;
     }
     const report = readGlb(path);
@@ -64,4 +77,6 @@ for (const role of ROLE_NAMES) {
   }
 }
 console.log(`\n- LOD1 roster download: ${(lod1Bytes / 1024).toFixed(1)} KiB`);
-console.log("- Visual source: the imported terracotta cartoon role set is authoritative; runtime GLBs preserve its silhouettes and mineral-pigment palette while adding the shared rig, clips, sockets, LODs, and Meshopt delivery contract.");
+console.log(
+  "- Visual source: the imported terracotta cartoon role set is authoritative; runtime GLBs preserve its silhouettes and mineral-pigment palette while adding the shared rig, clips, sockets, LODs, and Meshopt delivery contract.",
+);

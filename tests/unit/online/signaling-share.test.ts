@@ -20,20 +20,24 @@ describe("manual signaling sharing", () => {
     const toDataURL = vi.fn(async () => "data:image/png;base64,qr");
     const loader = vi.fn(async () => ({ toDataURL }));
 
-    await expect(createSignalingQrDataUrl("invite", loader)).resolves.toBe("data:image/png;base64,qr");
+    await expect(createSignalingQrDataUrl("invite", loader)).resolves.toBe(
+      "data:image/png;base64,qr",
+    );
     expect(loader).toHaveBeenCalledOnce();
-    expect(toDataURL).toHaveBeenCalledWith("invite", expect.objectContaining({
-      errorCorrectionLevel: "L",
-      width: 280,
-    }));
+    expect(toDataURL).toHaveBeenCalledWith(
+      "invite",
+      expect.objectContaining({
+        errorCorrectionLevel: "L",
+        width: 280,
+      }),
+    );
   });
 
   it("rejects oversized input before loading the QR library", async () => {
     const loader = vi.fn();
-    await expect(createSignalingQrDataUrl(
-      "a".repeat(MAX_SIGNALING_QR_BYTES + 1),
-      loader,
-    )).rejects.toThrow("qr-signal-too-large");
+    await expect(
+      createSignalingQrDataUrl("a".repeat(MAX_SIGNALING_QR_BYTES + 1), loader),
+    ).rejects.toThrow("qr-signal-too-large");
     expect(loader).not.toHaveBeenCalled();
   });
 

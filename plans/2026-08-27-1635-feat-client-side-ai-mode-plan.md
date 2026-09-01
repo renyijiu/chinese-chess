@@ -150,20 +150,20 @@ flowchart TB
 
 ### Acceptance Examples
 
-| ID | Covers | Given | When | Then |
-| --- | --- | --- | --- | --- |
-| AE1 | R2, R3 | A new computer match receives die value 5 | The die settles | The player is red and may make the first move |
-| AE2 | R2, R3 | A new computer match receives die value 4 | The die settles | The player is black and the computer opens as red |
-| AE3 | R7, R25 | Master assets are unavailable | The player starts Master | The application explains the fallback, continues on Hard, and unlocks the board at the proper turn |
-| AE4 | R8, R9, R14 | A search is running for revision 7 | The player restarts before the result arrives | The revision-7 result is discarded and the new game remains unchanged |
-| AE5 | R9, R25 | An engine returns a malformed or illegal candidate | A4 validates it | No move is committed and the application retries or falls back without corrupting state |
-| AE6 | R10, R12 | The computer is thinking on a slower device | The player moves the camera or changes volume | Those controls respond while board commands remain locked |
-| AE7 | R11 | The computer captures a piece | The move is committed | The ordinary attack, hit, destroy, audio, history, and resulting check or terminal cues play once |
-| AE8 | R13 | A computer match is active | The HUD is displayed | No undo control is available, while local two-player mode still exposes its existing control |
-| AE9 | R15 | A move ends the game | A queued or late engine result arrives | The result is ignored and the terminal state remains authoritative |
-| AE10 | R16, R17 | A saved game belongs to the computer at revision 12 | The page is refreshed and the game is continued | The same side and difficulty return and one search begins for revision 12 |
-| AE11 | R22, R23 | The same representative position is played at each lightweight difficulty | The configured search budget is applied | Hard evaluates more deeply than Normal and Easy, while all returned moves remain legal |
-| AE12 | R19–R21 | A production build contains a GPL engine module | The release package is audited | Its corresponding source, build path, notices, weights, and asset provenance are available and match the distributed version |
+| ID   | Covers      | Given                                                                     | When                                            | Then                                                                                                                         |
+| ---- | ----------- | ------------------------------------------------------------------------- | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| AE1  | R2, R3      | A new computer match receives die value 5                                 | The die settles                                 | The player is red and may make the first move                                                                                |
+| AE2  | R2, R3      | A new computer match receives die value 4                                 | The die settles                                 | The player is black and the computer opens as red                                                                            |
+| AE3  | R7, R25     | Master assets are unavailable                                             | The player starts Master                        | The application explains the fallback, continues on Hard, and unlocks the board at the proper turn                           |
+| AE4  | R8, R9, R14 | A search is running for revision 7                                        | The player restarts before the result arrives   | The revision-7 result is discarded and the new game remains unchanged                                                        |
+| AE5  | R9, R25     | An engine returns a malformed or illegal candidate                        | A4 validates it                                 | No move is committed and the application retries or falls back without corrupting state                                      |
+| AE6  | R10, R12    | The computer is thinking on a slower device                               | The player moves the camera or changes volume   | Those controls respond while board commands remain locked                                                                    |
+| AE7  | R11         | The computer captures a piece                                             | The move is committed                           | The ordinary attack, hit, destroy, audio, history, and resulting check or terminal cues play once                            |
+| AE8  | R13         | A computer match is active                                                | The HUD is displayed                            | No undo control is available, while local two-player mode still exposes its existing control                                 |
+| AE9  | R15         | A move ends the game                                                      | A queued or late engine result arrives          | The result is ignored and the terminal state remains authoritative                                                           |
+| AE10 | R16, R17    | A saved game belongs to the computer at revision 12                       | The page is refreshed and the game is continued | The same side and difficulty return and one search begins for revision 12                                                    |
+| AE11 | R22, R23    | The same representative position is played at each lightweight difficulty | The configured search budget is applied         | Hard evaluates more deeply than Normal and Easy, while all returned moves remain legal                                       |
+| AE12 | R19–R21     | A production build contains a GPL engine module                           | The release package is audited                  | Its corresponding source, build path, notices, weights, and asset provenance are available and match the distributed version |
 
 ### Success Criteria
 
@@ -302,13 +302,13 @@ stateDiagram-v2
   disposed --> [*]
 ```
 
-| Mode / tier | Provider | Availability | Failure behavior | Undo |
-| --- | --- | --- | --- | --- |
-| Local two-player | None | Existing app bundle | Existing recovery unchanged | Existing single-step control remains |
-| Easy | Lightweight Worker | Preloaded with app | Rebuild once, then deterministic legal candidate; otherwise recoverable retry/restart | Hidden |
-| Normal | Lightweight Worker | Preloaded with app | Same lifecycle, larger search budget | Hidden |
-| Hard | Lightweight Worker | Preloaded with app | Same lifecycle, largest lightweight budget | Hidden |
-| Master | Fairy Worker/WASM/NNUE | Lazy, versioned, verified cache | Persist effective tier as Hard for this match; never auto-upgrade midgame | Hidden |
+| Mode / tier      | Provider               | Availability                    | Failure behavior                                                                      | Undo                                 |
+| ---------------- | ---------------------- | ------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------ |
+| Local two-player | None                   | Existing app bundle             | Existing recovery unchanged                                                           | Existing single-step control remains |
+| Easy             | Lightweight Worker     | Preloaded with app              | Rebuild once, then deterministic legal candidate; otherwise recoverable retry/restart | Hidden                               |
+| Normal           | Lightweight Worker     | Preloaded with app              | Same lifecycle, larger search budget                                                  | Hidden                               |
+| Hard             | Lightweight Worker     | Preloaded with app              | Same lifecycle, largest lightweight budget                                            | Hidden                               |
+| Master           | Fairy Worker/WASM/NNUE | Lazy, versioned, verified cache | Persist effective tier as Hard for this match; never auto-upgrade midgame             | Hidden                               |
 
 ### Runtime Contracts
 
@@ -592,18 +592,18 @@ npm run test:performance
 
 ### Test Matrix
 
-| Layer | Required proof |
-| --- | --- |
-| Pure rules reuse | Every generated candidate is legal via current `dispatch`; check, terminal, repetition, and no-capture counters remain authoritative |
-| Search | Fixed-seed determinism, tier budget ordering, completed-depth publication, cancellation, timeout, and randomized legal-position invariants |
-| Protocol/lifecycle | Runtime validation, full identity matching, duplicate/late rejection, visibility/restart/unmount disposal, one active request, fallback and retry |
-| Persistence | v1→local migration, v2 AI round-trip, fixed die, requested/effective tier, backup, corrupt/partial metadata rejection |
-| UI/accessibility | Mode/difficulty/die flows, both sides, no AI undo, local undo retained, focus/keyboard/touch, reduced motion, accurate status |
-| Master runtime | Exact asset hashes and source, UCI handshake, Xiangqi FEN/coordinates, secure isolation, verified cache, stop/terminate, no COEP resource failures |
-| Presentation | Human and computer moves share event/timeline/audio paths; captures/check/end cues occur once; candidate waits for current animation |
-| Resilience | Malformed/illegal/stale output, 404/corrupt cache, hidden page, context replacement, engine crash, storage failure, terminal late message |
-| Performance | No main-thread search task >50 ms; responsive camera/HUD; stable Worker/listener/timer/memory trend over 100 turns and repeated restarts |
-| Release | GPL project license, notices, exact corresponding source/build/patches, NNUE/media provenance, validator and production smoke evidence |
+| Layer              | Required proof                                                                                                                                     |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Pure rules reuse   | Every generated candidate is legal via current `dispatch`; check, terminal, repetition, and no-capture counters remain authoritative               |
+| Search             | Fixed-seed determinism, tier budget ordering, completed-depth publication, cancellation, timeout, and randomized legal-position invariants         |
+| Protocol/lifecycle | Runtime validation, full identity matching, duplicate/late rejection, visibility/restart/unmount disposal, one active request, fallback and retry  |
+| Persistence        | v1→local migration, v2 AI round-trip, fixed die, requested/effective tier, backup, corrupt/partial metadata rejection                              |
+| UI/accessibility   | Mode/difficulty/die flows, both sides, no AI undo, local undo retained, focus/keyboard/touch, reduced motion, accurate status                      |
+| Master runtime     | Exact asset hashes and source, UCI handshake, Xiangqi FEN/coordinates, secure isolation, verified cache, stop/terminate, no COEP resource failures |
+| Presentation       | Human and computer moves share event/timeline/audio paths; captures/check/end cues occur once; candidate waits for current animation               |
+| Resilience         | Malformed/illegal/stale output, 404/corrupt cache, hidden page, context replacement, engine crash, storage failure, terminal late message          |
+| Performance        | No main-thread search task >50 ms; responsive camera/HUD; stable Worker/listener/timer/memory trend over 100 turns and repeated restarts           |
+| Release            | GPL project license, notices, exact corresponding source/build/patches, NNUE/media provenance, validator and production smoke evidence             |
 
 ### Manual Production Smoke
 

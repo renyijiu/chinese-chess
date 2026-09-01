@@ -319,16 +319,16 @@ docs/audio/
 
 ### Risks and Mitigations
 
-| Risk | Impact | Mitigation |
-|---|---|---|
-| Authored masters or rights evidence are incomplete | R10 cannot ship | U1 treats provenance and editable or lossless source as a release gate, not follow-up documentation. |
-| Lossy encoder padding creates a loop seam | R2 fails on one browser | Record audited loop markers, keep the loop long, and require desktop Safari plus real iOS listening before release. |
-| A late decode completes after unmount | A stale source can start or buffers can leak | KTD3 uses abort plus generation checks before every state change and source start. |
-| Presentation settles before semantic markers | Required cues disappear | KTD6 owns only semantic cue compensation and never flushes role, voice, or VFX markers. |
-| Revision IDs repeat after Restart | New-match audio or animation is suppressed | KTD9 scopes presentation IDs to a monotonic page-local match epoch. |
-| Visibility settlement races context suspension | A hidden cue can leak or replay | KTD10 closes eligibility synchronously on the visibility event and reopens it only after a successful resume. |
-| Decoded audio and transient response bodies overlap | Mobile memory spikes during the first match | KTD3 serializes fetch/decode, U2 reports decoded bytes, and R9 imposes authored and engine working-set ceilings. |
-| Authored cues mask role impact or voice | Tactical feedback becomes tiring | U1 keeps transients restrained; U4 reviews default mix on headphones and phone speakers. |
+| Risk                                                | Impact                                       | Mitigation                                                                                                          |
+| --------------------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Authored masters or rights evidence are incomplete  | R10 cannot ship                              | U1 treats provenance and editable or lossless source as a release gate, not follow-up documentation.                |
+| Lossy encoder padding creates a loop seam           | R2 fails on one browser                      | Record audited loop markers, keep the loop long, and require desktop Safari plus real iOS listening before release. |
+| A late decode completes after unmount               | A stale source can start or buffers can leak | KTD3 uses abort plus generation checks before every state change and source start.                                  |
+| Presentation settles before semantic markers        | Required cues disappear                      | KTD6 owns only semantic cue compensation and never flushes role, voice, or VFX markers.                             |
+| Revision IDs repeat after Restart                   | New-match audio or animation is suppressed   | KTD9 scopes presentation IDs to a monotonic page-local match epoch.                                                 |
+| Visibility settlement races context suspension      | A hidden cue can leak or replay              | KTD10 closes eligibility synchronously on the visibility event and reopens it only after a successful resume.       |
+| Decoded audio and transient response bodies overlap | Mobile memory spikes during the first match  | KTD3 serializes fetch/decode, U2 reports decoded bytes, and R9 imposes authored and engine working-set ceilings.    |
+| Authored cues mask role impact or voice             | Tactical feedback becomes tiring             | U1 keeps transients restrained; U4 reviews default mix on headphones and phone speakers.                            |
 
 ### Dependency Order
 
@@ -499,18 +499,18 @@ flowchart LR
 
 ### Automated Commands
 
-| Command | Applies to | Required outcome |
-|---|---|---|
-| `npm run assets:audio:validate` | U1, U4 | Manifest, files, hashes, MIME declarations, source records, encoded transfer limits, decoded authored estimate, and loop-marker bounds pass. |
-| `npm run test:presentation` | U1–U3 | Pack contract, engine state, semantic priority, settlement, match identity, and cleanup tests pass. |
-| `npm run typecheck` | U1–U4 | New manifest, engine, view-side, and coordinator types compile without suppression. |
-| `npm run lint` | U1–U4 | Code, tests, scripts, and docs introduce no lint errors. |
-| `npm run test:budget` | U1, U4 | Existing model/environment budgets and new audio transfer budgets pass together. |
-| `npm run test:e2e -- tests/e2e/audio.spec.ts tests/e2e/resilience.spec.ts` | U2–U4 | Gesture unlock, real decode, failure fallback, match continuity, visibility, and cleanup pass. |
-| `npm run test:performance` | U4 | Existing render thresholds remain green; cold-cache unique response accounting, request/decode concurrency, and source-count probes stay within R9. This command does not claim audible quality or iOS coverage. |
-| `npm run test:unit` | U4 | Xiangqi rules, game controller, and presentation regressions remain green. |
-| `npm run test:e2e` | U4 | The complete desktop and mobile browser flow remains playable with audio enabled and failed. |
-| `npm run build` | U4 | The production Vite/vinext build includes versioned media and serves valid asset URLs. |
+| Command                                                                    | Applies to | Required outcome                                                                                                                                                                                                 |
+| -------------------------------------------------------------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run assets:audio:validate`                                            | U1, U4     | Manifest, files, hashes, MIME declarations, source records, encoded transfer limits, decoded authored estimate, and loop-marker bounds pass.                                                                     |
+| `npm run test:presentation`                                                | U1–U3      | Pack contract, engine state, semantic priority, settlement, match identity, and cleanup tests pass.                                                                                                              |
+| `npm run typecheck`                                                        | U1–U4      | New manifest, engine, view-side, and coordinator types compile without suppression.                                                                                                                              |
+| `npm run lint`                                                             | U1–U4      | Code, tests, scripts, and docs introduce no lint errors.                                                                                                                                                         |
+| `npm run test:budget`                                                      | U1, U4     | Existing model/environment budgets and new audio transfer budgets pass together.                                                                                                                                 |
+| `npm run test:e2e -- tests/e2e/audio.spec.ts tests/e2e/resilience.spec.ts` | U2–U4      | Gesture unlock, real decode, failure fallback, match continuity, visibility, and cleanup pass.                                                                                                                   |
+| `npm run test:performance`                                                 | U4         | Existing render thresholds remain green; cold-cache unique response accounting, request/decode concurrency, and source-count probes stay within R9. This command does not claim audible quality or iOS coverage. |
+| `npm run test:unit`                                                        | U4         | Xiangqi rules, game controller, and presentation regressions remain green.                                                                                                                                       |
+| `npm run test:e2e`                                                         | U4         | The complete desktop and mobile browser flow remains playable with audio enabled and failed.                                                                                                                     |
+| `npm run build`                                                            | U4         | The production Vite/vinext build includes versioned media and serves valid asset URLs.                                                                                                                           |
 
 ### Behavioral Gates
 
@@ -546,9 +546,9 @@ flowchart LR
 
 ### Unit Completion
 
-| Unit | Done signal |
-|---|---|
-| U1 | Final six-asset pack, lossless/editable sources, manifest, provenance, hashes, and static budget validation are approved. |
-| U2 | Atomic loading, synth fallback, scheduled crossfade, visibility handling, and disposal pass deterministic unit coverage. |
-| U3 | Semantic capture/check/result delivery, view-side mapping, early-settle behavior, and match-scoped identity pass unit coverage. |
-| U4 | Real browser decode, fault injection, transfer accounting, repeated-match cleanup, iOS review, and fifteen-minute listening evidence pass. |
+| Unit | Done signal                                                                                                                                |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| U1   | Final six-asset pack, lossless/editable sources, manifest, provenance, hashes, and static budget validation are approved.                  |
+| U2   | Atomic loading, synth fallback, scheduled crossfade, visibility handling, and disposal pass deterministic unit coverage.                   |
+| U3   | Semantic capture/check/result delivery, view-side mapping, early-settle behavior, and match-scoped identity pass unit coverage.            |
+| U4   | Real browser decode, fault injection, transfer accounting, repeated-match cleanup, iOS review, and fifteen-minute listening evidence pass. |

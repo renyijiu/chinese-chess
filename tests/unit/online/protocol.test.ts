@@ -159,16 +159,21 @@ describe("online protocol v1", () => {
 
     const command = messages[2];
     if (!command || command.type !== "command") throw new Error("bad fixture");
-    expect(decodeOnlineMessageV1(JSON.stringify({
-      ...command,
-      command: { ...command.command, promotion: "general" },
-    }))).toEqual({ ok: false, error: { code: "schema" } });
+    expect(
+      decodeOnlineMessageV1(
+        JSON.stringify({
+          ...command,
+          command: { ...command.command, promotion: "general" },
+        }),
+      ),
+    ).toEqual({ ok: false, error: { code: "schema" } });
   });
 
   it("requires canonical known feature subsets and rejects unknown enums", () => {
     const hello = messages[0];
-    expect(decodeOnlineMessageV1(JSON.stringify({ ...hello, features: ["snapshot-v1"] })).ok)
-      .toBe(true);
+    expect(decodeOnlineMessageV1(JSON.stringify({ ...hello, features: ["snapshot-v1"] })).ok).toBe(
+      true,
+    );
     for (const features of [
       ["snapshot-v1", "rematch-v1"],
       ["snapshot-v1", "snapshot-v1"],
@@ -188,18 +193,27 @@ describe("online protocol v1", () => {
   });
 
   it("keeps both resignation phases exact-key and mutually exclusive", () => {
-    const commit = messages.find((message) => message.type === "resign" && message.action === "commit")!;
-    const request = messages.find((message) => message.type === "resign" && message.action === "request")!;
+    const commit = messages.find(
+      (message) => message.type === "resign" && message.action === "commit",
+    )!;
+    const request = messages.find(
+      (message) => message.type === "resign" && message.action === "request",
+    )!;
 
-    expect(decodeOnlineMessageV1(JSON.stringify({ ...request, commandId: "not-allowed" })))
-      .toEqual({ ok: false, error: { code: "schema" } });
-    expect(decodeOnlineMessageV1(JSON.stringify({ ...commit, knownRevision: 2 })))
-      .toEqual({ ok: false, error: { code: "schema" } });
+    expect(decodeOnlineMessageV1(JSON.stringify({ ...request, commandId: "not-allowed" }))).toEqual(
+      { ok: false, error: { code: "schema" } },
+    );
+    expect(decodeOnlineMessageV1(JSON.stringify({ ...commit, knownRevision: 2 }))).toEqual({
+      ok: false,
+      error: { code: "schema" },
+    });
     const missingAction = Object.fromEntries(
       Object.entries(commit).filter(([key]) => key !== "action"),
     );
-    expect(decodeOnlineMessageV1(JSON.stringify(missingAction)))
-      .toEqual({ ok: false, error: { code: "schema" } });
+    expect(decodeOnlineMessageV1(JSON.stringify(missingAction))).toEqual({
+      ok: false,
+      error: { code: "schema" },
+    });
   });
 
   it("enforces bounded IDs, safe integers, lowercase hashes, and legal move squares", () => {
@@ -221,14 +235,22 @@ describe("online protocol v1", () => {
 
     const command = messages[2];
     if (!command || command.type !== "command") throw new Error("bad fixture");
-    expect(decodeOnlineMessageV1(JSON.stringify({
-      ...command,
-      command: { ...command.command, from: { file: 9, rank: 0 } },
-    }))).toEqual({ ok: false, error: { code: "schema" } });
-    expect(decodeOnlineMessageV1(JSON.stringify({
-      ...command,
-      afterRevision: command.expectedRevision + 2,
-    }))).toEqual({ ok: false, error: { code: "schema" } });
+    expect(
+      decodeOnlineMessageV1(
+        JSON.stringify({
+          ...command,
+          command: { ...command.command, from: { file: 9, rank: 0 } },
+        }),
+      ),
+    ).toEqual({ ok: false, error: { code: "schema" } });
+    expect(
+      decodeOnlineMessageV1(
+        JSON.stringify({
+          ...command,
+          afterRevision: command.expectedRevision + 2,
+        }),
+      ),
+    ).toEqual({ ok: false, error: { code: "schema" } });
   });
 
   it("distinguishes size, UTF-8, JSON, schema, and version failures before parsing payloads", () => {
@@ -240,7 +262,7 @@ describe("online protocol v1", () => {
       ok: false,
       error: { code: "encoding" },
     });
-    expect(decodeOnlineMessageV1("{" )).toEqual({ ok: false, error: { code: "json" } });
+    expect(decodeOnlineMessageV1("{")).toEqual({ ok: false, error: { code: "json" } });
     expect(decodeOnlineMessageV1("[]")).toEqual({ ok: false, error: { code: "schema" } });
     expect(decodeOnlineMessageV1(JSON.stringify({ v: 2 }))).toEqual({
       ok: false,

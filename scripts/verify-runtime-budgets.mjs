@@ -4,7 +4,9 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
-const manifest = JSON.parse(await readFile(join(root, "public/models/pieces/v1/manifest.json"), "utf8"));
+const manifest = JSON.parse(
+  await readFile(join(root, "public/models/pieces/v1/manifest.json"), "utf8"),
+);
 const allPaths = new Set();
 const lod1Paths = new Set();
 const panoramaPaths = Object.freeze({
@@ -30,12 +32,14 @@ async function totalBytes(paths) {
 
 const lod1Bytes = await totalBytes(lod1Paths);
 const allRuntimeGlbBytes = await totalBytes(allPaths);
-const panoramaBytes = Object.fromEntries(await Promise.all(
-  Object.entries(panoramaPaths).map(async ([quality, assetPath]) => [
-    quality,
-    (await stat(join(root, "public", assetPath))).size,
-  ]),
-));
+const panoramaBytes = Object.fromEntries(
+  await Promise.all(
+    Object.entries(panoramaPaths).map(async ([quality, assetPath]) => [
+      quality,
+      (await stat(join(root, "public", assetPath))).size,
+    ]),
+  ),
+);
 const allPanoramaBytes = Object.values(panoramaBytes).reduce((total, bytes) => total + bytes, 0);
 const firstPlayableAssetBytes = lod1Bytes + panoramaBytes.high;
 const evidence = {
@@ -54,7 +58,16 @@ const evidence = {
 
 assert.ok(lod1Bytes <= 8.6 * 1024 * 1024, "LOD1 character runtime exceeds the 8.6 MiB budget");
 assert.ok(panoramaBytes.high <= 250_000, "high-quality Qin panorama exceeds the 250 KB budget");
-assert.ok(panoramaBytes.medium <= panoramaBytes.high, "medium panorama must not exceed high panorama bytes");
-assert.ok(panoramaBytes.low <= panoramaBytes.medium, "low panorama must not exceed medium panorama bytes");
-assert.ok(firstPlayableAssetBytes <= 12 * 1024 * 1024, "first-playable character and environment assets exceed 12 MiB");
+assert.ok(
+  panoramaBytes.medium <= panoramaBytes.high,
+  "medium panorama must not exceed high panorama bytes",
+);
+assert.ok(
+  panoramaBytes.low <= panoramaBytes.medium,
+  "low panorama must not exceed medium panorama bytes",
+);
+assert.ok(
+  firstPlayableAssetBytes <= 12 * 1024 * 1024,
+  "first-playable character and environment assets exceed 12 MiB",
+);
 console.log(JSON.stringify(evidence, null, 2));
