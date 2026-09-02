@@ -34,6 +34,9 @@ export function KeyboardBoardControl({
         onFocus={onFocus}
         onKeyDown={onKeyDown}
       >
+        <span aria-hidden="true" className="game-keyboard-control__icon">
+          键
+        </span>
         <span>键盘棋盘</span>
         <strong>{coordinate}</strong>
       </button>
