@@ -141,6 +141,10 @@ function browserStorage(): StorageLike | null {
   }
 }
 
+function shouldAutoFocusKeyboardBoard(): boolean {
+  return !window.matchMedia("(max-width: 680px) and (pointer: coarse)").matches;
+}
+
 export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
   const [animations] = useState(() => new AnimationRegistry());
   const [animateDieMatchId, setAnimateDieMatchId] = useState<string | null>(null);
@@ -340,8 +344,8 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
 
   useEffect(() => {
     if (phase !== "playing" || !focusBoardWhenReady.current) return;
-    keyboardControlRef.current?.focus();
     focusBoardWhenReady.current = false;
+    if (shouldAutoFocusKeyboardBoard()) keyboardControlRef.current?.focus();
   }, [game, phase]);
 
   const persistMatch = useCallback((nextMatch: SavedMatch): boolean => {

@@ -17,7 +17,23 @@ const screenshotOptions = {
 test("390 × 844 touch layout keeps game controls usable", async ({ page }) => {
   await openCleanGame(page);
   await page.getByRole("button", { name: "开始本机双人对局" }).tap();
-  await expect(page.locator(".game-keyboard-control button")).toBeVisible();
+  const keyboardControl = page.locator(".game-keyboard-control button");
+  await expect(keyboardControl).toBeVisible();
+  await expect(keyboardControl).not.toBeFocused();
+  await expect(keyboardControl.locator(".game-keyboard-control__icon")).toBeVisible();
+  await expect
+    .poll(async () => (await keyboardControl.boundingBox())?.width ?? Number.POSITIVE_INFINITY)
+    .toBeLessThanOrEqual(48);
+
+  await keyboardControl.focus();
+  await expect(keyboardControl.getByText("键盘棋盘")).toBeVisible();
+  await expect
+    .poll(async () => (await keyboardControl.boundingBox())?.width ?? 0)
+    .toBeGreaterThanOrEqual(120);
+  await keyboardControl.blur();
+  await expect
+    .poll(async () => (await keyboardControl.boundingBox())?.width ?? Number.POSITIVE_INFINITY)
+    .toBeLessThanOrEqual(48);
   await expect(page.locator(".game-history")).toHaveAttribute("data-expanded", "false");
   await expect(page.getByRole("button", { name: "展开完整着法历史" })).toBeVisible();
   await setReducedMotion(page);
@@ -108,4 +124,48 @@ test("390 × 844 touch layout keeps game controls usable", async ({ page }) => {
     "mobile-low-terminal.png",
     screenshotOptions,
   );
+});
+
+test("computer match keeps the collapsed keyboard control clear of status cards", async ({
+  page,
+}) => {
+  await openCleanGame(page, "low", true);
+  await page.getByRole("button", { name: "人机对战" }).tap();
+  await page.getByRole("radio", { name: "标准", exact: true }).check();
+  await page.getByRole("button", { name: "掷骰决定阵营" }).tap();
+  const startMatch = page.getByRole("button", { name: /以[红黑]方开始对局/ });
+  await expect(startMatch).toBeEnabled();
+  await startMatch.tap();
+
+  const keyboardControl = page.locator(".game-keyboard-control button");
+  const opponentStatus = page.getByRole("status", { name: "对手状态" });
+  await expect(opponentStatus).toBeVisible();
+  await expect(keyboardControl).not.toBeFocused();
+
+  const [keyboardBox, opponentBox] = await Promise.all([
+    keyboardControl.boundingBox(),
+    opponentStatus.boundingBox(),
+  ]);
+  expect(keyboardBox).not.toBeNull();
+  expect(opponentBox).not.toBeNull();
+  expect(keyboardBox!.x).toBeLessThanOrEqual(1);
+  expect(keyboardBox!.width).toBeLessThanOrEqual(48);
+  const overlapsOpponent =
+    keyboardBox!.x < opponentBox!.x + opponentBox!.width &&
+    keyboardBox!.x + keyboardBox!.width > opponentBox!.x &&
+    keyboardBox!.y < opponentBox!.y + opponentBox!.height &&
+    keyboardBox!.y + keyboardBox!.height > opponentBox!.y;
+  expect(overlapsOpponent).toBe(false);
+});
+
+test("wide coarse-pointer layout preserves keyboard autofocus", async ({ page }) => {
+  await page.setViewportSize({ width: 768, height: 844 });
+  await openCleanGame(page);
+  await page.getByRole("button", { name: "开始本机双人对局" }).tap();
+
+  const keyboardControl = page.locator(".game-keyboard-control button");
+  await expect(keyboardControl).toBeFocused();
+  await expect
+    .poll(async () => (await keyboardControl.boundingBox())?.width ?? 0)
+    .toBeGreaterThanOrEqual(150);
 });
