@@ -5,7 +5,7 @@
 [![License: GPL-3.0-only](https://img.shields.io/badge/license-GPL--3.0--only-blue.svg)](LICENSE)
 
 <p align="center">
-  <img alt="秦兵马俑中国象棋阵容" src="assets/characters/reviews/roster-contact-sheet-qin-terracotta.png" width="900">
+  <img alt="秦兵马俑 3D 中国象棋棋盘" src="assets/characters/reviews/roster-board-red-black-browser.png" width="900">
 </p>
 
 这是一个可进行本机双人、纯前端人机对弈，以及可选 WebRTC 好友直连的浏览器 3D 中国象棋。32 枚棋子使用帅/将、仕/士、相/象、车、马、炮、兵/卒七类 Q 版秦兵马俑带骨骼 GLB 资产；棋盘、环境、交互反馈和 HUD 共同采用暖烧陶、黑漆、旧铜、白垩及少量矿物残彩的微缩沙盘语言。
