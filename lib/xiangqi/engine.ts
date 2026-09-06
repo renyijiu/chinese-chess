@@ -10,6 +10,7 @@ import {
   type GameStatus,
   type MoveRecord,
   type Piece,
+  type PositionState,
   type ReplayCommand,
   type Role,
   type Side,
@@ -92,7 +93,7 @@ function pieceAt(board: Board, square: Square): Piece | null {
   return board[boardIndex(square)] ?? null;
 }
 
-export function getPieceAt(state: GameState, square: Square): Piece | null {
+export function getPieceAt(state: Pick<GameState, "board">, square: Square): Piece | null {
   return pieceAt(state.board, square);
 }
 
@@ -530,6 +531,58 @@ function endedStatus(
   };
 }
 
+function advancePosition(
+  state: PositionState,
+  board: Board,
+  captured: Piece | null,
+  inCheck: boolean,
+): PositionState {
+  const sideToMove = otherSide(state.sideToMove);
+  const noCapturePlies = captured ? 0 : state.noCapturePlies + 1;
+  const positionKey = getPositionKey({ board, sideToMove, rulesetId: state.rulesetId });
+  const repetitionCounts = {
+    ...state.repetitionCounts,
+    [positionKey]: (state.repetitionCounts[positionKey] ?? 0) + 1,
+  };
+  let status: GameStatus;
+  if (!sideHasLegalMove(board, sideToMove)) {
+    status = endedStatus(state.sideToMove, inCheck ? "checkmate" : "stalemate");
+  } else if ((repetitionCounts[positionKey] ?? 0) >= 3) {
+    status = endedStatus(null, "repetition");
+  } else if (noCapturePlies >= 100) {
+    status = endedStatus(null, "no-capture");
+  } else {
+    status = { kind: "playing", check: inCheck ? sideToMove : null };
+  }
+  return {
+    board,
+    sideToMove,
+    rulesetId: state.rulesetId,
+    noCapturePlies,
+    repetitionCounts,
+    status,
+  };
+}
+
+/** Legal search candidates share move and terminal rules with authoritative dispatch. */
+export function getLegalPositionMoves(state: PositionState) {
+  if (state.status.kind !== "playing") return [];
+  return state.board.flatMap((piece) => {
+    if (!piece || piece.side !== state.sideToMove) return [];
+    return legalMovesForPiece(state.board, piece).map((to) => {
+      const board = movePiece(state.board, piece, to);
+      const captured = pieceAt(state.board, to);
+      const givesCheck = isInCheckOnBoard(board, otherSide(state.sideToMove));
+      return {
+        from: piece.square,
+        to,
+        givesCheck,
+        advance: () => advancePosition(state, board, captured, givesCheck),
+      };
+    });
+  });
+}
+
 function dispatchMove(
   state: GameState,
   command: Extract<GameCommand, { type: "move" }>,
@@ -570,29 +623,12 @@ function dispatchMove(
   const nextBoard = movePiece(state.board, piece, command.to);
   const nextSide = otherSide(state.sideToMove);
   const nextRevision = state.revision + 1;
-  const nextNoCapturePlies = captured ? 0 : state.noCapturePlies + 1;
-  const positionKey = getPositionKey({
-    board: nextBoard,
-    sideToMove: nextSide,
-    rulesetId: state.rulesetId,
-  });
-  const nextRepetitionCounts = {
-    ...state.repetitionCounts,
-    [positionKey]: (state.repetitionCounts[positionKey] ?? 0) + 1,
-  };
   const inCheck = isInCheckOnBoard(nextBoard, nextSide);
-  const hasMove = sideHasLegalMove(nextBoard, nextSide);
-
-  let status: GameStatus;
-  if (!hasMove) {
-    status = endedStatus(state.sideToMove, inCheck ? "checkmate" : "stalemate");
-  } else if ((nextRepetitionCounts[positionKey] ?? 0) >= 3) {
-    status = endedStatus(null, "repetition");
-  } else if (nextNoCapturePlies >= 100) {
-    status = endedStatus(null, "no-capture");
-  } else {
-    status = { kind: "playing", check: inCheck ? nextSide : null };
-  }
+  const {
+    noCapturePlies: nextNoCapturePlies,
+    repetitionCounts: nextRepetitionCounts,
+    status,
+  } = advancePosition(state, nextBoard, target, inCheck);
 
   const move: MoveRecord = {
     revision: nextRevision,
