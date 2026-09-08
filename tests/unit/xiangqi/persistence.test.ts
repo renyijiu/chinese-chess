@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import * as engine from "../../../lib/xiangqi/engine";
+import { GameReplayValidator } from "../../../lib/xiangqi/persistence";
 
 import {
   XiangqiSerializationError,
@@ -22,6 +24,53 @@ function apply(state: GameState, replay: ReplayCommand): GameState {
 }
 
 describe("replay persistence", () => {
+  it("incrementally validates saves, including undo, without replaying the prefix", () => {
+    const validator = new GameReplayValidator();
+    const moved = apply(createInitialGame(), {
+      type: "move",
+      from: { file: 0, rank: 3 },
+      to: { file: 0, rank: 4 },
+    });
+    const undone = apply(moved, { type: "undo" });
+    const replay = vi.spyOn(engine, "dispatch");
+    try {
+      expect(validator.validate(serializeGame(moved))).toBe(1);
+      replay.mockClear();
+      expect(validator.validate(serializeGame(moved))).toBe(1);
+      expect(replay).not.toHaveBeenCalled();
+      expect(validator.validate(serializeGame(undone))).toBe(2);
+      expect(replay).toHaveBeenCalledTimes(1);
+    } finally {
+      replay.mockRestore();
+    }
+  });
+
+  it("revalidates changed prefixes and recovers after an invalid appended command", () => {
+    const validator = new GameReplayValidator();
+    const initial = createInitialGame();
+    const moved = apply(initial, {
+      type: "move",
+      from: { file: 0, rank: 3 },
+      to: { file: 0, rank: 4 },
+    });
+    const invalid = { type: "move", from: { file: 2, rank: 3 }, to: { file: 2, rank: 4 } } as const;
+    expect(validator.validate(serializeGame(moved))).toBe(1);
+    expect(() =>
+      validator.validate(serializeGame({ ...moved, commandLog: [...moved.commandLog, invalid] })),
+    ).toThrow(/not-your-turn/);
+    const alternate = apply(initial, invalid);
+    const blackReply = apply(alternate, {
+      type: "move",
+      from: { file: 0, rank: 6 },
+      to: { file: 0, rank: 5 },
+    });
+    expect(validator.validate(serializeGame(blackReply))).toBe(2);
+    expect(validator.validate(serializeGame(initial))).toBe(0);
+    expect(() =>
+      validator.validate(serializeGame({ ...initial, commandLog: [{ type: "undo" }] })),
+    ).toThrow(/cannot-undo/);
+  });
+
   it("rebuilds derived state from the standard position and command trajectory", () => {
     let state = createInitialGame();
     state = apply(state, {

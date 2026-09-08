@@ -263,6 +263,92 @@ describe("OpponentCoordinator", () => {
     expect(provider.searches).toHaveLength(1);
   });
 
+  it("waits for an active search to stop across rapid visibility changes", async () => {
+    const provider = new FakeProvider();
+    const stopped = deferred<void>();
+    provider.stopResult = stopped.promise;
+    const { coordinator } = createHarness({ providers: [provider] });
+    await activateAndSearch(coordinator);
+    coordinator.setVisible(false);
+    coordinator.setVisible(true);
+    coordinator.setVisible(false);
+    coordinator.setVisible(true);
+    expect(coordinator.getSnapshot().phase).toBe("stopping");
+    await expect(coordinator.requestTurn(turn())).resolves.toBe(false);
+    expect(provider.searches).toHaveLength(1);
+    expect(provider.stops).toHaveLength(1);
+    stopped.resolve();
+    await flush();
+    expect(coordinator.getSnapshot().phase).toBe("ready");
+    await expect(coordinator.requestTurn(turn())).resolves.toBe(true);
+    expect(provider.searches).toHaveLength(2);
+    coordinator.dispose();
+  });
+
+  it("replaces a stalled provider when visibility returns before stop grace expires", async () => {
+    vi.useFakeTimers();
+    try {
+      const first = new FakeProvider();
+      first.stopResult = new Promise(() => undefined);
+      const second = new FakeProvider();
+      const { coordinator, factoryCalls } = createHarness({ providers: [first, second] });
+      await activateAndSearch(coordinator);
+      coordinator.setVisible(false);
+      coordinator.setVisible(true);
+      await expect(coordinator.requestTurn(turn())).resolves.toBe(false);
+      await vi.advanceTimersByTimeAsync(25);
+      expect(first.disposed).toBe(1);
+      expect(factoryCalls()).toBe(2);
+      expect(coordinator.getSnapshot().phase).toBe("ready");
+      await expect(coordinator.requestTurn(turn())).resolves.toBe(true);
+      expect(second.searches).toHaveLength(1);
+      coordinator.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not let an old visibility stop alter a replacement match", async () => {
+    const first = new FakeProvider();
+    const stopped = deferred<void>();
+    first.stopResult = stopped.promise;
+    const second = new FakeProvider();
+    const { coordinator } = createHarness({ providers: [first, second] });
+    await activateAndSearch(coordinator);
+    coordinator.setVisible(false);
+    coordinator.setVisible(true);
+    await coordinator.activateMatch({ matchId: "match-b", seed: "b", tier: "lightweight-hard" });
+    stopped.resolve();
+    await flush();
+    expect(first.disposed).toBe(1);
+    expect(second.disposed).toBe(0);
+    expect(coordinator.getSnapshot()).toMatchObject({ matchId: "match-b", phase: "ready" });
+    coordinator.dispose();
+  });
+
+  it("waits for timeout cleanup when the page hides and returns during stop grace", async () => {
+    vi.useFakeTimers();
+    try {
+      const first = new FakeProvider();
+      first.stopResult = new Promise(() => undefined);
+      const second = new FakeProvider();
+      const { coordinator } = createHarness({ providers: [first, second] });
+      await activateAndSearch(coordinator);
+      await vi.advanceTimersByTimeAsync(111);
+      coordinator.setVisible(false);
+      coordinator.setVisible(true);
+      await expect(coordinator.requestTurn(turn())).resolves.toBe(false);
+      await vi.advanceTimersByTimeAsync(25);
+      expect(first.disposed).toBe(1);
+      expect(coordinator.getSnapshot().phase).toBe("ready");
+      await expect(coordinator.requestTurn(turn())).resolves.toBe(true);
+      expect(second.searches).toHaveLength(1);
+      coordinator.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("times out, waits for stop grace, disposes, and recreates an unresponsive provider", async () => {
     vi.useFakeTimers();
     try {

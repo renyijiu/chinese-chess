@@ -116,8 +116,11 @@ function parseSerializedGame(serialized: string): SerializedGameV1 {
 
 export function deserializeGame(serialized: string): GameState {
   const saved = parseSerializedGame(serialized);
-  let state = createInitialGame();
-  for (const replay of saved.commands) {
+  return replayCommands(createInitialGame(), saved.commands);
+}
+
+function replayCommands(state: GameState, commands: ReadonlyArray<ReplayCommand>): GameState {
+  for (const replay of commands) {
     const command: GameCommand = { ...replay, expectedRevision: state.revision };
     const result = dispatch(state, command);
     if (result.error) {
@@ -128,4 +131,23 @@ export function deserializeGame(serialized: string): GameState {
     state = result.state;
   }
   return state;
+}
+
+/** Keeps one privately replayed position so repeated saves validate only new commands. */
+export class GameReplayValidator {
+  #state = createInitialGame();
+
+  validate(serialized: string): number {
+    const saved = parseSerializedGame(serialized);
+    const previous = this.#state.commandLog;
+    const extendsPrevious =
+      saved.commands.length >= previous.length &&
+      previous.every(
+        (command, index) => JSON.stringify(command) === JSON.stringify(saved.commands[index]),
+      );
+    const base = extendsPrevious ? this.#state : createInitialGame();
+    const next = replayCommands(base, saved.commands.slice(base.commandLog.length));
+    this.#state = next;
+    return next.revision;
+  }
 }

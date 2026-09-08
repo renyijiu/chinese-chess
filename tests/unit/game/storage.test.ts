@@ -43,6 +43,29 @@ type MutableSaveEnvelope = Record<string, unknown> & {
 };
 
 describe("local game persistence", () => {
+  it("does not trust a primary changed by another tab when rotating backups", () => {
+    const storage = new MemoryStorage();
+    const initial = createInitialGame();
+    expect(saveGameSnapshot(storage, initial, 1).ok).toBe(true);
+    const first = storage.getItem(GAME_SAVE_KEY)!;
+    const moved = dispatch(initial, {
+      type: "move",
+      expectedRevision: 0,
+      from: { file: 0, rank: 3 },
+      to: { file: 0, rank: 4 },
+    }).state;
+    expect(saveGameSnapshot(storage, moved, 2).ok).toBe(true);
+    const corrupt = JSON.parse(storage.getItem(GAME_SAVE_KEY)!);
+    corrupt.serialized = serializeGame({ ...initial, commandLog: [{ type: "undo" }] });
+    storage.setItem(GAME_SAVE_KEY, JSON.stringify(corrupt));
+    expect(saveGameSnapshot(storage, moved, 3).ok).toBe(true);
+    expect(storage.getItem(GAME_SAVE_BACKUP_KEY)).toBe(first);
+    storage.setItem(GAME_SAVE_KEY, first);
+    expect(saveGameSnapshot(storage, moved, 4).ok).toBe(true);
+    expect(storage.getItem(GAME_SAVE_BACKUP_KEY)).toBe(first);
+    expect(loadGameSnapshot(storage).game).toEqual(moved);
+  });
+
   it("round-trips a versioned primary snapshot", () => {
     const storage = new MemoryStorage();
     const match = createLocalMatch(createInitialGame());
