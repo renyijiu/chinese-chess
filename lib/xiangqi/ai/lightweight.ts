@@ -1,5 +1,5 @@
-import { dispatch, getLegalMoves, getPieceAt, isInCheck } from "../engine";
-import type { GameState, Role, Side, Square } from "../types";
+import { getLegalPositionMoves, getPieceAt, isInCheck } from "../engine";
+import type { PositionState, Role, Side, Square } from "../types";
 import { LIGHTWEIGHT_TIER_LIMITS } from "./search-limits";
 import type { CandidateMove, LightweightTier } from "./types";
 
@@ -21,7 +21,7 @@ export const LIGHTWEIGHT_BATCH_NODES = 128;
 
 interface SearchTransition {
   readonly candidate: CandidateMove;
-  readonly state: GameState;
+  readonly advance: () => PositionState;
   readonly orderScore: number;
 }
 
@@ -31,7 +31,7 @@ interface RootScore {
 }
 
 interface SearchFrame {
-  readonly state: GameState;
+  readonly state: PositionState;
   readonly depth: number;
   readonly ply: number;
   readonly parentCandidate: CandidateMove | null;
@@ -109,13 +109,13 @@ function positionalValue(role: Role, side: Side, square: Square): number {
   }
 }
 
-function terminalScore(state: GameState, ply: number): number | null {
+function terminalScore(state: PositionState, ply: number): number | null {
   if (state.status.kind !== "ended") return null;
   if (!state.status.winner) return 0;
   return state.status.winner === state.sideToMove ? MATE_SCORE - ply : -MATE_SCORE + ply;
 }
 
-export function evaluatePosition(state: GameState): number {
+export function evaluatePosition(state: PositionState): number {
   const terminal = terminalScore(state, 0);
   if (terminal !== null) return terminal;
   let red = 0;
@@ -132,51 +132,35 @@ export function evaluatePosition(state: GameState): number {
   return score;
 }
 
-function evaluateLeaf(state: GameState, ply: number): number {
+function evaluateLeaf(state: PositionState, ply: number): number {
   return terminalScore(state, ply) ?? evaluatePosition(state);
 }
 
-function transitionOrder(state: GameState, candidate: CandidateMove, next: GameState): number {
+function transitionOrder(
+  state: PositionState,
+  candidate: CandidateMove,
+  givesCheck: boolean,
+): number {
   const captured = getPieceAt(state, candidate.to);
   let score = captured ? MATERIAL[captured.role] * 10 : 0;
-  if (next.status.kind === "ended" && next.status.winner === state.sideToMove) score += MATE_SCORE;
-  else if (next.status.kind === "playing" && next.status.check === next.sideToMove) score += 5_000;
+  if (givesCheck) score += 5_000;
   const mover = getPieceAt(state, candidate.from);
   if (mover) score -= MATERIAL[mover.role];
   return score;
 }
 
-function legalTransitions(state: GameState): SearchTransition[] {
-  if (state.status.kind !== "playing") return [];
-  const transitions: SearchTransition[] = [];
-  for (const piece of state.board) {
-    if (!piece || piece.side !== state.sideToMove) continue;
-    for (const to of getLegalMoves(state, piece.id)) {
-      const candidate = {
-        from: { ...piece.square },
-        to: { ...to },
-      };
-      const result = dispatch(state, {
-        type: "move",
-        expectedRevision: state.revision,
-        ...candidate,
-      });
-      if (!result.error) {
-        transitions.push({
-          candidate,
-          state: result.state,
-          orderScore: transitionOrder(state, candidate, result.state),
-        });
-      }
-    }
-  }
+function legalTransitions(state: PositionState): SearchTransition[] {
+  const transitions = getLegalPositionMoves(state).map(({ from, to, givesCheck, advance }) => {
+    const candidate = { from, to };
+    return { candidate, advance, orderScore: transitionOrder(state, candidate, givesCheck) };
+  });
   return transitions.sort(
     (left, right) =>
       right.orderScore - left.orderScore || compareCandidates(left.candidate, right.candidate),
   );
 }
 
-export function getDeterministicFallbackCandidate(state: GameState): CandidateMove | null {
+export function getDeterministicFallbackCandidate(state: PositionState): CandidateMove | null {
   return legalTransitions(state)[0]?.candidate ?? null;
 }
 
@@ -208,7 +192,7 @@ function chooseCompletedMove(
 }
 
 function createFrame(
-  state: GameState,
+  state: PositionState,
   depth: number,
   ply: number,
   alpha: number,
@@ -232,7 +216,7 @@ function createFrame(
 }
 
 export class ResumableLightweightSearch {
-  readonly #state: GameState;
+  readonly #state: PositionState;
   readonly #tier: LightweightTier;
   readonly #seed: string;
   readonly #nodeBudget: number;
@@ -246,7 +230,7 @@ export class ResumableLightweightSearch {
   #completedScore = 0;
   #reason: Exclude<LightweightSearchReason, "cancelled"> | null = null;
 
-  constructor(state: GameState, options: LightweightSearchOptions) {
+  constructor(state: PositionState, options: LightweightSearchOptions) {
     const defaults = LIGHTWEIGHT_TIER_LIMITS[options.tier];
     this.#state = state;
     this.#tier = options.tier;
@@ -299,6 +283,15 @@ export class ResumableLightweightSearch {
         this.completeFrame(frame.bestScore);
         continue;
       }
+      if (this.#nodes >= this.#nodeBudget) {
+        this.#reason = "budget";
+        break;
+      }
+      if (this.#now() >= this.#deadlineAt) {
+        this.#reason = "deadline";
+        break;
+      }
+      if (this.#nodes - batchStart >= maxNodes) break;
       const transition = frame.moves[frame.moveIndex];
       frame.moveIndex += 1;
       if (!transition) continue;
@@ -306,7 +299,7 @@ export class ResumableLightweightSearch {
       const childBeta = frame.ply === 0 ? POSITIVE_INFINITY : -frame.alpha;
       this.#stack.push(
         createFrame(
-          transition.state,
+          transition.advance(),
           frame.depth - 1,
           frame.ply + 1,
           childAlpha,
@@ -382,14 +375,14 @@ export class ResumableLightweightSearch {
 }
 
 export function createLightweightSearch(
-  state: GameState,
+  state: PositionState,
   options: LightweightSearchOptions,
 ): ResumableLightweightSearch {
   return new ResumableLightweightSearch(state, options);
 }
 
 export async function runLightweightSearchBatched(
-  state: GameState,
+  state: PositionState,
   options: BatchedLightweightSearchOptions,
 ): Promise<LightweightSearchResult> {
   const search = createLightweightSearch(state, options);

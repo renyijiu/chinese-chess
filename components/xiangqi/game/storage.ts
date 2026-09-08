@@ -1,4 +1,5 @@
 import { deserializeGame, serializeGame, type GameState } from "../../../lib/xiangqi/index";
+import { GameReplayValidator } from "../../../lib/xiangqi/persistence";
 import { DEFAULT_AUDIO_MIX } from "../audio/audio-types";
 import type { QualityTier } from "../runtime/quality";
 import { createLocalMatch, parseMatchConfig, type MatchConfig, type SavedMatch } from "./match";
@@ -21,6 +22,14 @@ export interface StorageLike {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
 }
+
+const saveValidationCaches = new WeakMap<
+  StorageLike,
+  {
+    replay: GameReplayValidator;
+    primary: string | null;
+  }
+>();
 
 export type GameSettings = Readonly<{
   quality: QualityTier;
@@ -243,7 +252,10 @@ function isSavedMatch(value: SavedMatch | GameState): value is SavedMatch {
   return "config" in value && "game" in value;
 }
 
-function normalizeSavedMatch(value: SavedMatch | GameState): Readonly<{
+function normalizeSavedMatch(
+  value: SavedMatch | GameState,
+  replay: GameReplayValidator,
+): Readonly<{
   savedMatch: SavedMatch;
   serialized: string;
 }> {
@@ -253,8 +265,7 @@ function normalizeSavedMatch(value: SavedMatch | GameState): Readonly<{
     throw new Error("Saved match revision does not match its game state");
   }
   const serialized = serializeGame(savedMatch.game);
-  const replayed = deserializeGame(serialized);
-  if (replayed.revision !== savedMatch.revision) {
+  if (replay.validate(serialized) !== savedMatch.revision) {
     throw new Error("Saved match replay does not produce its stored revision");
   }
   return {
@@ -270,9 +281,15 @@ export function saveGameSnapshot(
 ): GameStorageWriteResult {
   try {
     if (!Number.isFinite(savedAt)) throw new Error("Save timestamp must be finite");
-    const { savedMatch, serialized } = normalizeSavedMatch(value);
+    let cache = saveValidationCaches.get(storage);
+    if (!cache) {
+      cache = { replay: new GameReplayValidator(), primary: null };
+      saveValidationCaches.set(storage, cache);
+    }
+    const { savedMatch, serialized } = normalizeSavedMatch(value, cache.replay);
     const current = storage.getItem(GAME_SAVE_KEY);
-    if (current && tryLoad(current)) {
+    // Compare actual storage bytes so writes from another tab are always revalidated.
+    if (current && (current === cache.primary || tryLoad(current))) {
       storage.setItem(GAME_SAVE_BACKUP_KEY, current);
     }
     const envelope: SaveEnvelope = {
@@ -283,7 +300,9 @@ export function saveGameSnapshot(
       serialized,
       match: savedMatch.config,
     };
-    storage.setItem(GAME_SAVE_KEY, JSON.stringify(envelope));
+    const raw = JSON.stringify(envelope);
+    storage.setItem(GAME_SAVE_KEY, raw);
+    cache.primary = raw;
     return { ok: true, resumable: true };
   } catch {
     return {

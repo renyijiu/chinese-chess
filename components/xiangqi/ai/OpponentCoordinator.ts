@@ -200,6 +200,7 @@ export class OpponentCoordinator {
   #failure: OpponentProviderFailure | null = null;
   #searchTimeout: unknown = null;
   #disposed = false;
+  #pendingStop: { provider: OpponentProvider } | null = null;
 
   constructor(options: OpponentCoordinatorOptions) {
     this.#providerFactory = options.providerFactory;
@@ -236,6 +237,7 @@ export class OpponentCoordinator {
 
   async activateMatch(activation: OpponentMatchActivation): Promise<void> {
     if (this.#disposed) return;
+    this.#pendingStop = null;
     const oldProvider = this.#provider;
     const oldIdentity = this.#activeRequest;
     this.invalidateSynchronously();
@@ -372,6 +374,7 @@ export class OpponentCoordinator {
       this.#generation += 1;
       this.#failure = null;
       if (this.#terminal) this.#phase = "terminal";
+      else if (this.#pendingStop) this.#phase = "stopping";
       else if (this.#provider) this.#phase = "ready";
       else if (this.#match) {
         this.#phase = "booting";
@@ -383,20 +386,11 @@ export class OpponentCoordinator {
     const identity = this.#activeRequest;
     const provider = this.#provider;
     this.invalidateSynchronously();
-    const generation = this.#generation;
-    this.#phase = identity && provider ? "stopping" : "hidden";
-    this.emit();
     if (identity && provider) {
-      void this.stopWithinGrace(provider, identity).then((cooperative) => {
-        if (!cooperative) {
-          provider.dispose();
-          if (this.#provider === provider) this.#provider = null;
-        }
-        if (this.#generation === generation && !this.#visible && !this.#disposed) {
-          this.#phase = "hidden";
-          this.emit();
-        }
-      });
+      void this.stopAndRest(provider, identity);
+    } else {
+      this.#phase = this.restingPhase();
+      this.emit();
     }
   }
 
@@ -406,20 +400,11 @@ export class OpponentCoordinator {
     const identity = this.#activeRequest;
     const provider = this.#provider;
     this.invalidateSynchronously();
-    const generation = this.#generation;
-    this.#phase = identity && provider ? "stopping" : "terminal";
-    this.emit();
     if (identity && provider) {
-      void this.stopWithinGrace(provider, identity).then((cooperative) => {
-        if (!cooperative) {
-          provider.dispose();
-          if (this.#provider === provider) this.#provider = null;
-        }
-        if (this.#generation === generation && this.#terminal && !this.#disposed) {
-          this.#phase = "terminal";
-          this.emit();
-        }
-      });
+      void this.stopAndRest(provider, identity);
+    } else {
+      this.#phase = this.restingPhase();
+      this.emit();
     }
   }
 
@@ -428,28 +413,17 @@ export class OpponentCoordinator {
     const identity = this.#activeRequest;
     const provider = this.#provider;
     this.invalidateSynchronously();
-    const generation = this.#generation;
-    this.#phase = identity && provider ? "stopping" : this.restingPhase();
-    this.emit();
     if (identity && provider) {
-      void this.stopWithinGrace(provider, identity).then((cooperative) => {
-        if (!cooperative) {
-          provider.dispose();
-          if (this.#provider === provider) this.#provider = null;
-        }
-        if (!this.isCurrent(generation, this.#match?.matchId ?? "")) return;
-        if (!this.#provider && this.#visible && !this.#terminal && this.#match) {
-          void this.bootProvider(generation, this.#match.tier);
-        } else {
-          this.#phase = this.restingPhase();
-          this.emit();
-        }
-      });
+      void this.stopAndRest(provider, identity);
+    } else {
+      this.#phase = this.restingPhase();
+      this.emit();
     }
   }
 
   dispose(): void {
     if (this.#disposed) return;
+    this.#pendingStop = null;
     const identity = this.#activeRequest;
     const provider = this.#provider;
     this.#disposed = true;
@@ -523,22 +497,32 @@ export class OpponentCoordinator {
   ): Promise<void> {
     if (!this.isActive(request, provider) || this.#phase !== "searching") return;
     this.invalidateSynchronously();
-    const generation = this.#generation;
-    const matchId = this.#match?.matchId;
     this.#failure = providerFailure("timeout", "The opponent search timed out.");
+    await this.stopAndRest(provider, request);
+  }
+
+  private async stopAndRest(
+    provider: OpponentProvider,
+    identity: OpponentIdentityV1,
+  ): Promise<void> {
+    const stop = { provider };
+    this.#pendingStop = stop;
     this.#phase = "stopping";
     this.emit();
-    const cooperative = await this.stopWithinGrace(provider, request);
-    if (!matchId || !this.isCurrent(generation, matchId)) return;
-    if (cooperative) {
+    const cooperative = await this.stopWithinGrace(provider, identity);
+    // Visibility may change repeatedly while stopping. Only replacement/disposal
+    // supersedes this stop; a returning page must wait for this provider to settle.
+    if (this.#pendingStop !== stop || this.#provider !== provider) return;
+    this.#pendingStop = null;
+    if (!cooperative) {
+      provider.dispose();
+      this.#provider = null;
+    }
+    if (!this.#disposed && this.#visible && !this.#terminal && !this.#provider && this.#match) {
+      await this.bootProvider(this.#generation, this.#match.tier);
+    } else {
       this.#phase = this.restingPhase();
       this.emit();
-      return;
-    }
-    provider.dispose();
-    if (this.#provider === provider) this.#provider = null;
-    if (this.#visible && !this.#terminal && this.#match) {
-      await this.bootProvider(generation, this.#match.tier);
     }
   }
 
@@ -556,6 +540,7 @@ export class OpponentCoordinator {
     }
     const oldProvider = this.#provider;
     this.invalidateSynchronously();
+    this.#pendingStop = null;
     this.#provider = null;
     match.tier = toTier;
     const generation = this.#generation;
@@ -652,6 +637,7 @@ export class OpponentCoordinator {
     if (this.#disposed) return "disposed";
     if (!this.#visible) return "hidden";
     if (this.#terminal) return "terminal";
+    if (this.#pendingStop) return "stopping";
     return this.#provider ? "ready" : "booting";
   }
 
