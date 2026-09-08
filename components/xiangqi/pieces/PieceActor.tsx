@@ -127,7 +127,7 @@ function RiggedRoleModel({
           // figures must read as terracotta, never lacquered toys or chrome.
           clone.metalness = 0.04;
           clone.roughness = 0.94;
-          clone.transparent = true;
+          clone.transparent = false;
         }
         return clone;
       });
@@ -160,6 +160,11 @@ function RiggedRoleModel({
   );
   useEffect(() => {
     prepared.materials.forEach((material) => {
+      const transparent = opacity < 1;
+      if (material.transparent !== transparent) {
+        material.transparent = transparent;
+        material.needsUpdate = true;
+      }
       material.opacity = opacity;
     });
   }, [opacity, prepared.materials]);

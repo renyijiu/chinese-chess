@@ -93,6 +93,11 @@ export interface GameState {
   readonly commandLog: ReadonlyArray<ReplayCommand>;
 }
 
+export type PositionState = Pick<
+  GameState,
+  "board" | "sideToMove" | "rulesetId" | "noCapturePlies" | "repetitionCounts" | "status"
+>;
+
 interface RevisionedCommand {
   readonly expectedRevision: number;
 }
