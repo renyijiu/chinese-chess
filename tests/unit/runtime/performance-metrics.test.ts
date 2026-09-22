@@ -6,6 +6,24 @@ import {
 } from "../../../components/xiangqi/runtime/performance-metrics";
 
 describe("PerformanceMetrics", () => {
+  it("retains slow rendered frames while excluding explicit idle samples", () => {
+    const metrics = new PerformanceMetrics();
+    for (const frameIntervalMs of [0, 16, 16, 400]) {
+      metrics.record({
+        drawCalls: 80,
+        frameIntervalMs,
+        geometries: 20,
+        textures: 8,
+        triangles: 100_000,
+      });
+    }
+    expect(metrics.snapshot()).toMatchObject({
+      sampleCount: 3,
+      maximumFrameIntervalMs: 400,
+      p95FrameIntervalMs: 400,
+    });
+  });
+
   it("summarizes empty and nearest-rank frame interval distributions", () => {
     expect(summarizeFrameIntervals([])).toEqual({
       averageFrameIntervalMs: 0,

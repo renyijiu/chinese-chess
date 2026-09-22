@@ -328,11 +328,17 @@ test("high-quality ambient motion keeps resources stable across 100 browser fram
   test.setTimeout(90_000);
   await openCleanGame(page, "high", false);
   await waitForEnvironmentSettled(page, "ready");
+  await expect
+    .poll(() => page.evaluate(() => window.__XIANGQI_COMMITTED_PIECE_LOD__))
+    .toBe(getQualityProfile("high").lod);
+  // Include the loaded pieces in the next 500 ms renderer-metrics publication.
+  await page.waitForTimeout(600);
   await expect(page.locator(".xiangqi-game-shell")).toHaveAttribute("data-reduced-motion", "false");
   await expect
     .poll(() => page.evaluate(() => window.__XIANGQI_PERFORMANCE__?.geometries ?? 0))
     .toBeGreaterThan(0);
   const baseline = await page.evaluate(() => window.__XIANGQI_PERFORMANCE__!);
+  await page.evaluate(() => window.__XIANGQI_RESET_PERFORMANCE__?.());
 
   const browserFrames = await page.evaluate(
     () =>
@@ -364,6 +370,7 @@ test("high-quality ambient motion keeps resources stable across 100 browser fram
   await waitForEnvironmentSettled(page, "ready");
   expect(browserFrames.frameCount).toBeGreaterThanOrEqual(100);
   expect(browserFrames.elapsedMs).toBeGreaterThan(0);
+  expect(settled.sampleCount).toBeGreaterThan(0);
   expect(Math.abs(settled.geometries - baseline.geometries)).toBeLessThanOrEqual(1);
   expect(Math.abs(settled.textures - baseline.textures)).toBeLessThanOrEqual(1);
 });

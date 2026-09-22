@@ -2,6 +2,7 @@
 
 import {
   Suspense,
+  lazy,
   useCallback,
   useEffect,
   useState,
@@ -9,7 +10,6 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
-import { Selection } from "@react-three/postprocessing";
 
 import { AnimationDirector } from "../animation/AnimationDirector";
 import type { AnimationRegistry } from "../animation/AnimationRegistry";
@@ -23,7 +23,6 @@ import { StaticShadowMap } from "../runtime/StaticShadowMap";
 import { WebGLContextRecovery } from "../runtime/WebGLContextRecovery";
 import type { QualityProfile } from "../runtime/quality";
 import { BoardCamera, type BoardView, type BoardViewSide } from "./BoardCamera";
-import { BattlePostprocessing } from "./BattlePostprocessing";
 import { CameraFeedback } from "./CameraFeedback";
 import { BoardSurface } from "./BoardSurface";
 import { DioramaEnvironment } from "./DioramaEnvironment";
@@ -34,6 +33,17 @@ import {
 } from "./diorama-environment";
 import { PieceLayer, type ScenePieceSlot } from "./PieceLayer";
 import { PrototypeMarshal } from "./PrototypeMarshal";
+
+let battlePostprocessing: Promise<{ default: () => ReactNode }> | undefined;
+function loadBattlePostprocessing() {
+  return (battlePostprocessing ??= import("./BattlePostprocessing")
+    .then((module) => ({ default: module.BattlePostprocessing }))
+    .catch((error: unknown) => {
+      console.warn("Optional battle glow could not load", error);
+      return { default: () => null };
+    }));
+}
+const BattlePostprocessing = lazy<() => ReactNode>(loadBattlePostprocessing);
 
 type BoardSceneProps = {
   ambientMotion: boolean;
@@ -63,21 +73,24 @@ function PrototypePieceLayer() {
 }
 
 function ConditionalBattlePostprocessing({ presentation }: { presentation: PresentationStore }) {
-  const getCaptureSnapshot = useCallback(
-    () =>
-      Boolean(
-        presentation
-          .getSnapshot()
-          .active?.transition.events.some((event) => event.type === "PieceCaptured"),
-      ),
+  const getActionSnapshot = useCallback(
+    () => presentation.getSnapshot().active?.transition ?? null,
     [presentation],
   );
-  const hasCapture = useSyncExternalStore(
+  const transition = useSyncExternalStore(
     presentation.subscribe,
-    getCaptureSnapshot,
-    getCaptureSnapshot,
+    getActionSnapshot,
+    getActionSnapshot,
   );
-  return hasCapture ? <BattlePostprocessing /> : null;
+  useEffect(() => {
+    // Warm the optional module on the first action, before a later capture needs it.
+    if (transition) void loadBattlePostprocessing();
+  }, [transition]);
+  return transition?.events.some((event) => event.type === "PieceCaptured") ? (
+    <Suspense fallback={null}>
+      <BattlePostprocessing key={transition.actionId} />
+    </Suspense>
+  ) : null;
 }
 
 function AmbientScene({
@@ -141,39 +154,35 @@ export function BoardScene({
 }: BoardSceneProps) {
   return (
     <FrameScheduler ambientFps={quality.ambientFps}>
-      <Selection enabled={quality.postprocessing}>
-        <PieceAssetLoaderProvider>
-          <AnimationDirector animations={animations} presentation={presentation} />
-          <WebGLContextRecovery animations={animations} presentation={presentation} />
-          <StaticShadowMap enabled={quality.shadows} />
-          <AmbientScene
-            animate={ambientMotion}
-            key={`${quality.environment.panorama}:${quality.environment.detailLevel}`}
-            presentation={presentation}
-            quality={quality}
-            {...(onEnvironmentStatusChange ? { onEnvironmentStatusChange } : {})}
-          />
-          <Suspense fallback={null}>{pieceLayer ?? <PrototypePieceLayer />}</Suspense>
-          <BoardCamera
-            autoTour={autoTour}
-            reducedMotion={reducedMotion}
-            side={viewSide}
-            view={view}
-          />
-          <CameraFeedback
-            presentation={presentation}
-            quality={
-              quality.postprocessing ? "high" : quality.dynamicEffectLights ? "medium" : "low"
-            }
-            reducedMotion={reducedMotion}
-          />
-          <AudioListenerBridge audio={audio} />
-          <PerformanceSummary drawCallsRef={drawCallsRef} />
-          {quality.postprocessing ? (
-            <ConditionalBattlePostprocessing presentation={presentation} />
-          ) : null}
-        </PieceAssetLoaderProvider>
-      </Selection>
+      <PieceAssetLoaderProvider>
+        <AnimationDirector animations={animations} presentation={presentation} />
+        <WebGLContextRecovery animations={animations} presentation={presentation} />
+        <StaticShadowMap enabled={quality.shadows} />
+        <AmbientScene
+          animate={ambientMotion}
+          key={`${quality.environment.panorama}:${quality.environment.detailLevel}`}
+          presentation={presentation}
+          quality={quality}
+          {...(onEnvironmentStatusChange ? { onEnvironmentStatusChange } : {})}
+        />
+        <Suspense fallback={null}>{pieceLayer ?? <PrototypePieceLayer />}</Suspense>
+        <BoardCamera
+          autoTour={autoTour}
+          reducedMotion={reducedMotion}
+          side={viewSide}
+          view={view}
+        />
+        <CameraFeedback
+          presentation={presentation}
+          quality={quality.postprocessing ? "high" : quality.dynamicEffectLights ? "medium" : "low"}
+          reducedMotion={reducedMotion}
+        />
+        <AudioListenerBridge audio={audio} />
+        <PerformanceSummary drawCallsRef={drawCallsRef} />
+        {quality.postprocessing ? (
+          <ConditionalBattlePostprocessing presentation={presentation} />
+        ) : null}
+      </PieceAssetLoaderProvider>
     </FrameScheduler>
   );
 }

@@ -3,10 +3,31 @@
 /* oxlint-disable react/no-unknown-property -- R3F scene graph props are valid custom JSX properties. */
 
 import { EffectComposer, SelectiveBloom } from "@react-three/postprocessing";
+import { useThree } from "@react-three/fiber";
 import { useMemo } from "react";
 import * as THREE from "three";
 
-/** High-tier-only selective glow. Only objects wrapped in <Select> enter this pass. */
+// EffectComposer mounts its children after creating its renderer resources.
+function BattleBloom({ light }: { light: THREE.Light }) {
+  const scene = useThree((state) => state.scene);
+  const selection = useMemo(
+    () =>
+      scene.getObjectByName("battle-bloom-selection")?.getObjectsByProperty("type", "Mesh") ?? [],
+    [scene],
+  );
+  return (
+    <SelectiveBloom
+      selection={selection}
+      intensity={0.62}
+      lights={[light]}
+      luminanceSmoothing={0.18}
+      luminanceThreshold={0.28}
+      radius={0.46}
+    />
+  );
+}
+
+/** High-tier-only glow, loaded independently of the board and its VFX graph. */
 export function BattlePostprocessing() {
   const bloomLight = useMemo(() => {
     const light = new THREE.AmbientLight(0xffffff, 0.72);
@@ -18,13 +39,7 @@ export function BattlePostprocessing() {
     <>
       <primitive object={bloomLight} />
       <EffectComposer depthBuffer enableNormalPass={false} multisampling={0} resolutionScale={0.65}>
-        <SelectiveBloom
-          intensity={0.62}
-          lights={[bloomLight]}
-          luminanceSmoothing={0.18}
-          luminanceThreshold={0.28}
-          radius={0.46}
-        />
+        <BattleBloom light={bloomLight} />
       </EffectComposer>
     </>
   );

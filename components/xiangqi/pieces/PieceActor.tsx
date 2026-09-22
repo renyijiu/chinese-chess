@@ -3,7 +3,7 @@
 /* oxlint-disable react/no-unknown-property -- R3F scene graph props are valid custom JSX properties. */
 
 import type { ThreeEvent } from "@react-three/fiber";
-import { useEffect, useMemo } from "react";
+import { memo, useEffect, useMemo } from "react";
 import * as THREE from "three";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
 
@@ -175,7 +175,7 @@ function RiggedRoleModel({
   return <primitive object={prepared.model} position={[0, prepared.localY, 0]} />;
 }
 
-export function PieceActor({
+export const PieceActor = memo(function PieceActor({
   actorId,
   animation = "idle_loop",
   animations,
@@ -222,4 +222,4 @@ export function PieceActor({
       />
     </group>
   );
-}
+});

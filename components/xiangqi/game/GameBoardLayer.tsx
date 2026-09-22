@@ -3,7 +3,7 @@
 /* oxlint-disable react/no-unknown-property -- R3F scene graph props are valid custom JSX properties. */
 
 import type { ThreeEvent } from "@react-three/fiber";
-import { memo, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import { memo, useCallback, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import * as THREE from "three";
 
 import {
@@ -382,6 +382,10 @@ export function GameBoardLayer({
     presentation.getSnapshot,
     presentation.getSnapshot,
   );
+  const handlePiecePress = useCallback(
+    (piece: Piece) => onSquarePress(piece.square),
+    [onSquarePress],
+  );
   const lastMove = game.history.at(-1) ?? null;
   const active = visual.active;
   const moveEvent = active?.transition.events.find(
@@ -489,7 +493,7 @@ export function GameBoardLayer({
                 : 0
             }
             lod={lod}
-            onPress={(piece) => onSquarePress(piece.square)}
+            onPress={handlePiecePress}
             piece={slot.data}
             selected={slot.id === selectedPieceId}
           />
