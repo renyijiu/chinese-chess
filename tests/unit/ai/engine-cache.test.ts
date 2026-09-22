@@ -62,6 +62,54 @@ async function runtimeFetch(input: RequestInfo | URL): Promise<Response> {
 }
 
 describe("verified Master engine cache", () => {
+  it.each(["manifest.json", "stockfish.js"])(
+    "times out a stalled %s body and allows a fresh retry",
+    async (filename) => {
+      const cacheStorage = new MemoryCacheStorage();
+      let aborted = false;
+      const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (!String(input).endsWith(filename)) return runtimeFetch(input);
+        return new Response(
+          new ReadableStream({
+            start(controller) {
+              init?.signal?.addEventListener(
+                "abort",
+                () => {
+                  aborted = true;
+                  controller.error(new Error("aborted"));
+                },
+                { once: true },
+              );
+            },
+          }),
+          {
+            headers: {
+              "content-type": filename.endsWith("json")
+                ? "application/json"
+                : "text/javascript; charset=utf-8",
+            },
+          },
+        );
+      });
+      await expect(
+        loadVerifiedMasterAssets({
+          baseUrl: "https://game.test",
+          cacheStorage,
+          fetcher,
+          fetchTimeoutMs: 20,
+        }),
+      ).rejects.toThrow(/timed out/);
+      expect(aborted).toBe(true);
+      expect(cacheStorage.caches.size).toBe(0);
+      const retried = await loadVerifiedMasterAssets({
+        baseUrl: "https://game.test",
+        cacheStorage,
+        fetcher: runtimeFetch,
+      });
+      expect(retried.files["stockfish.js"].byteLength).toBeGreaterThan(0);
+    },
+  );
+
   it("revalidates the manifest, verifies every runtime byte, and reuses a complete cache", async () => {
     const cacheStorage = new MemoryCacheStorage();
     const fetcher = vi.fn(runtimeFetch);

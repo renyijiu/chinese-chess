@@ -152,22 +152,26 @@ function normalizedMime(value: string | null): string {
   );
 }
 
-async function fetchWithTimeout(
+async function fetchWithTimeout<T>(
   fetcher: NonNullable<MasterEngineAssetLoaderOptions["fetcher"]>,
   input: RequestInfo | URL,
   init: RequestInit,
   timeoutMs: number,
-): Promise<Response> {
+  consume: (response: Response) => Promise<T>,
+): Promise<T> {
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<Response>((_resolve, reject) => {
+  const timeout = new Promise<T>((_resolve, reject) => {
     timer = setTimeout(() => {
       controller.abort();
       reject(new Error(`Master engine asset request timed out after ${timeoutMs} ms.`));
     }, timeoutMs);
   });
   try {
-    return await Promise.race([fetcher(input, { ...init, signal: controller.signal }), timeout]);
+    return await Promise.race([
+      fetcher(input, { ...init, signal: controller.signal }).then(consume),
+      timeout,
+    ]);
   } finally {
     if (timer !== undefined) clearTimeout(timer);
   }
@@ -263,7 +267,7 @@ async function loadVerifiedMasterAssetsUnshared(
   if (!cacheStorage) throw new Error("Cache Storage is unavailable for Master engine assets.");
 
   const manifestUrl = new URL(MASTER_ENGINE_MANIFEST_URL, origin).href;
-  const manifestResponse = await fetchWithTimeout(
+  const manifestBytes = await fetchWithTimeout(
     fetcher,
     manifestUrl,
     {
@@ -271,14 +275,15 @@ async function loadVerifiedMasterAssetsUnshared(
       credentials: "same-origin",
     },
     fetchTimeoutMs,
+    async (response) => {
+      if (!response.ok) throw new Error(`Master manifest returned HTTP ${response.status}.`);
+      const mime = normalizedMime(response.headers.get("content-type"));
+      if (mime !== "application/json; charset=utf-8" && mime !== "application/json") {
+        throw new Error(`Master manifest MIME differs: ${mime || "missing"}.`);
+      }
+      return response.arrayBuffer();
+    },
   );
-  if (!manifestResponse.ok)
-    throw new Error(`Master manifest returned HTTP ${manifestResponse.status}.`);
-  const manifestMime = normalizedMime(manifestResponse.headers.get("content-type"));
-  if (manifestMime !== "application/json; charset=utf-8" && manifestMime !== "application/json") {
-    throw new Error(`Master manifest MIME differs: ${manifestMime || "missing"}.`);
-  }
-  const manifestBytes = await manifestResponse.arrayBuffer();
   let manifestValue: unknown;
   try {
     manifestValue = JSON.parse(new TextDecoder().decode(manifestBytes));
@@ -307,13 +312,14 @@ async function loadVerifiedMasterAssetsUnshared(
   try {
     for (const record of manifest.runtimeFiles) {
       const url = new URL(record.name, new URL(manifest.runtimeBaseUrl, origin)).href;
-      const response = await fetchWithTimeout(
+      const bytes = await fetchWithTimeout(
         fetcher,
         url,
         { cache: "no-cache", credentials: "same-origin" },
         fetchTimeoutMs,
+        (response) => verifyRuntimeResponse(response, record, digest),
       );
-      fetched.set(record.name, await verifyRuntimeResponse(response, record, digest));
+      fetched.set(record.name, bytes);
     }
     const cache = await cacheStorage.open(name);
     for (const record of manifest.runtimeFiles) {
