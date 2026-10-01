@@ -19,7 +19,10 @@ export type ScheduledFrameRegistration = Readonly<{
 }>;
 type RegisterFrame = (task: ScheduledFrame, onError?: ScheduledFrameErrorHandler) => () => void;
 
-const FrameSchedulerContext = createContext<RegisterFrame | null>(null);
+const FrameSchedulerContext = createContext<{
+  register: RegisterFrame;
+  hasTasks: () => boolean;
+} | null>(null);
 const FRAME_INTERVAL_TOLERANCE_MS = 0.75;
 
 export function isScheduledFrameDue(elapsedMs: number, ambientFps: number) {
@@ -153,8 +156,12 @@ export function FrameScheduler({
     };
   }, [ambientFps, gl, invalidate]);
 
-  const value = useMemo(() => register, [register]);
+  const value = useMemo(() => ({ register, hasTasks: () => tasks.current.size > 0 }), [register]);
   return <FrameSchedulerContext.Provider value={value}>{children}</FrameSchedulerContext.Provider>;
+}
+
+export function useHasScheduledFrames() {
+  return useContext(FrameSchedulerContext)?.hasTasks;
 }
 
 export function useScheduledFrame(
@@ -162,7 +169,7 @@ export function useScheduledFrame(
   enabled = true,
   onError?: ScheduledFrameErrorHandler,
 ) {
-  const register = useContext(FrameSchedulerContext);
+  const register = useContext(FrameSchedulerContext)?.register;
 
   useEffect(() => {
     if (!enabled) return;

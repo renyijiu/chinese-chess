@@ -73,11 +73,7 @@ export class PerformanceMetrics {
     this.current = sample;
     this.peakDrawCalls = Math.max(this.peakDrawCalls, sample.drawCalls);
     this.peakTriangles = Math.max(this.peakTriangles, sample.triangles);
-    if (
-      Number.isFinite(sample.frameIntervalMs) &&
-      sample.frameIntervalMs > 0 &&
-      sample.frameIntervalMs <= 250
-    ) {
+    if (Number.isFinite(sample.frameIntervalMs) && sample.frameIntervalMs > 0) {
       this.intervals.push(sample.frameIntervalMs);
       while (this.intervals.length > Math.max(1, this.maximumSamples)) this.intervals.shift();
     }

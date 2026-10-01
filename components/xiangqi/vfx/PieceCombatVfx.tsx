@@ -2,8 +2,7 @@
 
 /* oxlint-disable react/no-unknown-property -- R3F scene graph props are valid custom JSX properties. */
 
-import { useContext, useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
-import { selectionContext } from "@react-three/postprocessing";
+import { useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 
 import type { Role, Side, Square } from "../../../lib/xiangqi/index";
@@ -16,29 +15,6 @@ import {
   resolveCombatPayloadWorldPosition,
 } from "./combat-vfx-layout";
 import { getPieceVfxProfile, type VfxPayload } from "./piece-vfx-profiles";
-
-function StableSelect({ children, enabled }: { children: ReactNode; enabled: boolean }) {
-  const group = useRef<THREE.Group>(null);
-  const selection = useContext(selectionContext);
-  const select = selection?.select;
-
-  useEffect(() => {
-    if (!enabled || !select || !group.current) return;
-    const meshes = group.current.getObjectsByProperty("type", "Mesh");
-    select((current) => {
-      const additions = meshes.filter((mesh) => !current.includes(mesh));
-      return additions.length > 0 ? [...current, ...additions] : current;
-    });
-    return () => {
-      select((current) => {
-        const next = current.filter((object) => !meshes.includes(object));
-        return next.length === current.length ? current : next;
-      });
-    };
-  }, [enabled, select]);
-
-  return <group ref={group}>{children}</group>;
-}
 
 function clampedRange(value: number, start: number, end: number) {
   return Math.min(1, Math.max(0, (value - start) / Math.max(0.001, end - start)));
@@ -175,7 +151,7 @@ export function PieceCombatVfx({
   const angular = profile.pattern === "verdigris-angle";
 
   return (
-    <StableSelect enabled={active}>
+    <group name="battle-bloom-selection">
       <group name={`piece-combat-vfx:${profile.motif}`} visible={active}>
         <group position={fromWorld} visible={telegraph > 0}>
           <mesh
@@ -355,6 +331,6 @@ export function PieceCombatVfx({
           target={particleTarget}
         />
       </group>
-    </StableSelect>
+    </group>
   );
 }

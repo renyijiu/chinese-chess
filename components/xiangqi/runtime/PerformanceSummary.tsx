@@ -1,8 +1,9 @@
 "use client";
 
-import { useFrame, useThree } from "@react-three/fiber";
+import { addTail, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useRef, type RefObject } from "react";
 
+import { useHasScheduledFrames } from "./FrameScheduler";
 import { PerformanceMetrics, type RuntimePerformanceSnapshot } from "./performance-metrics";
 
 declare global {
@@ -18,13 +19,25 @@ export function PerformanceSummary({
   drawCallsRef: RefObject<HTMLSpanElement | null>;
 }) {
   const lastUpdate = useRef(0);
+  const continuousFrame = useRef(false);
   const lastRendererTotals = useRef({ drawCalls: 0, triangles: 0 });
   const metrics = useRef(new PerformanceMetrics());
   const gl = useThree((state) => state.gl);
+  const hasScheduledFrames = useHasScheduledFrames();
 
   useEffect(() => {
     const activeMetrics = metrics.current;
+    const resetContinuity = () => {
+      continuousFrame.current = false;
+    };
+    // Ambient tasks can keep animating across stops in R3F's demand loop.
+    // Only a stop without scheduled work is idle; slow active frames still count.
+    const removeTail = addTail(() => {
+      if (!hasScheduledFrames?.()) resetContinuity();
+    });
+    document.addEventListener("visibilitychange", resetContinuity);
     const publishEmptySnapshot = () => {
+      resetContinuity();
       activeMetrics.reset();
       gl.info.reset();
       lastRendererTotals.current = { drawCalls: 0, triangles: 0 };
@@ -33,12 +46,14 @@ export function PerformanceSummary({
     window.__XIANGQI_RESET_PERFORMANCE__ = publishEmptySnapshot;
     publishEmptySnapshot();
     return () => {
+      removeTail();
+      document.removeEventListener("visibilitychange", resetContinuity);
       if (window.__XIANGQI_RESET_PERFORMANCE__ === publishEmptySnapshot) {
         delete window.__XIANGQI_RESET_PERFORMANCE__;
         delete window.__XIANGQI_PERFORMANCE__;
       }
     };
-  }, [gl]);
+  }, [gl, hasScheduledFrames]);
 
   useFrame(({ clock, gl: frameGl }, deltaSeconds) => {
     const drawCalls = Math.max(0, frameGl.info.render.calls - lastRendererTotals.current.drawCalls);
@@ -52,11 +67,12 @@ export function PerformanceSummary({
     };
     metrics.current.record({
       drawCalls,
-      frameIntervalMs: deltaSeconds * 1_000,
+      frameIntervalMs: continuousFrame.current && !document.hidden ? deltaSeconds * 1_000 : 0,
       geometries: frameGl.info.memory.geometries,
       textures: frameGl.info.memory.textures,
       triangles,
     });
+    continuousFrame.current = !document.hidden;
     if (clock.elapsedTime - lastUpdate.current < 0.5) return;
     lastUpdate.current = clock.elapsedTime;
     const snapshot = metrics.current.snapshot();

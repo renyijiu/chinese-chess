@@ -10,6 +10,7 @@ const OPTIONAL_ENTRIES = [
   "components/xiangqi/ai/MasterEngineAdapter.ts",
   "components/xiangqi/ai/LightweightWorkerProvider.ts",
   "components/xiangqi/online/OnlineMatchSession.ts",
+  "components/xiangqi/scene/BattlePostprocessing.tsx",
 ];
 
 const PRIMARY_CHUNK_BUDGET = Object.freeze({
