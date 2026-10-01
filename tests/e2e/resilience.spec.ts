@@ -453,7 +453,7 @@ test("high-low-high environment switching settles without cumulative renderer gr
     return sample;
   });
   await expect.poll(() => lowLodRequestSeen).toBe(true);
-  await waitForEnvironmentSettled(page, "ready");
+  await expect(page.locator(".board-viewer")).toHaveAttribute("data-environment-status", "loading");
   try {
     await page.waitForTimeout(2_000);
     expect(lowSwitchSettled).toBe(false);

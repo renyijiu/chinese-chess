@@ -13,44 +13,16 @@ import type { PresentationStore } from "../presentation/PresentationStore";
 import { resolvePieceMotion, type PieceMotion } from "../presentation/piece-motion";
 import type { PieceLod } from "../runtime/quality";
 import { usePieceAsset } from "./asset-loader";
+import { factionGeometry } from "./faction-geometry";
 import { FACTION_MARKER_STYLES } from "./faction-marker";
+import { preparePieceBounds } from "./piece-bounds";
 import { pieceAssetUrl } from "./piece-catalog";
-import { semanticColor } from "./piece-palette";
 import { QIN_DIORAMA_THEME } from "../scene/scene-theme";
 
-const factionGeometryCache = new WeakMap<
-  THREE.BufferGeometry,
-  Partial<Record<Side, THREE.BufferGeometry>>
->();
 const cloneRiggedScene = cloneSkeleton as <T extends THREE.Object3D>(source: T) => T;
 
 function isMesh(object: THREE.Object3D): object is THREE.Mesh {
   return "isMesh" in object && (object as THREE.Mesh).isMesh;
-}
-
-/** Recolor COLOR_0 once per source geometry and faction, never mutating GLTF cache data. */
-function factionGeometry(source: THREE.BufferGeometry, side: Side) {
-  const cached = factionGeometryCache.get(source)?.[side];
-  if (cached) return cached;
-  const geometry = source.clone();
-  const sourceColor = source.getAttribute("color");
-  if (sourceColor) {
-    const colors = new Float32Array(sourceColor.count * 4);
-    const original = new THREE.Color();
-    for (let index = 0; index < sourceColor.count; index += 1) {
-      original.setRGB(sourceColor.getX(index), sourceColor.getY(index), sourceColor.getZ(index));
-      const color = semanticColor(original, side);
-      colors[index * 4] = color.r;
-      colors[index * 4 + 1] = color.g;
-      colors[index * 4 + 2] = color.b;
-      colors[index * 4 + 3] = 1;
-    }
-    geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 4));
-  }
-  const variants = factionGeometryCache.get(source) ?? {};
-  variants[side] = geometry;
-  factionGeometryCache.set(source, variants);
-  return geometry;
 }
 
 function SelectionAura({ side }: { side: Side }) {
@@ -81,12 +53,6 @@ function SelectionAura({ side }: { side: Side }) {
           transparent
         />
       </mesh>
-      <pointLight
-        color={QIN_DIORAMA_THEME.factions[side].glow}
-        distance={2.1}
-        intensity={0.52}
-        position={[0, 0.5, 0]}
-      />
     </group>
   );
 }
@@ -117,6 +83,7 @@ function RiggedRoleModel({
   const url = pieceAssetUrl(piece.role, lod);
   const { animations: clips, scene } = usePieceAsset(url);
   const prepared = useMemo(() => {
+    const localY = preparePieceBounds(scene);
     const model = cloneRiggedScene(scene);
     const mixer = new THREE.AnimationMixer(model);
     const materials: THREE.Material[] = [];
@@ -147,8 +114,7 @@ function RiggedRoleModel({
       child.castShadow = false;
       child.receiveShadow = true;
     });
-    const bounds = new THREE.Box3().setFromObject(model);
-    return { localY: -bounds.min.y, materials, mixer, model };
+    return { localY, materials, mixer, model };
   }, [piece.side, scene]);
 
   useEffect(

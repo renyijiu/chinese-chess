@@ -140,7 +140,10 @@ export function PieceCombatVfx({
 
   useLayoutEffect(() => {
     const group = root.current;
-    if (!group || !active) return;
+    if (!group) return;
+    const light = group.getObjectByName("vfx-impact-light") as THREE.PointLight | undefined;
+    if (light) light.intensity = 0;
+    if (!active) return;
     const object = (name: string) => group.getObjectByName(name)!;
     const mesh = (name: string) => object(name) as THREE.Mesh<THREE.BufferGeometry, THREE.Material>;
     const telegraphGroup = object("vfx-telegraph");
@@ -156,7 +159,6 @@ export function PieceCombatVfx({
     const firstHoop = mesh("vfx-impact-hoop-a");
     const secondHoop = mesh("vfx-impact-hoop-b");
     const impactCore = mesh("vfx-impact-core");
-    const light = group.getObjectByName("vfx-impact-light") as THREE.PointLight | undefined;
     const particles = object("vfx-particles");
     const particleMesh = mesh("vfx-particle-mesh");
     const update = () => {
@@ -198,7 +200,7 @@ export function PieceCombatVfx({
       secondHoop.material.opacity = impact * 0.72 * intensity;
       impactCore.scale.setScalar(0.14 + impact * profile.impactRadius * 0.38);
       impactCore.material.opacity = impact * 0.9 * intensity;
-      if (light) light.intensity = impact * 1.45;
+      if (light) light.intensity = reducedMotion ? 0 : impact * 1.45;
       particles.visible = burst > 0 && burst < 1;
       particles.scale.setScalar(0.82 + burst * 0.18);
       particleMesh.material.opacity = 1 - burst * 0.72;
@@ -220,8 +222,8 @@ export function PieceCombatVfx({
   ]);
 
   return (
-    <group name="battle-bloom-selection">
-      <group ref={root} name={`piece-combat-vfx:${profile.motif}`} visible={active}>
+    <group ref={root} name="battle-bloom-selection">
+      <group name={`piece-combat-vfx:${profile.motif}`} visible={active}>
         <group name="vfx-telegraph" position={fromWorld}>
           <mesh
             renderOrder={12}
@@ -378,23 +380,22 @@ export function PieceCombatVfx({
             />
           </mesh>
         </group>
-        {/* Keep the light count stable as impact meshes hide, avoiding shader recompilation. */}
-        {quality.dynamicEffectLights && !reducedMotion ? (
-          <pointLight
-            color={profile.colors.bright}
-            distance={1.65}
-            name="vfx-impact-light"
-            intensity={0}
-            position={[toWorld.x, toWorld.y + 0.42, toWorld.z]}
-          />
-        ) : null}
-
         <EffectParticles
           color={profile.colors.bright}
           count={particleCount}
           target={particleTarget}
         />
       </group>
+      {/* Keep the light count stable between actions as well as during impact. */}
+      {quality.dynamicEffectLights ? (
+        <pointLight
+          color={profile.colors.bright}
+          distance={1.65}
+          name="vfx-impact-light"
+          intensity={0}
+          position={[toWorld.x, toWorld.y + 0.42, toWorld.z]}
+        />
+      ) : null}
     </group>
   );
 }

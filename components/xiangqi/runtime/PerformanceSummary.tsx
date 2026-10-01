@@ -69,6 +69,10 @@ export function PerformanceSummary({
       if (!rendered.current) return;
       const { internal, frameloop } = get();
       const totals = { drawCalls: gl.info.render.calls, triangles: gl.info.render.triangles };
+      if (totals.drawCalls === lastRendererTotals.current.drawCalls) {
+        rendered.current = false;
+        return;
+      }
       activeMetrics.record(
         {
           drawCalls: Math.max(0, totals.drawCalls - lastRendererTotals.current.drawCalls),
