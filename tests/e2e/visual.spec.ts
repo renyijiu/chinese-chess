@@ -30,6 +30,7 @@ test("@visual Qin diorama menu, legal move, capture, and terminal states", async
   await waitForEnvironmentSettled(page);
   await page.getByRole("button", { name: "设置" }).click();
   await page.getByRole("button", { name: "俯视棋盘" }).click();
+  await settleVisualScene(page);
   const canvas = page.locator("canvas");
   await clickBoardSquare(canvas, 0, 3);
   await expect(page.locator(".game-turn-card small")).toHaveText("1 个合法落点");
