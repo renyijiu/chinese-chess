@@ -19,6 +19,10 @@ export type RuntimePerformanceSnapshot = Readonly<{
   /** Rendered-frame interval, not CPU/GPU render duration. */
   p95FrameIntervalMs: number;
   sampleCount: number;
+  renderedFrames: number;
+  longFrames50Ms: number;
+  longFrames100Ms: number;
+  longFrames250Ms: number;
   textures: number;
 }>;
 
@@ -58,6 +62,10 @@ const EMPTY_SNAPSHOT: RuntimePerformanceSnapshot = Object.freeze({
   peakTriangles: 0,
   p95FrameIntervalMs: 0,
   sampleCount: 0,
+  renderedFrames: 0,
+  longFrames50Ms: 0,
+  longFrames100Ms: 0,
+  longFrames250Ms: 0,
   textures: 0,
 });
 
@@ -66,14 +74,22 @@ export class PerformanceMetrics {
   private readonly intervals: number[] = [];
   private peakDrawCalls = 0;
   private peakTriangles = 0;
+  private renderedFrames = 0;
+  private longFrames50Ms = 0;
+  private longFrames100Ms = 0;
+  private longFrames250Ms = 0;
 
   constructor(private readonly maximumSamples = 300) {}
 
-  record(sample: RendererPerformanceSample) {
+  record(sample: RendererPerformanceSample, continuous = true) {
     this.current = sample;
+    this.renderedFrames += 1;
     this.peakDrawCalls = Math.max(this.peakDrawCalls, sample.drawCalls);
     this.peakTriangles = Math.max(this.peakTriangles, sample.triangles);
-    if (Number.isFinite(sample.frameIntervalMs) && sample.frameIntervalMs > 0) {
+    if (continuous && Number.isFinite(sample.frameIntervalMs) && sample.frameIntervalMs > 0) {
+      if (sample.frameIntervalMs > 50) this.longFrames50Ms += 1;
+      if (sample.frameIntervalMs > 100) this.longFrames100Ms += 1;
+      if (sample.frameIntervalMs > 250) this.longFrames250Ms += 1;
       this.intervals.push(sample.frameIntervalMs);
       while (this.intervals.length > Math.max(1, this.maximumSamples)) this.intervals.shift();
     }
@@ -84,6 +100,10 @@ export class PerformanceMetrics {
     this.intervals.length = 0;
     this.peakDrawCalls = 0;
     this.peakTriangles = 0;
+    this.renderedFrames = 0;
+    this.longFrames50Ms = 0;
+    this.longFrames100Ms = 0;
+    this.longFrames250Ms = 0;
   }
 
   snapshot(): RuntimePerformanceSnapshot {
@@ -97,6 +117,10 @@ export class PerformanceMetrics {
       peakDrawCalls: this.peakDrawCalls,
       peakTriangles: this.peakTriangles,
       sampleCount: this.intervals.length,
+      renderedFrames: this.renderedFrames,
+      longFrames50Ms: this.longFrames50Ms,
+      longFrames100Ms: this.longFrames100Ms,
+      longFrames250Ms: this.longFrames250Ms,
       textures: this.current.textures,
     };
   }

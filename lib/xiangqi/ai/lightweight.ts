@@ -400,5 +400,17 @@ export async function runLightweightSearchBatched(
 }
 
 export function yieldToEventLoopTask(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0));
+  const scheduler = (globalThis as typeof globalThis & { scheduler?: { yield(): Promise<void> } })
+    .scheduler;
+  if (scheduler?.yield) return scheduler.yield();
+  // A posted task keeps stop messages responsive without nested timer clamping.
+  return new Promise((resolve) => {
+    const channel = new MessageChannel();
+    channel.port1.onmessage = () => {
+      channel.port1.close();
+      channel.port2.close();
+      resolve();
+    };
+    channel.port2.postMessage(null);
+  });
 }

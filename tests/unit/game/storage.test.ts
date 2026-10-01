@@ -382,10 +382,11 @@ describe("game settings persistence", () => {
   it("loads defaults, validates stored values, and saves all user-facing settings", () => {
     const storage = new MemoryStorage();
     expect(loadGameSettings(storage)).toEqual(DEFAULT_GAME_SETTINGS);
+    expect(loadGameSettings(storage).quality).toBe("medium");
 
     const settings = {
       ...DEFAULT_GAME_SETTINGS,
-      quality: "low" as const,
+      quality: "high" as const,
       masterVolume: 0.35,
       muted: true,
       reducedMotion: true,

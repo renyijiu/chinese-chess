@@ -30,6 +30,15 @@ export function isScheduledFrameDue(elapsedMs: number, ambientFps: number) {
   return elapsedMs + FRAME_INTERVAL_TOLERANCE_MS >= minimumInterval;
 }
 
+export function advanceScheduledFrameTime(previousMs: number, timestamp: number, fps: number) {
+  const interval = 1000 / Math.max(1, fps);
+  // Retain the fractional remainder without replaying frames after a long pause.
+  const elapsedIntervals = Math.floor(
+    (timestamp - previousMs + FRAME_INTERVAL_TOLERANCE_MS) / interval,
+  );
+  return previousMs + Math.max(1, elapsedIntervals) * interval;
+}
+
 export function runScheduledFrameTasks(
   tasks: Set<ScheduledFrameRegistration>,
   elapsedSeconds: number,
@@ -61,6 +70,7 @@ export function FrameScheduler({
   const tasks = useRef(new Set<ScheduledFrameRegistration>());
   const frameRequest = useRef<number | null>(null);
   const lastFrame = useRef(0);
+  const scheduledAt = useRef(0);
   const contextLost = useRef(false);
   const requestNextFrame = useRef<() => void>(() => undefined);
 
@@ -100,8 +110,12 @@ export function FrameScheduler({
       frameRequest.current = null;
       if (stopped || contextLost.current) return;
 
-      if (!document.hidden && isScheduledFrameDue(timestamp - lastFrame.current, ambientFps)) {
+      if (!document.hidden && isScheduledFrameDue(timestamp - scheduledAt.current, ambientFps)) {
         const previous = lastFrame.current || timestamp;
+        scheduledAt.current =
+          lastFrame.current === 0
+            ? timestamp
+            : advanceScheduledFrameTime(scheduledAt.current, timestamp, ambientFps);
         lastFrame.current = timestamp;
         const elapsedSeconds = timestamp / 1000;
         const deltaSeconds = Math.min((timestamp - previous) / 1000, 0.1);
@@ -113,6 +127,7 @@ export function FrameScheduler({
 
     const restartAfterVisibilityChange = () => {
       lastFrame.current = 0;
+      scheduledAt.current = 0;
       if (document.hidden && frameRequest.current !== null) {
         window.cancelAnimationFrame(frameRequest.current);
         frameRequest.current = null;
@@ -135,6 +150,7 @@ export function FrameScheduler({
     const handleContextRestored = () => {
       contextLost.current = false;
       lastFrame.current = 0;
+      scheduledAt.current = 0;
       invalidate();
       schedule();
     };

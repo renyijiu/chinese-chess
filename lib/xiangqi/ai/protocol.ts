@@ -1,4 +1,4 @@
-import { deserializeGame, serializeGame } from "../persistence";
+import { deserializeGame, serializeGame, type GameReplayValidator } from "../persistence";
 import { isSquare } from "../engine";
 import type { Side, Square } from "../types";
 import {
@@ -301,6 +301,7 @@ export type PositionValidationResult =
 export async function validateOpponentRequestPosition(
   request: OpponentRequestV1,
   digest: PositionDigest,
+  replayValidator?: GameReplayValidator,
 ): Promise<PositionValidationResult> {
   const actualFingerprint = await digest(request.serializedGame);
   if (actualFingerprint !== request.positionFingerprint) {
@@ -308,7 +309,9 @@ export async function validateOpponentRequestPosition(
   }
   let game;
   try {
-    game = deserializeGame(request.serializedGame);
+    game = replayValidator
+      ? replayValidator.validateGame(request.serializedGame)
+      : deserializeGame(request.serializedGame);
   } catch {
     return { ok: false, code: "invalid-serialization" };
   }

@@ -237,8 +237,16 @@ export class OpponentCoordinator {
 
   async activateMatch(activation: OpponentMatchActivation): Promise<void> {
     if (this.#disposed) return;
+    const canReuse =
+      activation.tier === "fairy-master" &&
+      this.#match?.tier === activation.tier &&
+      !this.#pendingStop &&
+      this.#phase !== "failed";
     this.#pendingStop = null;
     const oldProvider = this.#provider;
+    // This activation owns cleanup until it restores the provider. A newer
+    // activation must not stop or dispose the same instance a second time.
+    this.#provider = null;
     const oldIdentity = this.#activeRequest;
     this.invalidateSynchronously();
     this.#match = { ...activation, requestedTier: activation.tier };
@@ -249,9 +257,14 @@ export class OpponentCoordinator {
     this.emit();
 
     if (oldProvider) {
-      await this.stopWithinGrace(oldProvider, oldIdentity);
+      const cooperative = await this.stopWithinGrace(oldProvider, oldIdentity);
+      if (canReuse && cooperative && this.isCurrent(generation, activation.matchId)) {
+        this.#provider = oldProvider;
+        this.#phase = this.restingPhase();
+        this.emit();
+        return;
+      }
       oldProvider.dispose();
-      if (this.#provider === oldProvider) this.#provider = null;
     }
     if (!this.isCurrent(generation, activation.matchId)) return;
     await this.bootProvider(generation, activation.tier);
@@ -419,6 +432,20 @@ export class OpponentCoordinator {
       this.#phase = this.restingPhase();
       this.emit();
     }
+  }
+
+  deactivate(): void {
+    if (this.#disposed) return;
+    const provider = this.#provider;
+    this.invalidateSynchronously();
+    this.#pendingStop = null;
+    this.#provider = null;
+    this.#match = null;
+    this.#failure = null;
+    this.#terminal = false;
+    this.#phase = "booting";
+    provider?.dispose();
+    this.emit();
   }
 
   dispose(): void {

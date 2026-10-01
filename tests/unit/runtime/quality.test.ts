@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  advanceScheduledFrameTime,
   isScheduledFrameDue,
   runScheduledFrameTasks,
   type ScheduledFrameRegistration,
@@ -12,6 +13,24 @@ import {
 } from "../../../components/xiangqi/runtime/quality";
 
 describe("quality profiles", () => {
+  it.each([
+    [60, 24],
+    [120, 24],
+    [144, 60],
+  ])(
+    "keeps the requested average cadence at %i Hz / %i FPS without dropping remainder",
+    (refreshRate, requestedFps) => {
+      let scheduledAt = 0;
+      let frames = 0;
+      for (let tick = 1; tick <= refreshRate * 10; tick += 1) {
+        const now = (tick * 1000) / refreshRate;
+        if (!isScheduledFrameDue(now - scheduledAt, requestedFps)) continue;
+        frames += 1;
+        scheduledAt = advanceScheduledFrameTime(scheduledAt, now, requestedFps);
+      }
+      expect(frames).toBe(requestedFps * 10);
+    },
+  );
   it("isolates a failed ambient task and keeps the remaining tasks scheduled", () => {
     const failed = vi.fn(() => {
       throw new Error("optional layer failed");

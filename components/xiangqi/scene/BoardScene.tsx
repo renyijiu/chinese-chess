@@ -19,6 +19,7 @@ import { PieceAssetLoaderProvider } from "../pieces/asset-loader";
 import type { PresentationStore } from "../presentation/PresentationStore";
 import { FrameScheduler } from "../runtime/FrameScheduler";
 import { PerformanceSummary } from "../runtime/PerformanceSummary";
+import { PauseSceneRendering, SceneWarmup } from "../runtime/SceneWarmup";
 import { StaticShadowMap } from "../runtime/StaticShadowMap";
 import { WebGLContextRecovery } from "../runtime/WebGLContextRecovery";
 import type { QualityProfile } from "../runtime/quality";
@@ -152,6 +153,23 @@ export function BoardScene({
   view,
   viewSide,
 }: BoardSceneProps) {
+  const [environment, setEnvironment] = useState<{
+    quality: QualityProfile;
+    status: EnvironmentStatus;
+  }>({ quality, status: "loading" });
+  const [preparedQuality, setPreparedQuality] = useState<QualityProfile | null>(null);
+  const environmentStatus = environment.quality === quality ? environment.status : "loading";
+  const reportEnvironment = useCallback(
+    (status: EnvironmentStatus) => setEnvironment({ quality, status }),
+    [quality],
+  );
+  const prepared = useCallback(
+    (ready: boolean) => setPreparedQuality(ready ? quality : null),
+    [quality],
+  );
+  useEffect(() => {
+    onEnvironmentStatusChange?.(preparedQuality === quality ? environmentStatus : "loading");
+  }, [environmentStatus, onEnvironmentStatusChange, preparedQuality, quality]);
   return (
     <FrameScheduler ambientFps={quality.ambientFps}>
       <PieceAssetLoaderProvider>
@@ -163,9 +181,16 @@ export function BoardScene({
           key={`${quality.environment.panorama}:${quality.environment.detailLevel}`}
           presentation={presentation}
           quality={quality}
-          {...(onEnvironmentStatusChange ? { onEnvironmentStatusChange } : {})}
+          onEnvironmentStatusChange={reportEnvironment}
         />
-        <Suspense fallback={null}>{pieceLayer ?? <PrototypePieceLayer />}</Suspense>
+        <Suspense fallback={<PauseSceneRendering />}>
+          {pieceLayer ?? <PrototypePieceLayer />}
+          <SceneWarmup
+            key={`${quality.environment.panorama}:${quality.environment.detailLevel}`}
+            postprocessing={quality.postprocessing}
+            onReadyChange={prepared}
+          />
+        </Suspense>
         <BoardCamera
           autoTour={autoTour}
           reducedMotion={reducedMotion}
@@ -179,7 +204,7 @@ export function BoardScene({
         />
         <AudioListenerBridge audio={audio} />
         <PerformanceSummary drawCallsRef={drawCallsRef} />
-        {quality.postprocessing ? (
+        {quality.postprocessing && preparedQuality === quality ? (
           <ConditionalBattlePostprocessing presentation={presentation} />
         ) : null}
       </PieceAssetLoaderProvider>

@@ -24,6 +24,23 @@ describe("PerformanceMetrics", () => {
     });
   });
 
+  it("keeps severe active stalls while excluding demand-render idle gaps", () => {
+    const metrics = new PerformanceMetrics();
+    const sample = { drawCalls: 80, geometries: 20, textures: 8, triangles: 100_000 };
+    metrics.record({ ...sample, frameIntervalMs: 16 });
+    metrics.record({ ...sample, frameIntervalMs: 500 });
+    metrics.record({ ...sample, frameIntervalMs: 30_000 }, false);
+    expect(metrics.snapshot()).toMatchObject({
+      sampleCount: 2,
+      renderedFrames: 3,
+      maximumFrameIntervalMs: 500,
+      longFrames50Ms: 1,
+      longFrames100Ms: 1,
+      longFrames250Ms: 1,
+    });
+    metrics.reset();
+    expect(metrics.snapshot()).toMatchObject({ renderedFrames: 0, longFrames250Ms: 0 });
+  });
   it("summarizes empty and nearest-rank frame interval distributions", () => {
     expect(summarizeFrameIntervals([])).toEqual({
       averageFrameIntervalMs: 0,
@@ -65,6 +82,10 @@ describe("PerformanceMetrics", () => {
       p90FrameIntervalMs: 20,
       p95FrameIntervalMs: 20,
       sampleCount: 5,
+      renderedFrames: 5,
+      longFrames50Ms: 0,
+      longFrames100Ms: 0,
+      longFrames250Ms: 0,
       textures: 12,
     });
   });

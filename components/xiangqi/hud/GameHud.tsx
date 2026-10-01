@@ -45,6 +45,48 @@ const VOLUME_CONTROLS = [
   ["sfxVolume", "战斗音效"],
   ["uiVolume", "界面音效"],
 ] as const satisfies readonly (readonly [keyof GameSettings, string])[];
+export type VolumeSetting = (typeof VOLUME_CONTROLS)[number][0];
+
+function VolumeSlider({
+  label,
+  value,
+  onPreview,
+  onCommit,
+}: {
+  label: string;
+  value: number;
+  onPreview: (value: number) => void;
+  onCommit: (value: number) => void;
+}) {
+  const [draft, setDraft] = useState(value);
+  const commit = () => {
+    if (draft !== value) onCommit(draft);
+  };
+  return (
+    <label>
+      <span>
+        {label} · {Math.round(draft * 100)}%
+      </span>
+      <input
+        aria-label={label}
+        min="0"
+        max="1"
+        step="0.01"
+        type="range"
+        value={draft}
+        onChange={(event) => {
+          const next = Number(event.target.value);
+          setDraft(next);
+          onPreview(next);
+        }}
+        onBlur={commit}
+        onKeyUp={commit}
+        onPointerUp={commit}
+        onPointerCancel={commit}
+      />
+    </label>
+  );
+}
 const TIER_LABELS: Record<OpponentTier, string> = {
   "lightweight-easy": "简单",
   "lightweight-normal": "标准",
@@ -502,6 +544,7 @@ export function GameHud({
   onResign,
   onRestart,
   onSettingsChange,
+  onVolumePreview,
   onSkip,
   onUndo,
   permissions,
@@ -517,6 +560,7 @@ export function GameHud({
   onResign: () => void;
   onRestart: () => void;
   onSettingsChange: (settings: GameSettings) => void;
+  onVolumePreview: (key: VolumeSetting, value: number) => void;
   onSkip: () => void;
   onUndo: () => void;
   permissions: GameHudPermissions;
@@ -679,28 +723,15 @@ export function GameHud({
               ))}
             </select>
           </label>
-          {VOLUME_CONTROLS.map(([key, label]) => {
-            const value = settings[key];
-            if (typeof value !== "number") return null;
-            return (
-              <label key={key}>
-                <span>
-                  {label} · {Math.round(value * 100)}%
-                </span>
-                <input
-                  aria-label={label}
-                  max="1"
-                  min="0"
-                  step="0.01"
-                  type="range"
-                  value={value}
-                  onChange={(event) =>
-                    onSettingsChange({ ...settings, [key]: Number(event.target.value) })
-                  }
-                />
-              </label>
-            );
-          })}
+          {VOLUME_CONTROLS.map(([key, label]) => (
+            <VolumeSlider
+              key={key}
+              label={label}
+              value={settings[key]}
+              onPreview={(value) => onVolumePreview(key, value)}
+              onCommit={(value) => onSettingsChange({ ...settings, [key]: value })}
+            />
+          ))}
           <label className="game-toggle-row">
             <input
               checked={settings.muted}

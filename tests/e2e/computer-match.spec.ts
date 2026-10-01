@@ -447,7 +447,7 @@ test("discloses Master fallback, hides computer undo, and preserves local undo",
   await expect(page.getByRole("button", { name: "悔棋" })).toBeVisible();
 });
 
-test("boots the isolated verified Master Worker and commits one legal opening move", async ({
+test("reuses the verified Master Worker for a new game and releases it on mode exit", async ({
   page,
 }) => {
   test.setTimeout(60_000);
@@ -457,7 +457,37 @@ test("boots the isolated verified Master Worker and commits one legal opening mo
       failedEngineRequests.push(request.url());
     }
   });
-  await forceNextDie(page, 4);
+  await page.addInitScript(() => {
+    const NativeWorker = window.Worker;
+    const counts = { created: 0, active: 0 };
+    class TrackedMaster extends NativeWorker {
+      private tracked: boolean;
+      constructor(url: string | URL, options?: WorkerOptions) {
+        super(url, options);
+        this.tracked = String(url).includes("xiangqi-master");
+        if (this.tracked) {
+          counts.created += 1;
+          counts.active += 1;
+        }
+      }
+      override terminate() {
+        if (this.tracked) {
+          counts.active -= 1;
+          this.tracked = false;
+        }
+        super.terminate();
+      }
+    }
+    Object.defineProperty(window, "Worker", { value: TrackedMaster, configurable: true });
+    Object.defineProperty(window, "__MASTER_COUNTS__", { value: counts });
+  });
+  const counts = () =>
+    page.evaluate(
+      () =>
+        (window as typeof window & { __MASTER_COUNTS__: { created: number; active: number } })
+          .__MASTER_COUNTS__,
+    );
+  await forceEveryDie(page, 4);
   await openCleanGame(page, "low", true);
   await page.evaluate(async () => {
     for (const name of await caches.keys()) {
@@ -495,6 +525,27 @@ test("boots the isolated verified Master Worker and commits one legal opening mo
     )
     .toBe("fairy-master");
   expect(failedEngineRequests).toEqual([]);
+  expect(await counts()).toEqual({ created: 1, active: 1 });
+  const restart = async () => {
+    await page.getByRole("button", { name: "重新开局" }).click();
+    await page
+      .getByRole("alertdialog")
+      .getByRole("button", { name: "重新开局", exact: true })
+      .click();
+  };
+  await restart();
+  await page.getByRole("button", { name: "以黑方开始对局" }).click();
+  await waitForRevision(page, 1);
+  expect(await counts()).toEqual({ created: 1, active: 1 });
+  await restart();
+  await page.getByRole("button", { name: "本机双人", exact: true }).click();
+  await page.getByRole("button", { name: "开始新的本机双人对局" }).click();
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "开始新局", exact: true })
+    .click();
+  await expect(page.locator(".xiangqi-game-shell")).toHaveAttribute("data-match-mode", "local");
+  await expect.poll(counts).toEqual({ created: 1, active: 0 });
 });
 
 test("keeps setup and presentation controls usable at 390 by 844", async ({ page }) => {

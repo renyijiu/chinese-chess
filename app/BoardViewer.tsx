@@ -28,6 +28,7 @@ export function BoardViewer({
   presentation,
   quality = "high",
   reducedMotion = false,
+  sceneActive = true,
   status = "9 × 10 线位 · 双九宫 · 本机双人",
   viewSide,
   onViewSideChange,
@@ -39,6 +40,7 @@ export function BoardViewer({
   presentation: PresentationStore;
   quality?: QualityTier;
   reducedMotion?: boolean;
+  sceneActive?: boolean;
   status?: string;
   viewSide: BoardViewSide;
   onViewSideChange: (side: BoardViewSide) => void;
@@ -97,6 +99,7 @@ export function BoardViewer({
             onError={handleSceneError}
           >
             <Canvas
+              key={quality === "low" ? "no-msaa" : "msaa"}
               camera={{ fov: 37, near: 0.1, far: 140, position: [10.2, 8.7, 13.4] }}
               dpr={[qualityProfile.dpr[0], qualityProfile.dpr[1]]}
               fallback={<p className="viewer-fallback">此设备无法启动三维预览。</p>}
@@ -119,10 +122,10 @@ export function BoardViewer({
               }}
             >
               <BoardScene
-                ambientMotion={!reducedMotion}
+                ambientMotion={!reducedMotion && autoTour && sceneActive}
                 animations={animations}
                 audio={audio}
-                autoTour={autoTour}
+                autoTour={autoTour && sceneActive}
                 drawCallsRef={drawCallsRef}
                 onEnvironmentStatusChange={handleEnvironmentStatusChange}
                 pieceLayer={pieceLayer}
@@ -170,7 +173,7 @@ export function BoardViewer({
           <button
             aria-pressed={autoTour}
             className="viewer-control"
-            disabled={view === "overhead" || reducedMotion}
+            disabled={view === "overhead" || reducedMotion || !sceneActive}
             type="button"
             onClick={() => setAutoTour((enabled) => !enabled)}
           >

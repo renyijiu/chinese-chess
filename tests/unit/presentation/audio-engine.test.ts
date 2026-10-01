@@ -9,8 +9,10 @@ import {
   type AudioParamLike,
 } from "../../../components/xiangqi/audio/AudioEngine";
 import { DEFAULT_AUDIO_MIX } from "../../../components/xiangqi/audio/audio-types";
+import type { MusicElement } from "../../../components/xiangqi/audio/StreamingMusic";
 import {
   QIN_AUDIO_ASSET_IDS,
+  QIN_AUDIO_MANIFEST_URL,
   type QinAudioPackManifestV1,
 } from "../../../components/xiangqi/audio/qin-audio-pack-contract";
 
@@ -130,6 +132,26 @@ class FakeContext implements AudioContextLike {
   });
   suspend = vi.fn(async () => {
     this.state = "suspended";
+  });
+}
+
+class FakeMusicElement extends EventTarget implements MusicElement {
+  currentTime = 0;
+  duration = 72;
+  paused = true;
+  preload: "auto" | "metadata" | "none" | "" = "auto";
+  src = "";
+  play = vi.fn(async () => {
+    this.paused = false;
+  });
+  pause = vi.fn(() => {
+    this.paused = true;
+  });
+  load = vi.fn(() => {
+    if (this.src) queueMicrotask(() => this.dispatchEvent(new Event("loadedmetadata")));
+  });
+  removeAttribute = vi.fn((name: string) => {
+    if (name === "src") this.src = "";
   });
 }
 
@@ -304,7 +326,817 @@ async function settlePack(engine: AudioEngine) {
   }
 }
 
+async function unlockWithLoops(engine: AudioEngine) {
+  await engine.unlock();
+  await vi.waitFor(() => expect(engine.debugSnapshot().preparingLoops).toBe(false));
+}
+
 describe("AudioEngine", () => {
+  it("prepares the output device asynchronously before constructing a single context", async () => {
+    const media = new FakeMusicElement();
+    let ready!: () => void;
+    media.play.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          ready = resolve;
+        }),
+    );
+    const context = Object.assign(new FakeContext(), {
+      createMediaElementSource: vi.fn(() => new FakeNode()),
+    });
+    const contextFactory = vi.fn(() => context);
+    const engine = new AudioEngine({
+      contextFactory,
+      musicElementFactory: () => media,
+      fetcher: null,
+    });
+    const states: string[] = [];
+    const first = engine.unlock().then(() => states.push(engine.state));
+    const second = engine.unlock().then(() => states.push(engine.state));
+    expect(media.play).toHaveBeenCalledOnce();
+    expect(contextFactory).not.toHaveBeenCalled();
+    ready();
+    await Promise.all([first, second]);
+    expect(states).toEqual(["running", "running"]);
+    expect(contextFactory).toHaveBeenCalledOnce();
+    expect(context.createMediaElementSource).toHaveBeenCalledWith(media);
+    await engine.dispose();
+  });
+
+  it.each(["mute", "master zero", "dispose"] as const)(
+    "does not initialize after %s during device preparation",
+    async (action) => {
+      const media = new FakeMusicElement();
+      let ready!: () => void;
+      media.play.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            ready = resolve;
+          }),
+      );
+      const contextFactory = vi.fn(() =>
+        Object.assign(new FakeContext(), { createMediaElementSource: () => new FakeNode() }),
+      );
+      const engine = new AudioEngine({
+        contextFactory,
+        musicElementFactory: () => media,
+        fetcher: null,
+      });
+      const pending = engine.unlock();
+      if (action === "mute") engine.setMuted(true);
+      else if (action === "master zero") engine.setMix({ ...DEFAULT_AUDIO_MIX, master: 0 });
+      else await engine.dispose();
+      ready();
+      await pending;
+      expect(contextFactory).not.toHaveBeenCalled();
+      expect(media.paused).toBe(true);
+      await engine.dispose();
+    },
+  );
+
+  it.each(["reject", "throw", "timeout"] as const)(
+    "falls back when device preparation fails by %s",
+    async (failure) => {
+      vi.useFakeTimers();
+      const media = new FakeMusicElement();
+      media.play.mockImplementationOnce(() => {
+        if (failure === "throw") throw new Error("Unavailable device");
+        return failure === "reject"
+          ? Promise.reject(new Error("Unavailable device"))
+          : new Promise<void>(() => {});
+      });
+      const factory = vi.fn(() => new FakeContext());
+      const engine = new AudioEngine({
+        contextFactory: factory,
+        musicElementFactory: () => media,
+        fetcher: null,
+      });
+      try {
+        const pending = engine.unlock();
+        if (failure === "timeout") await vi.advanceTimersByTimeAsync(1_000);
+        await pending;
+        expect(factory).toHaveBeenCalledOnce();
+        expect(engine.state).toBe("running");
+      } finally {
+        await engine.dispose();
+        vi.useRealTimers();
+      }
+    },
+  );
+
+  it("only adopts the latest primer after muting and unmuting", async () => {
+    const staleMedia = new FakeMusicElement();
+    const activeMedia = new FakeMusicElement();
+    let ready!: () => void;
+    let activeReady!: () => void;
+    staleMedia.play.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          ready = resolve;
+        }),
+    );
+    activeMedia.play.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          activeReady = resolve;
+        }),
+    );
+    const mediaFactory = vi.fn().mockReturnValueOnce(staleMedia).mockReturnValueOnce(activeMedia);
+    const context = Object.assign(new FakeContext(), {
+      createMediaElementSource: vi.fn(() => new FakeNode()),
+    });
+    const factory = vi.fn(() => context);
+    const engine = new AudioEngine({
+      contextFactory: factory,
+      musicElementFactory: mediaFactory,
+      fetcher: null,
+    });
+    const stale = engine.unlock();
+    engine.setMuted(true);
+    engine.setMuted(false);
+    const states: string[] = [];
+    const replacement = engine.unlock().then(() => states.push(engine.state));
+    ready();
+    await stale;
+    const third = engine.unlock().then(() => states.push(engine.state));
+    activeReady();
+    await Promise.all([replacement, third]);
+    expect(states).toEqual(["running", "running"]);
+    expect(factory).toHaveBeenCalledOnce();
+    expect(context.createMediaElementSource).toHaveBeenCalledWith(activeMedia);
+    expect(staleMedia.src).toBe("");
+    await engine.dispose();
+  });
+
+  it("defers context creation while hidden during device preparation", async () => {
+    const media = new FakeMusicElement();
+    let ready!: () => void;
+    media.play.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          ready = resolve;
+        }),
+    );
+    const factory = vi.fn(() => new FakeContext());
+    const engine = new AudioEngine({
+      contextFactory: factory,
+      musicElementFactory: () => media,
+      fetcher: null,
+    });
+    let visibilityListener = () => {};
+    const documentLike = {
+      hidden: false,
+      addEventListener: (_type: string, listener: () => void) => {
+        visibilityListener = listener;
+      },
+      removeEventListener: vi.fn(),
+    };
+    engine.attachVisibility(documentLike);
+    const pending = engine.unlock();
+    documentLike.hidden = true;
+    visibilityListener();
+    ready();
+    await pending;
+    expect(factory).not.toHaveBeenCalled();
+    documentLike.hidden = false;
+    visibilityListener();
+    await vi.waitFor(() => expect(engine.state).toBe("running"));
+    expect(factory).toHaveBeenCalledOnce();
+    await engine.dispose();
+  });
+
+  it("keeps a muted cold start dormant and unlocks only after an unmute gesture", async () => {
+    const context = new FakeContext();
+    const factory = vi.fn(() => context);
+    const fetcher = vi.fn(() => new Promise<Response>(() => undefined));
+    const engine = new AudioEngine({ contextFactory: factory, fetcher });
+    engine.setMuted(true);
+
+    await engine.unlock();
+    await engine.unlock();
+
+    expect(factory).not.toHaveBeenCalled();
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(engine.debugSnapshot()).toMatchObject({
+      state: "muted",
+      contextPresent: false,
+      totalDecodedBytes: 0,
+      packState: "unrequested",
+    });
+
+    engine.setMuted(false);
+    await engine.unlock();
+    expect(factory).toHaveBeenCalledOnce();
+    expect(fetcher).toHaveBeenCalledOnce();
+    expect(engine.isTransientEligible()).toBe(true);
+    await engine.dispose();
+  });
+
+  it("returns from unlock before generating long procedural loops", async () => {
+    const context = new FakeContext();
+    const engine = new AudioEngine({ contextFactory: () => context, fetcher: null });
+
+    await engine.unlock();
+
+    expect(context.createBuffer).not.toHaveBeenCalled();
+    expect(engine.play("ui.select")).toBe(true);
+    await engine.dispose();
+  });
+
+  it("keeps zero master dormant until a requested unlock can become audible", async () => {
+    const context = new FakeContext();
+    const contextFactory = vi.fn(() => context);
+    const musicElementFactory = vi.fn(() => new FakeMusicElement());
+    const fetcher = vi.fn(() => new Promise<Response>(() => {}));
+    const speech = { cancel: vi.fn(), speak: vi.fn() };
+    const engine = new AudioEngine({ contextFactory, musicElementFactory, fetcher, speech });
+    try {
+      engine.setMix({ ...DEFAULT_AUDIO_MIX, master: 0 });
+      engine.setMix(DEFAULT_AUDIO_MIX);
+      expect(contextFactory).not.toHaveBeenCalled();
+      engine.setMix({ ...DEFAULT_AUDIO_MIX, master: 0 });
+      await engine.unlock();
+      expect(contextFactory).not.toHaveBeenCalled();
+      expect(musicElementFactory).not.toHaveBeenCalled();
+      expect(fetcher).not.toHaveBeenCalled();
+      expect(engine.play("ui.select")).toBe(false);
+      expect(engine.playTransient("system.check")).toBe(false);
+      expect(engine.speak("向前！")).toBe(false);
+      expect(engine.debugSnapshot().totalDecodedBytes).toBe(0);
+
+      engine.setMuted(true);
+      engine.setMix(DEFAULT_AUDIO_MIX);
+      await Promise.resolve();
+      expect(contextFactory).not.toHaveBeenCalled();
+      engine.setMuted(false);
+      await vi.waitFor(() => expect(engine.isTransientEligible()).toBe(true));
+      expect(contextFactory).toHaveBeenCalledOnce();
+      expect(engine.state).toBe("running");
+    } finally {
+      await engine.dispose();
+    }
+  });
+
+  it("suspends zero master and restores after visibility without replaying transients", async () => {
+    const context = new FakeContext();
+    const speech = { cancel: vi.fn(), speak: vi.fn() };
+    const engine = new AudioEngine({
+      contextFactory: () => context,
+      fetcher: null,
+      speech,
+      utteranceFactory: (text) => ({ text }) as SpeechSynthesisUtterance,
+    });
+    let visibilityListener = () => {};
+    const documentLike = {
+      hidden: false,
+      addEventListener: (_type: string, listener: () => void) => {
+        visibilityListener = listener;
+      },
+      removeEventListener: vi.fn(),
+    };
+    engine.attachVisibility(documentLike);
+    try {
+      await unlockWithLoops(engine);
+      expect(engine.play("ui.select")).toBe(true);
+      expect(engine.speak("向前！")).toBe(true);
+      const starts = engine.debugSnapshot().sourceStarts;
+      engine.setMix({ ...DEFAULT_AUDIO_MIX, master: 0 });
+      expect(engine.play("ui.select")).toBe(false);
+      expect(engine.playTransient("system.check")).toBe(false);
+      expect(engine.speak("向前！")).toBe(false);
+      expect(speech.cancel).toHaveBeenCalled();
+      expect(engine.debugSnapshot().activeSourcesByKind["synth-transient"]).toBe(0);
+      await vi.waitFor(() => expect(context.state).toBe("suspended"));
+
+      documentLike.hidden = true;
+      visibilityListener();
+      engine.setMix(DEFAULT_AUDIO_MIX);
+      await Promise.resolve();
+      expect(context.state).toBe("suspended");
+      documentLike.hidden = false;
+      visibilityListener();
+      await vi.waitFor(() => expect(engine.isTransientEligible()).toBe(true));
+      expect(engine.debugSnapshot().sourceStarts).toBe(starts);
+      expect(engine.state).toBe("running");
+    } finally {
+      await engine.dispose();
+    }
+  });
+
+  it("contains unavailable context errors when volume restoration retries a requested unlock", async () => {
+    const engine = new AudioEngine({
+      contextFactory: () => {
+        throw new Error("Web Audio unavailable");
+      },
+      musicElementFactory: null,
+      fetcher: null,
+    });
+    engine.setMix({ ...DEFAULT_AUDIO_MIX, master: 0 });
+    await engine.unlock();
+    engine.setMix(DEFAULT_AUDIO_MIX);
+    await expect(engine.unlock()).rejects.toThrow("Web Audio unavailable");
+    expect(engine.state).toBe("locked");
+    await engine.dispose();
+  });
+
+  it.each(["synth", "buffer", "stream"] as const)(
+    "stops zero-volume loops and restores each bus (%s)",
+    async (mode) => {
+      const streamed = mode === "stream";
+      const context = Object.assign(new FakeContext(), {
+        createMediaElementSource: () => new FakeNode(),
+      });
+      const media = new FakeMusicElement();
+      const pack = makeRuntimePack();
+      installPackDecoder(context, pack.manifest);
+      const engine = new AudioEngine({
+        contextFactory: () => context,
+        musicElementFactory: streamed ? () => media : null,
+        fetcher: mode !== "synth" ? async (input) => responseForPackUrl(pack, input) : null,
+      });
+      try {
+        engine.setMix({ ...DEFAULT_AUDIO_MIX, music: 0, ambient: 0 });
+        await unlockWithLoops(engine);
+        await settlePack(engine);
+        expect(context.createBuffer).not.toHaveBeenCalled();
+        expect(engine.debugSnapshot().activeSources).toBe(0);
+        if (streamed) expect(media.paused).toBe(true);
+
+        engine.setMix({ ...DEFAULT_AUDIO_MIX, music: 0 });
+        await vi.waitFor(() => expect(engine.debugSnapshot().activeSourcesByKind.ambient).toBe(1));
+        expect(engine.debugSnapshot().activeSources).toBe(1);
+        engine.setMix(DEFAULT_AUDIO_MIX);
+        await vi.waitFor(() => expect(engine.debugSnapshot().activeSources).toBe(2));
+        if (streamed) expect(media.paused).toBe(false);
+        const musicStarts = engine.debugSnapshot().sourceStartsByKind["authored-music"];
+
+        engine.setMix({ ...DEFAULT_AUDIO_MIX, music: 0, ambient: 0 });
+        expect(engine.debugSnapshot().activeSources).toBe(0);
+        if (streamed) expect(media.paused).toBe(true);
+        engine.setMix(DEFAULT_AUDIO_MIX);
+        await vi.waitFor(() => expect(engine.debugSnapshot().activeSources).toBe(2));
+        if (streamed) {
+          await vi.waitFor(() => expect(media.paused).toBe(false));
+          expect(engine.debugSnapshot().sourceStartsByKind["authored-music"]).toBe(musicStarts);
+        }
+      } finally {
+        await engine.dispose();
+      }
+    },
+  );
+
+  it.each(["fade end", "music zero"] as const)(
+    "releases streamed fallback PCM at %s and regenerates it on later failure",
+    async (retirement) => {
+      const context = Object.assign(new FakeContext(), {
+        createMediaElementSource: () => new FakeNode(),
+      });
+      const media = new FakeMusicElement();
+      const pack = makeRuntimePack();
+      installPackDecoder(context, pack.manifest);
+      let releaseManifest!: (response: Response) => void;
+      const manifestResponse = new Promise<Response>((resolve) => {
+        releaseManifest = resolve;
+      });
+      const engine = new AudioEngine({
+        contextFactory: () => context,
+        musicElementFactory: () => media,
+        fetcher: async (input) =>
+          String(input).endsWith("manifest.json")
+            ? manifestResponse
+            : responseForPackUrl(pack, input),
+      });
+      try {
+        await unlockWithLoops(engine);
+        const synth = context.sources.find((source) => source.buffer?.duration === 8)!;
+        synth.stop.mockImplementation(() => {});
+        releaseManifest(responseForPackUrl(pack, QIN_AUDIO_MANIFEST_URL));
+        await settlePack(engine);
+        await vi.waitFor(() => expect(engine.debugSnapshot().musicMode).toBe("authored"));
+        const before = engine.debugSnapshot().totalDecodedBytes;
+        if (retirement === "fade end") synth.onended?.();
+        else {
+          engine.setMix({ ...DEFAULT_AUDIO_MIX, music: 0 });
+          expect(synth.stop).toHaveBeenCalledTimes(2);
+          expect(synth.stop).toHaveBeenLastCalledWith(undefined);
+          engine.setMix(DEFAULT_AUDIO_MIX);
+          await vi.waitFor(() => expect(media.paused).toBe(false));
+        }
+        expect(before - engine.debugSnapshot().totalDecodedBytes).toBe(
+          8 * 2 * context.sampleRate * 4,
+        );
+        expect(engine.debugSnapshot().cachedBuffers).toBe(1);
+        media.dispatchEvent(new Event("error"));
+        expect(engine.debugSnapshot().activeSourcesByKind["synth-music"]).toBe(0);
+        await vi.waitFor(() =>
+          expect(engine.debugSnapshot().activeSourcesByKind["synth-music"]).toBe(1),
+        );
+        expect(
+          context.createBuffer.mock.calls.filter(([, frames]) => frames === 8 * context.sampleRate),
+        ).toHaveLength(2);
+      } finally {
+        await engine.dispose();
+      }
+    },
+  );
+
+  it("discards a pending procedural loop when streamed music takes over", async () => {
+    let release!: () => void;
+    vi.stubGlobal("scheduler", {
+      yield: vi
+        .fn()
+        .mockResolvedValueOnce(undefined)
+        .mockImplementationOnce(
+          () =>
+            new Promise<void>((resolve) => {
+              release = resolve;
+            }),
+        )
+        .mockResolvedValue(undefined),
+    });
+    const context = Object.assign(new FakeContext(), {
+      createMediaElementSource: () => new FakeNode(),
+    });
+    const media = new FakeMusicElement();
+    const pack = makeRuntimePack();
+    installPackDecoder(context, pack.manifest);
+    const engine = new AudioEngine({
+      contextFactory: () => context,
+      musicElementFactory: () => media,
+      fetcher: async (input) => responseForPackUrl(pack, input),
+    });
+    try {
+      await engine.unlock();
+      await settlePack(engine);
+      await vi.waitFor(() => expect(engine.debugSnapshot().musicMode).toBe("authored"));
+      release();
+      await vi.waitFor(() => expect(engine.debugSnapshot().preparingLoops).toBe(false));
+      expect(
+        context.createBuffer.mock.calls.map(([, frames]) => frames / context.sampleRate),
+      ).toEqual([8, 6]);
+      expect(engine.debugSnapshot().cachedBuffers).toBe(1);
+    } finally {
+      release();
+      await engine.dispose();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it.each(["mute", "master zero", "music zero", "hidden", "dispose"] as const)(
+    "cancels regenerated fallback during %s and resumes only when eligible",
+    async (action) => {
+      const context = Object.assign(new FakeContext(), {
+        createMediaElementSource: () => new FakeNode(),
+      });
+      const media = new FakeMusicElement();
+      const pack = makeRuntimePack();
+      installPackDecoder(context, pack.manifest);
+      const engine = new AudioEngine({
+        contextFactory: () => context,
+        musicElementFactory: () => media,
+        fetcher: async (input) => responseForPackUrl(pack, input),
+      });
+      let visibilityListener = () => {};
+      const documentLike = {
+        hidden: false,
+        addEventListener: (_type: string, listener: () => void) => {
+          visibilityListener = listener;
+        },
+        removeEventListener: vi.fn(),
+      };
+      engine.attachVisibility(documentLike);
+      let release: (() => void) | undefined;
+      try {
+        await unlockWithLoops(engine);
+        await settlePack(engine);
+        await vi.waitFor(() => expect(engine.debugSnapshot().musicMode).toBe("authored"));
+        vi.stubGlobal("scheduler", {
+          yield: vi
+            .fn()
+            .mockResolvedValueOnce(undefined)
+            .mockImplementationOnce(
+              () =>
+                new Promise<void>((resolve) => {
+                  release = resolve;
+                }),
+            )
+            .mockResolvedValue(undefined),
+        });
+        const starts = engine.debugSnapshot().sourceStartsByKind["synth-music"];
+        media.dispatchEvent(new Event("error"));
+        await vi.waitFor(() => expect(release).toBeDefined());
+        if (action === "mute") engine.setMuted(true);
+        else if (action === "master zero") engine.setMix({ ...DEFAULT_AUDIO_MIX, master: 0 });
+        else if (action === "music zero") engine.setMix({ ...DEFAULT_AUDIO_MIX, music: 0 });
+        else if (action === "hidden") {
+          documentLike.hidden = true;
+          visibilityListener();
+        } else await engine.dispose();
+        release!();
+        await vi.waitFor(() => expect(engine.debugSnapshot().preparingLoops).toBe(false));
+        expect(engine.debugSnapshot().sourceStartsByKind["synth-music"]).toBe(starts);
+        expect(engine.debugSnapshot().cachedBuffers).toBe(action === "dispose" ? 0 : 1);
+        if (action === "dispose") return;
+
+        if (action === "mute") engine.setMuted(false);
+        else if (action === "hidden") {
+          documentLike.hidden = false;
+          visibilityListener();
+        } else engine.setMix(DEFAULT_AUDIO_MIX);
+        await vi.waitFor(() =>
+          expect(engine.debugSnapshot().activeSourcesByKind["synth-music"]).toBe(1),
+        );
+        expect(engine.debugSnapshot().packState).toBe("unavailable");
+      } finally {
+        release?.();
+        await engine.dispose();
+        vi.unstubAllGlobals();
+      }
+    },
+  );
+
+  it("streams verified music without a full PCM decode and preserves loops, gains and lifecycle", async () => {
+    const context = new FakeContext();
+    context.sampleRate = 48_000;
+    const mediaNode = new FakeNode();
+    const mediaContext = Object.assign(context, {
+      createMediaElementSource: vi.fn(() => mediaNode),
+    });
+    const media = new FakeMusicElement();
+    const pack = makeRuntimePack();
+    installPackDecoder(context, pack.manifest);
+    const revoke = vi.spyOn(URL, "revokeObjectURL");
+    const engine = new AudioEngine({
+      contextFactory: () => mediaContext,
+      musicElementFactory: () => media,
+      fetcher: vi.fn(async (input: RequestInfo | URL) => responseForPackUrl(pack, input)),
+    });
+    let hidden = false;
+    let visibilityListener: () => void = () => undefined;
+    engine.attachVisibility({
+      get hidden() {
+        return hidden;
+      },
+      addEventListener: (_type, listener) => {
+        visibilityListener = listener;
+      },
+      removeEventListener: vi.fn(),
+    });
+
+    const unlocking = engine.unlock();
+    expect(media.play).toHaveBeenCalledOnce(); // primed synchronously in the gesture
+    await unlocking;
+    await settlePack(engine);
+    await vi.waitFor(() => expect(engine.debugSnapshot().musicMode).toBe("authored"));
+    expect(context.decodeAudioData).toHaveBeenCalledTimes(5);
+    expect(
+      context.decodeAudioData.mock.calls.every(([bytes]) => new Uint8Array(bytes)[0] !== 1),
+    ).toBe(true);
+    expect(engine.debugSnapshot()).toMatchObject({
+      authoredBufferCount: 5,
+      streamingMusic: true,
+      activeSourcesByKind: { "authored-music": 1 },
+    });
+    expect(engine.debugSnapshot().authoredDecodedBytes).toBeLessThan(2 * 1024 * 1024);
+    expect(media.currentTime).toBe(4);
+    expect(mediaNode.connect).toHaveBeenCalledWith(context.gains[6]);
+    expect(context.gains[6]?.connect).toHaveBeenCalledWith(context.gains[1]);
+    expect(context.gains[6]?.gain.rampCalls).toContainEqual({ value: 1, time: 1 });
+
+    media.currentTime = 68.25;
+    media.dispatchEvent(new Event("timeupdate"));
+    expect(media.currentTime).toBe(4.25);
+    engine.setMix({ ...DEFAULT_AUDIO_MIX, master: 0.4, music: 0.3 });
+    expect(context.gains[0]?.gain.value).toBe(0.4);
+    expect(context.gains[1]?.gain.value).toBe(0.3);
+
+    engine.setMuted(true);
+    expect(media.paused).toBe(true);
+    await vi.waitFor(() => expect(context.state).toBe("suspended"));
+    engine.setMuted(false);
+    await engine.unlock();
+    await vi.waitFor(() => expect(media.paused).toBe(false));
+    expect(media.currentTime).toBe(4.25);
+    expect(engine.debugSnapshot().sourceStartsByKind["authored-music"]).toBe(1);
+
+    hidden = true;
+    visibilityListener();
+    expect(media.paused).toBe(true);
+    hidden = false;
+    visibilityListener();
+    await vi.waitFor(() => expect(media.paused).toBe(false));
+    expect(engine.debugSnapshot().sourceStartsByKind["authored-music"]).toBe(1);
+    const blob = media.src;
+    await engine.dispose();
+    expect(media.paused).toBe(true);
+    expect(media.src).toBe("");
+    expect(revoke).toHaveBeenCalledWith(blob);
+    expect(mediaNode.disconnect).toHaveBeenCalledOnce();
+    expect(engine.debugSnapshot().totalDecodedBytes).toBe(0);
+    revoke.mockRestore();
+  });
+
+  it("falls back to procedural music if native music metadata or playback fails", async () => {
+    for (const failure of ["duration", "playback"] as const) {
+      const context = Object.assign(new FakeContext(), {
+        createMediaElementSource: () => new FakeNode(),
+      });
+      const pack = makeRuntimePack();
+      installPackDecoder(context, pack.manifest);
+      const media = new FakeMusicElement();
+      if (failure === "duration") media.duration = 30;
+      const engine = new AudioEngine({
+        contextFactory: () => context,
+        musicElementFactory: () => media,
+        fetcher: vi.fn(async (input: RequestInfo | URL) => responseForPackUrl(pack, input)),
+      });
+      await engine.unlock();
+      if (failure === "playback") media.play.mockRejectedValueOnce(new Error("media unavailable"));
+      await settlePack(engine);
+      await vi.waitFor(() => {
+        expect(engine.debugSnapshot()).toMatchObject({
+          packState: "unavailable",
+          musicMode: "synth",
+          streamingMusic: false,
+          activeSourcesByKind: { "synth-music": 1 },
+        });
+      });
+      expect(engine.playTransient("system.check")).toBe(true);
+      await engine.dispose();
+    }
+  });
+
+  it("keeps Web Audio usable when the optional native music source cannot be created", async () => {
+    const context = Object.assign(new FakeContext(), {
+      createMediaElementSource: () => {
+        throw new Error("native media source unavailable");
+      },
+    });
+    const media = new FakeMusicElement();
+    const pack = makeRuntimePack();
+    installPackDecoder(context, pack.manifest);
+    const engine = new AudioEngine({
+      contextFactory: () => context,
+      musicElementFactory: () => media,
+      fetcher: vi.fn(async (input: RequestInfo | URL) => responseForPackUrl(pack, input)),
+    });
+
+    await unlockWithLoops(engine);
+    await settlePack(engine);
+
+    expect(engine.debugSnapshot()).toMatchObject({
+      state: "running",
+      musicMode: "authored",
+      streamingMusic: false,
+    });
+    expect(engine.playTransient("system.check")).toBe(true);
+    expect(context.decodeAudioData).toHaveBeenCalledTimes(6);
+    expect(media.src).toBe("");
+    await engine.dispose();
+  });
+
+  it.each(["mute", "master zero", "music zero"] as const)(
+    "resumes after %s races with an earlier pending media play",
+    async (action) => {
+      const context = Object.assign(new FakeContext(), {
+        createMediaElementSource: () => new FakeNode(),
+      });
+      const pack = makeRuntimePack();
+      installPackDecoder(context, pack.manifest);
+      const media = new FakeMusicElement();
+      let releasePlay: () => void = () => undefined;
+      media.play
+        .mockImplementationOnce(async () => {
+          media.paused = false;
+        })
+        .mockImplementationOnce(
+          () =>
+            new Promise<void>((resolve) => {
+              releasePlay = resolve;
+            }),
+        );
+      const engine = new AudioEngine({
+        contextFactory: () => context,
+        musicElementFactory: () => media,
+        fetcher: vi.fn(async (input: RequestInfo | URL) => responseForPackUrl(pack, input)),
+      });
+      try {
+        await engine.unlock();
+        await settlePack(engine);
+        expect(media.play).toHaveBeenCalledTimes(2);
+        await vi.waitFor(() => expect(engine.debugSnapshot().preparingLoops).toBe(false));
+        if (action === "mute") {
+          engine.setMuted(true);
+          engine.setMuted(false);
+        } else {
+          engine.setMix({
+            ...DEFAULT_AUDIO_MIX,
+            [action === "master zero" ? "master" : "music"]: 0,
+          });
+          engine.setMix(DEFAULT_AUDIO_MIX);
+        }
+        await engine.unlock();
+        releasePlay();
+
+        await vi.waitFor(() => expect(media.paused).toBe(false));
+        expect(engine.debugSnapshot().sourceStartsByKind["authored-music"]).toBe(1);
+      } finally {
+        await engine.dispose();
+      }
+    },
+  );
+
+  it.each([false, true])(
+    "discards in-flight transient audio before mute suspension (authored pack: %s)",
+    async (authoredPack) => {
+      const context = new FakeContext();
+      const pack = makeRuntimePack();
+      installPackDecoder(context, pack.manifest);
+      const engine = new AudioEngine({
+        contextFactory: () => context,
+        fetcher: authoredPack ? async (input) => responseForPackUrl(pack, input) : null,
+      });
+      await unlockWithLoops(engine);
+      await settlePack(engine);
+      expect(engine.play("soldier.release")).toBe(true);
+      expect(engine.playTransient("system.capture")).toBe(true);
+      const transients = context.sources.filter((source) => !source.loop);
+      // A browser delivers ended asynchronously; disconnect immediately instead of waiting for it.
+      for (const source of transients) source.stop.mockImplementation(() => undefined);
+      const loopStops = context.sources
+        .filter((source) => source.loop)
+        .map((source) => source.stop.mock.calls.length);
+      const starts = engine.debugSnapshot().sourceStarts;
+
+      engine.setMuted(true);
+
+      for (const source of transients) {
+        expect(source.stop).toHaveBeenCalledOnce();
+        expect(source.disconnect).toHaveBeenCalledOnce();
+      }
+      expect(engine.debugSnapshot().activeSourcesByKind).toMatchObject({
+        "authored-transient": 0,
+        "synth-transient": 0,
+      });
+      await vi.waitFor(() => expect(context.state).toBe("suspended"));
+      engine.setMuted(false);
+      await engine.unlock();
+      expect(engine.debugSnapshot().sourceStarts).toBe(starts);
+      expect(
+        context.sources
+          .filter((source) => source.loop)
+          .map((source) => source.stop.mock.calls.length),
+      ).toEqual(loopStops);
+      await engine.dispose();
+    },
+  );
+
+  it("replaces a retiring synth when native music fails during the handoff fade", async () => {
+    const context = Object.assign(new FakeContext(), {
+      createMediaElementSource: () => new FakeNode(),
+    });
+    const pack = makeRuntimePack();
+    installPackDecoder(context, pack.manifest);
+    const media = new FakeMusicElement();
+    let releaseManifest: (response: Response) => void = () => undefined;
+    const manifestResponse = new Promise<Response>((resolve) => {
+      releaseManifest = resolve;
+    });
+    const engine = new AudioEngine({
+      contextFactory: () => context,
+      musicElementFactory: () => media,
+      fetcher: async (input) =>
+        String(input).endsWith("manifest.json")
+          ? manifestResponse
+          : responseForPackUrl(pack, input),
+    });
+    await unlockWithLoops(engine);
+    const retiringSynth = context.sources.find((source) => source.buffer?.duration === 8)!;
+    // Real Web Audio retains the source until its scheduled stop time.
+    retiringSynth.stop.mockImplementation(() => undefined);
+    releaseManifest(responseForPackUrl(pack, QIN_AUDIO_MANIFEST_URL));
+    await settlePack(engine);
+    await vi.waitFor(() => expect(engine.debugSnapshot().musicMode).toBe("authored"));
+    expect(retiringSynth.stop).toHaveBeenCalledWith(1);
+
+    context.currentTime = 0.5;
+    media.dispatchEvent(new Event("error"));
+    retiringSynth.onended?.();
+
+    await vi.waitFor(() => {
+      expect(engine.debugSnapshot()).toMatchObject({
+        musicMode: "synth",
+        packState: "unavailable",
+        activeSourcesByKind: { "synth-music": 1 },
+      });
+    });
+    const replacement = context.sources.at(-1)!;
+    expect(replacement).not.toBe(retiringSynth);
+    expect(replacement.loop).toBe(true);
+    expect(replacement.stop).not.toHaveBeenCalled();
+    await engine.dispose();
+  });
+
   it("characterizes one context, persistent buses, visibility, and disposal", async () => {
     const context = new FakeContext();
     const factory = vi.fn(() => context);
@@ -322,8 +1154,8 @@ describe("AudioEngine", () => {
     };
 
     const detach = engine.attachVisibility(documentLike);
-    await engine.unlock();
-    await engine.unlock();
+    await unlockWithLoops(engine);
+    await unlockWithLoops(engine);
 
     expect(factory).toHaveBeenCalledOnce();
     expect(context.sources).toHaveLength(2);
@@ -357,8 +1189,8 @@ describe("AudioEngine", () => {
 
     expect(engine.state).toBe("locked");
     expect(engine.play("ui.select")).toBe(false);
-    await engine.unlock();
-    await engine.unlock();
+    await unlockWithLoops(engine);
+    await unlockWithLoops(engine);
 
     expect(engine.state).toBe("running");
     expect(factory).toHaveBeenCalledTimes(1);
@@ -377,7 +1209,7 @@ describe("AudioEngine", () => {
     });
     const engine = new AudioEngine({ contextFactory: factory });
 
-    await engine.unlock();
+    await unlockWithLoops(engine);
 
     expect(factory.mock.calls).toEqual([[{ sampleRate: 48_000 }], []]);
     expect(context.sources).toHaveLength(2);
@@ -398,7 +1230,7 @@ describe("AudioEngine", () => {
     });
     const engine = new AudioEngine({ baseUrl: "/chess/", contextFactory: () => context, fetcher });
 
-    await engine.unlock();
+    await unlockWithLoops(engine);
 
     expect(context.sources).toHaveLength(2);
     expect(engine.debugSnapshot()).toMatchObject({ musicMode: "synth", packState: "loading" });
@@ -429,7 +1261,7 @@ describe("AudioEngine", () => {
     expect(context.gains[6]?.gain.rampCalls).toContainEqual({ value: 0, time: 19 });
     expect(context.gains[8]?.gain.rampCalls).toContainEqual({ value: 1, time: 19 });
 
-    await engine.unlock();
+    await unlockWithLoops(engine);
     expect(fetcher).toHaveBeenCalledTimes(7);
     expect(context.sources).toHaveLength(3);
   });
@@ -498,7 +1330,7 @@ describe("AudioEngine", () => {
     expect(context.sources.slice(0, 2).every((source) => source.stop.mock.calls.length === 0)).toBe(
       true,
     );
-    await engine.unlock();
+    await unlockWithLoops(engine);
     expect(engine.debugSnapshot().packState).toBe("unavailable");
   });
 
@@ -510,7 +1342,7 @@ describe("AudioEngine", () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => responseForPackUrl(pack, input));
     const engine = new AudioEngine({ contextFactory: () => context, fetcher });
 
-    await engine.unlock();
+    await unlockWithLoops(engine);
     await settlePack(engine);
 
     expect(context.decodeAudioData).toHaveBeenCalledOnce();
@@ -547,7 +1379,7 @@ describe("AudioEngine", () => {
     );
     const engine = new AudioEngine({ contextFactory: () => context, fetcher });
     engine.attachVisibility(documentLike);
-    await engine.unlock();
+    await unlockWithLoops(engine);
 
     hidden = true;
     (visibilityListener as (() => void) | null)?.();
@@ -650,7 +1482,7 @@ describe("AudioEngine", () => {
       },
       clearDeadline: vi.fn(),
     });
-    await deadlineEngine.unlock();
+    await unlockWithLoops(deadlineEngine);
     deadline();
     await settlePack(deadlineEngine);
     expect(deadlineEngine.debugSnapshot()).toMatchObject({
@@ -669,7 +1501,7 @@ describe("AudioEngine", () => {
       contextFactory: () => context,
       fetcher: vi.fn(async (input: RequestInfo | URL) => responseForPackUrl(pack, input)),
     });
-    await engine.unlock();
+    await unlockWithLoops(engine);
     for (let turn = 0; turn < 20 && context.decodeAudioData.mock.calls.length === 0; turn += 1)
       await Promise.resolve();
     const generations = engine.debugSnapshot();
@@ -706,7 +1538,7 @@ describe("AudioEngine", () => {
       contextFactory: () => context,
       fetcher: vi.fn(async (input: RequestInfo | URL) => responseForPackUrl(pack, input)),
     });
-    await engine.unlock();
+    await unlockWithLoops(engine);
     await settlePack(engine);
     expect(engine.debugSnapshot().packState).toBe("ready");
 
@@ -733,7 +1565,7 @@ describe("AudioEngine", () => {
     );
     const engine = new AudioEngine({ contextFactory: () => context, fetcher });
 
-    await engine.unlock();
+    await unlockWithLoops(engine);
     engine.setMuted(true);
     expect(context.gains[0]?.gain.value).toBe(0);
     releaseManifest(responseForPackUrl(pack, "/audio/qin-diorama/v1/manifest.json"));
@@ -741,7 +1573,7 @@ describe("AudioEngine", () => {
     expect(engine.debugSnapshot()).toMatchObject({ packState: "ready", state: "muted" });
 
     engine.setMuted(false);
-    await engine.unlock();
+    await unlockWithLoops(engine);
     expect(fetcher).toHaveBeenCalledTimes(7);
     expect(context.sources).toHaveLength(3);
   });
@@ -749,7 +1581,7 @@ describe("AudioEngine", () => {
   it("provides distinct synthesized capture and draw transients when the pack is unavailable", async () => {
     const context = new FakeContext();
     const engine = new AudioEngine({ contextFactory: () => context, fetcher: null });
-    await engine.unlock();
+    await unlockWithLoops(engine);
 
     expect(engine.playTransient("system.capture")).toBe(true);
     const capture = context.sources.at(-1)?.buffer as unknown as FakeBuffer;
@@ -773,7 +1605,7 @@ describe("AudioEngine", () => {
       contextFactory: () => decodeContext,
       fetcher: vi.fn(async (input: RequestInfo | URL) => responseForPackUrl(decodePack, input)),
     });
-    await decodeEngine.unlock();
+    await unlockWithLoops(decodeEngine);
     await settlePack(decodeEngine);
     expect(decodeEngine.debugSnapshot()).toMatchObject({
       authoredDecodedBytes: 0,
@@ -798,7 +1630,7 @@ describe("AudioEngine", () => {
           : Promise.resolve(responseForPackUrl(startPack, input)),
       ),
     });
-    await startEngine.unlock();
+    await unlockWithLoops(startEngine);
     startContext.failNextStart = true;
     releaseManifest(responseForPackUrl(startPack, "/audio/qin-diorama/v1/manifest.json"));
     await settlePack(startEngine);
@@ -827,7 +1659,7 @@ describe("AudioEngine", () => {
     engine.attachVisibility(documentLike);
 
     for (let cycle = 0; cycle < 100; cycle += 1) {
-      await engine.unlock();
+      await unlockWithLoops(engine);
       expect(engine.play("ui.select")).toBe(true);
       context.sources.at(-1)?.onended?.();
       if (cycle % 10 === 0) {
@@ -873,7 +1705,7 @@ describe("AudioEngine", () => {
     const setOrientation = vi.fn();
     Object.defineProperty(context, "listener", { value: { setOrientation, setPosition } });
     const engine = new AudioEngine({ contextFactory: () => context });
-    await engine.unlock();
+    await unlockWithLoops(engine);
     engine.setListenerPose([4, 5, 6], [0, 0, -1], [0, 1, 0]);
     expect(setPosition).toHaveBeenCalledWith(4, 5, 6);
     expect(setOrientation).toHaveBeenCalledWith(0, 0, -1, 0, 1, 0);
@@ -904,7 +1736,7 @@ describe("AudioEngine", () => {
   it("reuses synthesized buffers while creating and cleaning independent sources", async () => {
     const context = new FakeContext();
     const engine = new AudioEngine({ contextFactory: () => context });
-    await engine.unlock();
+    await unlockWithLoops(engine);
     const initialBuffers = context.createBuffer.mock.calls.length;
 
     expect(engine.play("soldier.release", { position: [1, 0, 2] })).toBe(true);
@@ -922,7 +1754,7 @@ describe("AudioEngine", () => {
   it("applies all bus gains, mute state, and per-cue concurrency limits", async () => {
     const context = new FakeContext();
     const engine = new AudioEngine({ contextFactory: () => context, maxVoicesPerCue: 2 });
-    await engine.unlock();
+    await unlockWithLoops(engine);
     engine.setMix({
       ...DEFAULT_AUDIO_MIX,
       master: 0.4,
@@ -954,7 +1786,7 @@ describe("AudioEngine", () => {
     };
     const utteranceFactory = (text: string) => ({ text }) as SpeechSynthesisUtterance;
     const engine = new AudioEngine({ contextFactory: () => context, speech, utteranceFactory });
-    await engine.unlock();
+    await unlockWithLoops(engine);
 
     expect(engine.speak("向前！")).toBe(true);
     expect(engine.speak("破阵！")).toBe(true);

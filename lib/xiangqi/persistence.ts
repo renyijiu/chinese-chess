@@ -138,6 +138,10 @@ export class GameReplayValidator {
   #state = createInitialGame();
 
   validate(serialized: string): number {
+    return this.validateGame(serialized).revision;
+  }
+
+  validateGame(serialized: string): GameState {
     const saved = parseSerializedGame(serialized);
     const previous = this.#state.commandLog;
     const extendsPrevious =
@@ -148,6 +152,6 @@ export class GameReplayValidator {
     const base = extendsPrevious ? this.#state : createInitialGame();
     const next = replayCommands(base, saved.commands.slice(base.commandLog.length));
     this.#state = next;
-    return next.revision;
+    return next;
   }
 }

@@ -145,10 +145,22 @@ function shouldAutoFocusKeyboardBoard(): boolean {
   return !window.matchMedia("(max-width: 680px) and (pointer: coarse)").matches;
 }
 
+function audioMix(settings: GameSettings) {
+  return {
+    ambient: settings.ambientVolume,
+    master: settings.masterVolume,
+    music: settings.musicVolume,
+    sfx: settings.sfxVolume,
+    ui: settings.uiVolume,
+    voice: settings.voiceVolume,
+  };
+}
+
 export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
   const [animations] = useState(() => new AnimationRegistry());
   const [animateDieMatchId, setAnimateDieMatchId] = useState<string | null>(null);
   const [audio] = useState(() => new AudioEngine());
+  const [audioUnlocked, setAudioUnlocked] = useState(false);
   const [semanticAudio] = useState(() => new SemanticAudioDirector(audio));
   const [confirmation, setConfirmation] = useState<Confirmation>(null);
   const [match, setMatch] = useState<SavedMatch>(() => createLocalMatch());
@@ -316,14 +328,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
   }, [audio, presentation, semanticAudio]);
 
   useEffect(() => {
-    audio.setMix({
-      ambient: settings.ambientVolume,
-      master: settings.masterVolume,
-      music: settings.musicVolume,
-      sfx: settings.sfxVolume,
-      ui: settings.uiVolume,
-      voice: settings.voiceVolume,
-    });
+    audio.setMix(audioMix(settings));
     audio.setMuted(settings.muted);
   }, [audio, settings]);
 
@@ -988,6 +993,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     const current = matchRef.current;
     if (phase !== "playing" || current.config.mode !== "computer") {
       activatedMatchId.current = null;
+      if (current.config.mode !== "computer") opponent.deactivate();
       return;
     }
     if (activatedMatchId.current === current.config.matchId) return;
@@ -1102,6 +1108,8 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
   const unlockAudio = useCallback(async () => {
     try {
       await audio.unlock();
+      if (mounted.current && audio.state === "running") setAudioUnlocked(true);
+      audio.play("ui.confirm");
       return true;
     } catch {
       setNotice("音频系统不可用，棋局仍可正常进行。");
@@ -1109,9 +1117,8 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     }
   }, [audio]);
 
-  const handleStart = async () => {
-    await unlockAudio();
-    audio.play("ui.confirm");
+  const handleStart = () => {
+    void unlockAudio();
     if (resumableMatch || unsafeSavePresent) {
       setConfirmation({ kind: "new-game", target: { mode: "local" } });
       return;
@@ -1119,9 +1126,8 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     startLocalGame();
   };
 
-  const handleRollComputer = async (difficulty: ComputerDifficulty) => {
-    await unlockAudio();
-    audio.play("ui.confirm");
+  const handleRollComputer = (difficulty: ComputerDifficulty) => {
+    void unlockAudio();
     if (resumableMatch || unsafeSavePresent) {
       setConfirmation({ kind: "new-game", target: { mode: "computer", difficulty } });
       return;
@@ -1130,8 +1136,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
   };
 
   const handleStartOnline = async (role: "host" | "guest") => {
-    await unlockAudio();
-    audio.play("ui.confirm");
+    void unlockAudio();
     if (!ONLINE_RUNTIME_CONFIG.enabled) return;
     if (resumableMatch || unsafeSavePresent) {
       setConfirmation({ kind: "new-game", target: { mode: "online", role } });
@@ -1140,15 +1145,13 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     await beginOnlinePairing(role, "new", null);
   };
 
-  const handleConfirmComputer = async () => {
-    await unlockAudio();
-    audio.play("ui.confirm");
+  const handleConfirmComputer = () => {
+    void unlockAudio();
     startPreparedComputerGame();
   };
 
   const handleContinue = async () => {
-    await unlockAudio();
-    audio.play("ui.confirm");
+    void unlockAudio();
     if (!resumableMatch) return;
     const resumableConfig = resumableMatch.config;
     if (resumableConfig.mode === "online") {
@@ -1265,6 +1268,10 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
   };
 
   const handleSettingsChange = (nextSettings: GameSettings) => {
+    settingsRef.current = nextSettings;
+    audio.setMix(audioMix(nextSettings));
+    audio.setMuted(nextSettings.muted);
+    if (!audioUnlocked && !nextSettings.muted && nextSettings.masterVolume > 0) void unlockAudio();
     setSettings(nextSettings);
     const storage = storageRef.current;
     if (!storage) {
@@ -1381,7 +1388,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
   return (
     <div
       className="xiangqi-game-shell"
-      data-audio-state={audio.state === "locked" ? "locked" : settings.muted ? "muted" : "running"}
+      data-audio-state={settings.muted ? "muted" : audioUnlocked ? "running" : "locked"}
       data-game-revision={game.revision}
       data-match-mode={match.config.mode}
       data-quality={settings.quality}
@@ -1408,6 +1415,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
           <BoardViewer
             animations={animations}
             audio={audio}
+            sceneActive={phase === "playing" && !confirmation}
             overlay={
               phase === "menu" ? (
                 onlineSetup ? (
@@ -1503,6 +1511,9 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
                       void applyCommand({ type: "undo", expectedRevision: game.revision });
                     }}
                     onSettingsChange={handleSettingsChange}
+                    onVolumePreview={(key, value) => {
+                      audio.setMix(audioMix({ ...settingsRef.current, [key]: value }));
+                    }}
                     onSkip={() => presentation.skip("user-skip")}
                     permissions={hudPermissions}
                     presentationBusy={commandBusy}

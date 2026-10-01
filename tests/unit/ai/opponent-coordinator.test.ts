@@ -152,6 +152,107 @@ function matchingReceipt(
 }
 
 describe("OpponentCoordinator", () => {
+  it("releases Master when leaving computer mode and can activate again", async () => {
+    const first = new FakeProvider();
+    const second = new FakeProvider();
+    const { coordinator, factoryCalls } = createHarness({ providers: [first, second] });
+    await activateAndSearch(coordinator, "fairy-master");
+    coordinator.deactivate();
+    first.resolveResult();
+    await flush();
+    expect(first.disposed).toBe(1);
+    expect(coordinator.getSnapshot()).toMatchObject({ matchId: null, turn: null });
+    await expect(coordinator.requestTurn(turn())).resolves.toBe(false);
+    await coordinator.activateMatch({ matchId: "match-b", seed: "b", tier: "fairy-master" });
+    expect(factoryCalls()).toBe(2);
+    expect(coordinator.getSnapshot()).toMatchObject({ matchId: "match-b", phase: "ready" });
+    coordinator.dispose();
+  });
+
+  it("reuses Master for a new match after stopping and rejects its old result", async () => {
+    const provider = new FakeProvider();
+    const stopped = deferred<void>();
+    provider.stopResult = stopped.promise;
+    const { coordinator, factoryCalls } = createHarness({ providers: [provider] });
+    await activateAndSearch(coordinator, "fairy-master");
+    const replacing = coordinator.activateMatch({
+      matchId: "match-b",
+      seed: "b",
+      tier: "fairy-master",
+    });
+    expect(coordinator.getSnapshot()).toMatchObject({
+      matchId: "match-b",
+      phase: "stopping",
+      turn: null,
+    });
+    await expect(coordinator.requestTurn(turn({ matchId: "match-b" }))).resolves.toBe(false);
+    provider.resolveResult();
+    stopped.resolve();
+    await replacing;
+    expect(factoryCalls()).toBe(1);
+    expect(provider.disposed).toBe(0);
+    expect(coordinator.getSnapshot()).toMatchObject({
+      matchId: "match-b",
+      phase: "ready",
+      turn: null,
+    });
+    await expect(coordinator.requestTurn(turn({ matchId: "match-b" }))).resolves.toBe(true);
+    expect(provider.searches).toHaveLength(2);
+    coordinator.dispose();
+    await flush();
+    expect(provider.disposed).toBe(1);
+  });
+
+  it("disposes a Master being replaced when another activation supersedes it", async () => {
+    const first = new FakeProvider();
+    const second = new FakeProvider();
+    const stopped = deferred<void>();
+    first.stopResult = stopped.promise;
+    const { coordinator, factoryCalls } = createHarness({ providers: [first, second] });
+    await activateAndSearch(coordinator, "fairy-master");
+    const replacing = coordinator.activateMatch({
+      matchId: "match-b",
+      seed: "b",
+      tier: "fairy-master",
+    });
+    await coordinator.activateMatch({ matchId: "match-c", seed: "c", tier: "lightweight-hard" });
+    stopped.resolve();
+    await replacing;
+    expect(factoryCalls()).toBe(2);
+    expect(first.disposed).toBe(1);
+    expect(second.disposed).toBe(0);
+    expect(coordinator.getSnapshot()).toMatchObject({
+      matchId: "match-c",
+      phase: "ready",
+      effectiveTier: "lightweight-hard",
+    });
+    coordinator.dispose();
+  });
+
+  it("replaces an unresponsive Master instead of reusing it", async () => {
+    vi.useFakeTimers();
+    try {
+      const first = new FakeProvider();
+      const second = new FakeProvider();
+      first.stopResult = new Promise(() => undefined);
+      const { coordinator, factoryCalls } = createHarness({ providers: [first, second] });
+      await activateAndSearch(coordinator, "fairy-master");
+      const replacing = coordinator.activateMatch({
+        matchId: "match-b",
+        seed: "b",
+        tier: "fairy-master",
+      });
+      await vi.advanceTimersByTimeAsync(25);
+      await replacing;
+      expect(first.disposed).toBe(1);
+      expect(factoryCalls()).toBe(2);
+      expect(coordinator.getSnapshot()).toMatchObject({ matchId: "match-b", phase: "ready" });
+      coordinator.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("holds exactly one request through candidatePending and committing until a matching receipt", async () => {
     const provider = new FakeProvider();
     const { coordinator } = createHarness({ providers: [provider] });
