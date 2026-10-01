@@ -159,9 +159,10 @@ test("a failed optional ambient task degrades its owner without blocking the gam
     window.__XIANGQI_TEST_FAULTS__ = { ambientTask: true };
   });
   await openCleanGame(page, "high");
-  await waitForEnvironmentSettled(page, "degraded");
-
   const keyboard = await startGame(page);
+  await page.getByRole("button", { name: "自动巡游" }).click();
+  await waitForEnvironmentSettled(page, "degraded");
+  await page.getByRole("button", { name: "停止巡游" }).click();
   await keyboard.focus();
   await pressSequence(keyboard, [
     "ArrowLeft",
@@ -230,21 +231,16 @@ test.describe("authored audio failure isolation", () => {
     page,
   }, testInfo) => {
     await page.addInitScript(() => {
-      const nativeStart = AudioBufferSourceNode.prototype.start;
+      const nativePlay = HTMLMediaElement.prototype.play;
       let failed = false;
-      AudioBufferSourceNode.prototype.start = function start(
-        when?: number,
-        offset?: number,
-        duration?: number,
-      ) {
-        if (!failed && this.loop && this.loopStart > 0) {
+      HTMLMediaElement.prototype.play = function play() {
+        if (!failed && this.src.startsWith("blob:")) {
           failed = true;
-          throw new DOMException("Injected authored source-start failure", "NotSupportedError");
+          return Promise.reject(
+            new DOMException("Injected authored source-start failure", "NotSupportedError"),
+          );
         }
-        if (duration !== undefined) return nativeStart.call(this, when, offset, duration);
-        if (offset !== undefined) return nativeStart.call(this, when, offset);
-        if (when !== undefined) return nativeStart.call(this, when);
-        return nativeStart.call(this);
+        return nativePlay.call(this);
       };
     });
     await runFailedAudioSession(page, testInfo);
@@ -327,6 +323,8 @@ test("high-quality ambient motion keeps resources stable across 100 browser fram
 }, testInfo) => {
   test.setTimeout(90_000);
   await openCleanGame(page, "high", false);
+  await startGame(page);
+  await page.getByRole("button", { name: "自动巡游" }).click();
   await waitForEnvironmentSettled(page, "ready");
   await expect
     .poll(() => page.evaluate(() => window.__XIANGQI_COMMITTED_PIECE_LOD__))
@@ -335,10 +333,9 @@ test("high-quality ambient motion keeps resources stable across 100 browser fram
   await page.waitForTimeout(600);
   await expect(page.locator(".xiangqi-game-shell")).toHaveAttribute("data-reduced-motion", "false");
   await expect
-    .poll(() => page.evaluate(() => window.__XIANGQI_PERFORMANCE__?.geometries ?? 0))
-    .toBeGreaterThan(0);
-  const baseline = await page.evaluate(() => window.__XIANGQI_PERFORMANCE__!);
-  await page.evaluate(() => window.__XIANGQI_RESET_PERFORMANCE__?.());
+    .poll(() => page.evaluate(() => window.__XIANGQI_FLUSH_PERFORMANCE__?.().sampleCount ?? 0))
+    .toBeGreaterThanOrEqual(120);
+  const baseline = await page.evaluate(() => window.__XIANGQI_FLUSH_PERFORMANCE__!());
 
   const browserFrames = await page.evaluate(
     () =>
@@ -359,7 +356,7 @@ test("high-quality ambient motion keeps resources stable across 100 browser fram
         window.requestAnimationFrame(sample);
       }),
   );
-  const settled = await page.evaluate(() => window.__XIANGQI_PERFORMANCE__!);
+  const settled = await page.evaluate(() => window.__XIANGQI_FLUSH_PERFORMANCE__!());
   const evidence = { baseline, browserFrames, settled };
   console.info(`AMBIENT_LIFECYCLE ${JSON.stringify(evidence)}`);
   await testInfo.attach("ambient-lifecycle.json", {

@@ -12,6 +12,7 @@ import type {
   OpponentRequestV1,
 } from "../../../lib/xiangqi/ai/index";
 import { validateOpponentRequestPosition } from "../../../lib/xiangqi/ai/index";
+import { GameReplayValidator } from "../../../lib/xiangqi/persistence";
 import {
   loadVerifiedMasterAssets,
   type MasterCacheStorageLike,
@@ -201,8 +202,6 @@ type ActiveSearch = {
   score: number;
   deadlineTimer: unknown;
   graceTimer: unknown;
-  stopPromise: Promise<void> | null;
-  stopResolve: (() => void) | null;
 };
 
 const browserTimers: MasterEngineTimers = {
@@ -282,6 +281,7 @@ export class MasterEngineAdapter implements OpponentProvider {
   readonly #stopGraceMs: number;
   readonly #timers: MasterEngineTimers;
   readonly #workerFactory: MasterHostWorkerFactory;
+  readonly #replayValidator = new GameReplayValidator();
   #worker: MasterHostWorkerLike | null = null;
   #initialization: Promise<void> | null = null;
   #initialized = false;
@@ -290,6 +290,7 @@ export class MasterEngineAdapter implements OpponentProvider {
   #lineWaiter: LineWaiter | null = null;
   #activeSearch: ActiveSearch | null = null;
   #startingRequest: OpponentRequestV1 | null = null;
+  #requestSettled: Promise<void> = Promise.resolve();
   #cancelledStartingRequest: OpponentRequestV1 | null = null;
   #currentMatchId: string | null = null;
   #advertisesVariant = false;
@@ -327,8 +328,16 @@ export class MasterEngineAdapter implements OpponentProvider {
       return failure("invalid-request", "Master received a non-Master request.");
 
     this.#startingRequest = request;
+    let settleRequest!: () => void;
+    this.#requestSettled = new Promise<void>((resolve) => {
+      settleRequest = resolve;
+    });
     try {
-      const validated = await validateOpponentRequestPosition(request, sha256);
+      const validated = await validateOpponentRequestPosition(
+        request,
+        sha256,
+        this.#replayValidator,
+      );
       if (this.#disposed) return failure("cancelled", "The Master engine adapter was disposed.");
       if (this.#cancelledStartingRequest && sameIdentity(this.#cancelledStartingRequest, request)) {
         return failure("cancelled", "The Master search was stopped before it began.");
@@ -374,8 +383,6 @@ export class MasterEngineAdapter implements OpponentProvider {
           score: 0,
           deadlineTimer,
           graceTimer: null,
-          stopPromise: null,
-          stopResolve: null,
         };
         this.command(`position fen ${fen}`);
         this.command(`go depth ${request.depthCeiling} nodes ${request.nodeBudget}`);
@@ -388,6 +395,7 @@ export class MasterEngineAdapter implements OpponentProvider {
     } finally {
       if (this.#startingRequest === request) this.#startingRequest = null;
       if (this.#cancelledStartingRequest === request) this.#cancelledStartingRequest = null;
+      settleRequest();
     }
   }
 
@@ -395,15 +403,12 @@ export class MasterEngineAdapter implements OpponentProvider {
     if (this.#disposed) return Promise.resolve();
     const active = this.#activeSearch;
     if (active && sameIdentity(active.request, identity)) {
-      if (active.stopPromise) return active.stopPromise;
-      active.stopPromise = new Promise<void>((resolve) => {
-        active.stopResolve = resolve;
-      });
       this.beginStop("cancelled");
-      return active.stopPromise;
+      return this.#requestSettled;
     }
     if (this.#startingRequest && sameIdentity(this.#startingRequest, identity)) {
       this.#cancelledStartingRequest = this.#startingRequest;
+      return this.#requestSettled;
     }
     return Promise.resolve();
   }
@@ -630,7 +635,6 @@ export class MasterEngineAdapter implements OpponentProvider {
     this.#activeSearch = null;
     this.#timers.clearTimeout(active.deadlineTimer);
     if (active.graceTimer !== null) this.#timers.clearTimeout(active.graceTimer);
-    active.stopResolve?.();
     active.resolve(outcome);
   }
 

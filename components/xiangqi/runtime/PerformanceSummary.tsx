@@ -1,6 +1,6 @@
 "use client";
 
-import { addTail, useFrame, useThree } from "@react-three/fiber";
+import { addAfterEffect, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useRef, type RefObject } from "react";
 
 import { useHasScheduledFrames } from "./FrameScheduler";
@@ -10,6 +10,7 @@ declare global {
   interface Window {
     __XIANGQI_PERFORMANCE__?: RuntimePerformanceSnapshot;
     __XIANGQI_RESET_PERFORMANCE__?: () => void;
+    __XIANGQI_FLUSH_PERFORMANCE__?: () => RuntimePerformanceSnapshot;
   }
 }
 
@@ -18,75 +19,92 @@ export function PerformanceSummary({
 }: {
   drawCallsRef: RefObject<HTMLSpanElement | null>;
 }) {
-  const lastUpdate = useRef(0);
-  const continuousFrame = useRef(false);
+  const lastUpdate = useRef(-Infinity);
   const lastRendererTotals = useRef({ drawCalls: 0, triangles: 0 });
   const metrics = useRef(new PerformanceMetrics());
-  const gl = useThree((state) => state.gl);
+  const rendered = useRef(false);
+  const previousFrame = useRef<number | null>(null);
+  const continuous = useRef(false);
+  const get = useThree((state) => state.get);
   const hasScheduledFrames = useHasScheduledFrames();
 
   useEffect(() => {
     const activeMetrics = metrics.current;
-    const resetContinuity = () => {
-      continuousFrame.current = false;
+    const { gl } = get();
+    const publish = () => {
+      const snapshot = activeMetrics.snapshot();
+      window.__XIANGQI_PERFORMANCE__ = snapshot;
+      const output = drawCallsRef.current;
+      if (output) {
+        output.dataset.drawCalls = String(snapshot.currentDrawCalls);
+        output.dataset.geometries = String(snapshot.geometries);
+        output.dataset.p95FrameIntervalMs = snapshot.p95FrameIntervalMs.toFixed(2);
+        output.dataset.peakDrawCalls = String(snapshot.peakDrawCalls);
+        output.dataset.textures = String(snapshot.textures);
+        output.dataset.triangles = String(snapshot.currentTriangles);
+        output.textContent = `${snapshot.currentDrawCalls.toLocaleString("zh-CN")} 绘制调用 · p95 ${snapshot.p95FrameIntervalMs.toFixed(1)}ms`;
+      }
+      return snapshot;
     };
-    // Ambient tasks can keep animating across stops in R3F's demand loop.
-    // Only a stop without scheduled work is idle; slow active frames still count.
-    const removeTail = addTail(() => {
-      if (!hasScheduledFrames?.()) resetContinuity();
-    });
-    document.addEventListener("visibilitychange", resetContinuity);
     const publishEmptySnapshot = () => {
-      resetContinuity();
       activeMetrics.reset();
       gl.info.reset();
       lastRendererTotals.current = { drawCalls: 0, triangles: 0 };
-      window.__XIANGQI_PERFORMANCE__ = activeMetrics.snapshot();
+      continuous.current = false;
+      rendered.current = false;
+      previousFrame.current = null;
+      lastUpdate.current = -Infinity;
+      publish();
     };
     window.__XIANGQI_RESET_PERFORMANCE__ = publishEmptySnapshot;
+    window.__XIANGQI_FLUSH_PERFORMANCE__ = publish;
     publishEmptySnapshot();
+    const onVisibility = () => {
+      continuous.current = false;
+      previousFrame.current = null;
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    // Measure after every pass has rendered, including the capture composer.
+    const detach = addAfterEffect((timestamp) => {
+      if (!rendered.current) return;
+      const { internal, frameloop } = get();
+      const totals = { drawCalls: gl.info.render.calls, triangles: gl.info.render.triangles };
+      activeMetrics.record(
+        {
+          drawCalls: Math.max(0, totals.drawCalls - lastRendererTotals.current.drawCalls),
+          frameIntervalMs: previousFrame.current === null ? 0 : timestamp - previousFrame.current,
+          geometries: gl.info.memory.geometries,
+          textures: gl.info.memory.textures,
+          triangles: Math.max(0, totals.triangles - lastRendererTotals.current.triangles),
+        },
+        continuous.current && !document.hidden,
+      );
+      lastRendererTotals.current = totals;
+      rendered.current = false;
+      previousFrame.current = timestamp;
+      // A pending frame proves the previous frame requested continuous work.
+      // The next user input after demand-render sleep is not an animation stall.
+      const wasContinuous = continuous.current;
+      continuous.current =
+        frameloop === "always" || internal.frames > 0 || Boolean(hasScheduledFrames?.());
+      if (timestamp - lastUpdate.current >= 500 || (wasContinuous && !continuous.current)) {
+        lastUpdate.current = timestamp;
+        publish();
+      }
+    });
     return () => {
-      removeTail();
-      document.removeEventListener("visibilitychange", resetContinuity);
+      detach();
+      document.removeEventListener("visibilitychange", onVisibility);
       if (window.__XIANGQI_RESET_PERFORMANCE__ === publishEmptySnapshot) {
         delete window.__XIANGQI_RESET_PERFORMANCE__;
         delete window.__XIANGQI_PERFORMANCE__;
+        delete window.__XIANGQI_FLUSH_PERFORMANCE__;
       }
     };
-  }, [gl, hasScheduledFrames]);
+  }, [drawCallsRef, get, hasScheduledFrames]);
 
-  useFrame(({ clock, gl: frameGl }, deltaSeconds) => {
-    const drawCalls = Math.max(0, frameGl.info.render.calls - lastRendererTotals.current.drawCalls);
-    const triangles = Math.max(
-      0,
-      frameGl.info.render.triangles - lastRendererTotals.current.triangles,
-    );
-    lastRendererTotals.current = {
-      drawCalls: frameGl.info.render.calls,
-      triangles: frameGl.info.render.triangles,
-    };
-    metrics.current.record({
-      drawCalls,
-      frameIntervalMs: continuousFrame.current && !document.hidden ? deltaSeconds * 1_000 : 0,
-      geometries: frameGl.info.memory.geometries,
-      textures: frameGl.info.memory.textures,
-      triangles,
-    });
-    continuousFrame.current = !document.hidden;
-    if (clock.elapsedTime - lastUpdate.current < 0.5) return;
-    lastUpdate.current = clock.elapsedTime;
-    const snapshot = metrics.current.snapshot();
-    window.__XIANGQI_PERFORMANCE__ = snapshot;
-    const output = drawCallsRef.current;
-    if (output) {
-      output.dataset.drawCalls = String(snapshot.currentDrawCalls);
-      output.dataset.geometries = String(snapshot.geometries);
-      output.dataset.p95FrameIntervalMs = snapshot.p95FrameIntervalMs.toFixed(2);
-      output.dataset.peakDrawCalls = String(snapshot.peakDrawCalls);
-      output.dataset.textures = String(snapshot.textures);
-      output.dataset.triangles = String(snapshot.currentTriangles);
-      output.textContent = `${snapshot.currentDrawCalls.toLocaleString("zh-CN")} 绘制调用 · p95 ${snapshot.p95FrameIntervalMs.toFixed(1)}ms`;
-    }
+  useFrame(() => {
+    rendered.current = true;
   });
 
   return null;

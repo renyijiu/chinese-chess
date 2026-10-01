@@ -3,12 +3,14 @@
 /* oxlint-disable react/no-unknown-property -- R3F scene graph props are valid custom JSX properties. */
 
 import type { ThreeEvent } from "@react-three/fiber";
-import { memo, useEffect, useMemo } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, type RefObject } from "react";
 import * as THREE from "three";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
 
 import type { Piece, Side } from "../../../lib/xiangqi/index";
 import type { AnimationRegistry } from "../animation/AnimationRegistry";
+import type { PresentationStore } from "../presentation/PresentationStore";
+import { resolvePieceMotion, type PieceMotion } from "../presentation/piece-motion";
 import type { PieceLod } from "../runtime/quality";
 import { usePieceAsset } from "./asset-loader";
 import { FACTION_MARKER_STYLES } from "./faction-marker";
@@ -91,17 +93,25 @@ function SelectionAura({ side }: { side: Side }) {
 
 function RiggedRoleModel({
   actorId,
+  actorRef,
   animation,
   animations,
   lod,
-  opacity,
+  destroyProgress,
+  ghost,
+  motion,
+  presentation,
   piece,
 }: {
   actorId: string;
+  actorRef: RefObject<THREE.Group | null>;
   animation: string;
   animations: AnimationRegistry;
   lod: PieceLod;
-  opacity: number;
+  destroyProgress: number;
+  ghost: boolean;
+  motion?: PieceMotion | undefined;
+  presentation?: PresentationStore | undefined;
   piece: Piece;
 }) {
   const url = pieceAssetUrl(piece.role, lod);
@@ -154,23 +164,44 @@ function RiggedRoleModel({
     },
     [prepared],
   );
-  useEffect(
+  useLayoutEffect(
     () => animations.register(actorId, prepared.mixer, clips),
     [actorId, animations, clips, prepared.mixer],
   );
-  useEffect(() => {
-    prepared.materials.forEach((material) => {
-      const transparent = opacity < 1;
-      if (material.transparent !== transparent) {
-        material.transparent = transparent;
-        material.needsUpdate = true;
+  useLayoutEffect(() => {
+    const update = () => {
+      const visual =
+        motion && presentation
+          ? resolvePieceMotion(motion, presentation.getProgress())
+          : { animation, destroyProgress };
+      const opacity = 1 - visual.destroyProgress;
+      if (actorRef.current) {
+        actorRef.current.scale.setScalar(Math.max(0.035, 1 - visual.destroyProgress * 0.965));
+        actorRef.current.visible = !ghost || visual.destroyProgress < 0.99;
       }
-      material.opacity = opacity;
-    });
-  }, [opacity, prepared.materials]);
-  useEffect(() => {
-    animations.play(actorId, animation);
-  }, [actorId, animation, animations]);
+      prepared.materials.forEach((material) => {
+        const transparent = opacity < 1;
+        if (material.transparent !== transparent) {
+          material.transparent = transparent;
+          material.needsUpdate = true;
+        }
+        material.opacity = opacity;
+      });
+      animations.play(actorId, visual.animation);
+    };
+    update();
+    return motion && presentation ? presentation.subscribeFrame(update) : undefined;
+  }, [
+    actorId,
+    actorRef,
+    animation,
+    animations,
+    destroyProgress,
+    ghost,
+    motion,
+    presentation,
+    prepared,
+  ]);
 
   return <primitive object={prepared.model} position={[0, prepared.localY, 0]} />;
 }
@@ -183,6 +214,8 @@ export const PieceActor = memo(function PieceActor({
   destroyProgress = 0,
   ghost = false,
   lod = 1,
+  motion,
+  presentation,
   onPress,
   piece,
   selected,
@@ -194,10 +227,13 @@ export const PieceActor = memo(function PieceActor({
   destroyProgress?: number;
   ghost?: boolean;
   lod?: PieceLod;
+  motion?: PieceMotion | undefined;
+  presentation?: PresentationStore | undefined;
   onPress: (piece: Piece) => void;
   piece: Piece;
   selected: boolean;
 }) {
+  const actorRef = useRef<THREE.Group>(null);
   const handleClick = (event: ThreeEvent<MouseEvent>) => {
     event.stopPropagation();
     if (disabled || event.delta > 6) return;
@@ -206,6 +242,7 @@ export const PieceActor = memo(function PieceActor({
 
   return (
     <group
+      ref={actorRef}
       name={`piece-actor:${actorId}`}
       onClick={handleClick}
       scale={Math.max(0.035, 1 - destroyProgress * 0.965)}
@@ -214,10 +251,14 @@ export const PieceActor = memo(function PieceActor({
       {selected ? <SelectionAura side={piece.side} /> : null}
       <RiggedRoleModel
         actorId={actorId}
+        actorRef={actorRef}
         animation={animation}
         animations={animations}
         lod={lod}
-        opacity={1 - destroyProgress}
+        destroyProgress={destroyProgress}
+        ghost={ghost}
+        motion={motion}
+        presentation={presentation}
         piece={piece}
       />
     </group>

@@ -16,6 +16,7 @@ export type PresentationMarker =
 
 export type ActivePresentation = Readonly<{
   firedMarkers: ReadonlySet<PresentationMarker>;
+  /** Progress at the last marker; continuous transforms read getProgress(). */
   progress: number;
   transition: GameActionTransition;
 }>;
@@ -63,13 +64,24 @@ export class PresentationStore {
   private readonly completedIds = new Set<string>();
   private readonly cueListeners = new Set<(cue: PresentationCue) => void>();
   private readonly listeners = new Set<() => void>();
+  private readonly frameListeners = new Set<() => void>();
   private readonly timeline = new TimelineDirector();
   private disposed = false;
   private fallbackActionId: string | null = null;
   private fallbackTimer: ReturnType<typeof setTimeout> | null = null;
   private snapshot: PresentationSnapshot = IDLE_SNAPSHOT;
+  private progress = 1;
 
   readonly getSnapshot = () => this.snapshot;
+  readonly getProgress = () => this.progress;
+
+  /** Called by the existing scene director; never publishes React state. */
+  readonly subscribeFrame = (listener: () => void) => {
+    this.frameListeners.add(listener);
+    return () => {
+      this.frameListeners.delete(listener);
+    };
+  };
 
   readonly subscribe = (listener: () => void) => {
     this.listeners.add(listener);
@@ -93,6 +105,7 @@ export class PresentationStore {
     return {
       activeTimelines: this.timeline.activeCount,
       cueListeners: this.cueListeners.size,
+      frameListeners: this.frameListeners.size,
       listeners: this.listeners.size,
       timers: this.fallbackTimer === null ? 0 : 1,
     } as const;
@@ -132,8 +145,9 @@ export class PresentationStore {
             : 550;
     const markers = capture || terminalDefeat ? CAPTURE_MARKERS : MOVE_MARKERS;
     const firedMarkers = new Set<PresentationMarker>();
+    this.progress = 0;
     this.snapshot = {
-      active: { firedMarkers, progress: 0, transition },
+      active: { firedMarkers: new Set(), progress: 0, transition },
     };
     this.emit();
 
@@ -157,9 +171,13 @@ export class PresentationStore {
               // A future audio/VFX cue consumer cannot stop the authoritative timeline.
             }
           });
-          this.publishActive(transition, firedMarkers, this.snapshot.active?.progress ?? 0);
+          this.publishActive(transition, firedMarkers, this.progress);
         },
-        onProgress: (progress) => this.publishActive(transition, firedMarkers, progress),
+        onProgress: (progress) => {
+          if (this.snapshot.active?.transition.actionId !== transition.actionId) return;
+          this.progress = progress;
+          this.frameListeners.forEach((listener) => listener());
+        },
         timeoutMs,
       })
       .then((result) => {
@@ -203,6 +221,7 @@ export class PresentationStore {
     this.completedIds.clear();
     this.cueListeners.clear();
     this.listeners.clear();
+    this.frameListeners.clear();
     this.snapshot = IDLE_SNAPSHOT;
     this.activePromise = null;
   }

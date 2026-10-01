@@ -42,27 +42,36 @@ export class AnimationRegistry {
     const looping = isLoopingClip(clipName);
     next.setLoop(looping ? THREE.LoopRepeat : THREE.LoopOnce, looping ? Infinity : 1);
     next.reset().setEffectiveTimeScale(1).setEffectiveWeight(1).play();
-    if (previous) previous.fadeOut(0.08);
-    next.fadeIn(0.08);
+    if (previous) {
+      previous.fadeOut(0.08);
+      next.fadeIn(0.08);
+    }
     entry.current = next;
-    entry.urgentSeconds = looping
-      ? clipName === "move_loop"
-        ? Math.max(entry.urgentSeconds, 0.8)
-        : entry.urgentSeconds
-      : Math.max(entry.urgentSeconds, next.getClip().duration + 0.12);
+    if (!looping) {
+      entry.urgentSeconds = Math.max(entry.urgentSeconds, next.getClip().duration + 0.12);
+    } else if (clipName === "move_loop") {
+      entry.urgentSeconds = Math.max(entry.urgentSeconds, 0.8);
+    } else {
+      entry.urgentSeconds = previous ? 0.12 : 0;
+    }
+    if (!previous) entry.mixer.update(0);
     return true;
   }
 
   update(deltaSeconds: number) {
     const delta = Math.min(0.1, Math.max(0, deltaSeconds));
     for (const entry of this.entries.values()) {
+      if (entry.urgentSeconds <= 0) continue;
       entry.mixer.update(delta);
       entry.urgentSeconds = Math.max(0, entry.urgentSeconds - delta);
     }
   }
 
   get hasUrgentAnimation() {
-    return [...this.entries.values()].some((entry) => entry.urgentSeconds > 0);
+    for (const entry of this.entries.values()) {
+      if (entry.urgentSeconds > 0) return true;
+    }
+    return false;
   }
 
   clearUrgentAnimations() {
