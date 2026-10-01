@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   MASTER_ENGINE_MANIFEST_URL,
@@ -62,10 +62,16 @@ async function runtimeFetch(input: RequestInfo | URL): Promise<Response> {
 }
 
 describe("verified Master engine cache", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it.each(["manifest.json", "stockfish.js"])(
     "times out a stalled %s body and allows a fresh retry",
     async (filename) => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
       const cacheStorage = new MemoryCacheStorage();
+      const bodyStarted = Promise.withResolvers<void>();
       let aborted = false;
       const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         if (!String(input).endsWith(filename)) return runtimeFetch(input);
@@ -80,6 +86,7 @@ describe("verified Master engine cache", () => {
                 },
                 { once: true },
               );
+              bodyStarted.resolve();
             },
           }),
           {
@@ -91,7 +98,7 @@ describe("verified Master engine cache", () => {
           },
         );
       });
-      await expect(
+      const timedOut = expect(
         loadVerifiedMasterAssets({
           baseUrl: "https://game.test",
           cacheStorage,
@@ -99,6 +106,11 @@ describe("verified Master engine cache", () => {
           fetchTimeoutMs: 20,
         }),
       ).rejects.toThrow(/timed out/);
+      await bodyStarted.promise;
+      await vi.advanceTimersByTimeAsync(19);
+      expect(aborted).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      await timedOut;
       expect(aborted).toBe(true);
       expect(cacheStorage.caches.size).toBe(0);
       const retried = await loadVerifiedMasterAssets({
@@ -197,14 +209,17 @@ describe("verified Master engine cache", () => {
   });
 
   it("bounds a stalled asset request and clears the partial cache generation", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     const cacheStorage = new MemoryCacheStorage();
+    const requestStarted = Promise.withResolvers<void>();
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = new URL(String(input), "https://game.test");
       if (url.pathname === MASTER_ENGINE_MANIFEST_URL) return runtimeFetch(input);
+      requestStarted.resolve();
       return new Promise<Response>(() => undefined);
     });
 
-    await expect(
+    const timedOut = expect(
       loadVerifiedMasterAssets({
         baseUrl: "https://game.test",
         cacheStorage,
@@ -212,6 +227,9 @@ describe("verified Master engine cache", () => {
         fetchTimeoutMs: 5,
       }),
     ).rejects.toThrow(/timed out after 5 ms/i);
+    await requestStarted.promise;
+    await vi.advanceTimersByTimeAsync(5);
+    await timedOut;
     expect(cacheStorage.caches.size).toBe(0);
   });
 });
