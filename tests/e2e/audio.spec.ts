@@ -296,9 +296,12 @@ test("the authored pack stays dormant until Start, then real media decodes and s
   ).toHaveLength(5);
   expect(probe.gainRamps).toBeGreaterThanOrEqual(1);
 
+  await expect
+    .poll(async () => (await audioSnapshot(page))?.totalDecodedBytes)
+    .toBeLessThanOrEqual(4 * 1024 * 1024);
   const snapshot = await audioSnapshot(page);
   expect(snapshot?.authoredDecodedBytes).toBeLessThanOrEqual(2 * 1024 * 1024);
-  expect(snapshot?.totalDecodedBytes).toBeLessThanOrEqual(8 * 1024 * 1024);
+  expect(snapshot?.totalDecodedBytes).toBeLessThanOrEqual(4 * 1024 * 1024);
 
   await page.getByRole("button", { name: "设置" }).click();
   await expect(page.getByRole("note")).toContainText("秦风灵感的幻想沙盘");
@@ -400,6 +403,80 @@ test("muting and visibility changes consume transients without catch-up or dupli
   await expect
     .poll(() => page.evaluate(() => window.__XIANGQI_AUDIO_MEDIA__?.currentTime ?? 99))
     .toBeLessThan(6);
+});
+
+test("zero master and loop volumes stay dormant and resume through the settings controls", async ({
+  page,
+}) => {
+  await installBrowserAudioProbe(page);
+  await openCleanGame(page, "low", true);
+  await page.evaluate(() => {
+    const key = "xiangqi3d:settings:v1";
+    const settings = JSON.parse(localStorage.getItem(key)!);
+    localStorage.setItem(
+      key,
+      JSON.stringify({
+        ...settings,
+        muted: false,
+        masterVolume: 0,
+        musicVolume: 0,
+        ambientVolume: 0,
+      }),
+    );
+  });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.getByRole("button", { name: "开始本机双人对局" }).click();
+  await expect(page.locator(".game-keyboard-control button")).toBeFocused();
+  expect(await audioSnapshot(page)).toMatchObject({
+    contextPresent: false,
+    packState: "unrequested",
+    totalDecodedBytes: 0,
+  });
+  expect(await page.evaluate(() => window.__XIANGQI_AUDIO_PROBE__?.constructed)).toBe(0);
+
+  await page.getByRole("button", { name: "设置" }).click();
+  const master = page.getByRole("slider", { name: "主音量", exact: true });
+  const music = page.getByRole("slider", { name: "音乐", exact: true });
+  const ambient = page.getByRole("slider", { name: "环境", exact: true });
+  const muted = page.getByRole("checkbox", { name: "静音" });
+  await master.press("End");
+  await waitForPackState(page, "ready");
+  await expect.poll(async () => (await audioSnapshot(page))?.activeSources).toBe(0);
+  expect(await page.evaluate(() => window.__XIANGQI_AUDIO_MEDIA__?.paused)).toBe(true);
+  expect(
+    await page.evaluate(() =>
+      window.__XIANGQI_AUDIO_PROBE__?.sourceStarts.filter((source) => source.loop),
+    ),
+  ).toEqual([]);
+
+  await music.press("End");
+  await ambient.press("End");
+  await expect.poll(async () => (await audioSnapshot(page))?.activeSources).toBe(2);
+  await expect.poll(() => page.evaluate(() => window.__XIANGQI_AUDIO_MEDIA__?.paused)).toBe(false);
+  const musicStarts = (await audioSnapshot(page))?.sourceStartsByKind["authored-music"];
+  await music.press("Home");
+  await ambient.press("Home");
+  await expect.poll(async () => (await audioSnapshot(page))?.activeSources).toBe(0);
+  expect(await page.evaluate(() => window.__XIANGQI_AUDIO_MEDIA__?.paused)).toBe(true);
+  await music.press("End");
+  await ambient.press("End");
+  await expect.poll(async () => (await audioSnapshot(page))?.activeSources).toBe(2);
+
+  await master.press("Home");
+  await expect.poll(() => page.evaluate(() => window.__XIANGQI_AUDIO_PROBE__?.suspended)).toBe(1);
+  expect(await page.evaluate(() => window.__XIANGQI_AUDIO_MEDIA__?.paused)).toBe(true);
+  expect(
+    await page.evaluate(() => window.__XIANGQI_AUDIO_TEST__?.playTransient("system.check")),
+  ).toBe(false);
+  await expect(muted).not.toBeChecked();
+  expect(
+    await page.evaluate(() => JSON.parse(localStorage.getItem("xiangqi3d:settings:v1")!).muted),
+  ).toBe(false);
+
+  await master.press("End");
+  await expect.poll(() => page.evaluate(() => window.__XIANGQI_AUDIO_MEDIA__?.paused)).toBe(false);
+  expect((await audioSnapshot(page))?.sourceStartsByKind["authored-music"]).toBe(musicStarts);
+  expect(await page.evaluate(() => window.__XIANGQI_AUDIO_PROBE__?.constructed)).toBe(1);
 });
 
 test("the same opening capture remains audible in two consecutive match epochs", async ({

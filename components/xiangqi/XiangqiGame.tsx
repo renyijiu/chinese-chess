@@ -1268,10 +1268,10 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
   };
 
   const handleSettingsChange = (nextSettings: GameSettings) => {
-    const wasMuted = settingsRef.current.muted;
     settingsRef.current = nextSettings;
+    audio.setMix(audioMix(nextSettings));
     audio.setMuted(nextSettings.muted);
-    if (wasMuted && !nextSettings.muted && audio.state === "locked") void unlockAudio();
+    if (!audioUnlocked && !nextSettings.muted && nextSettings.masterVolume > 0) void unlockAudio();
     setSettings(nextSettings);
     const storage = storageRef.current;
     if (!storage) {
