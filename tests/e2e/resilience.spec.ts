@@ -318,7 +318,7 @@ test.describe("authored audio failure isolation", () => {
   });
 });
 
-test("high-quality ambient motion keeps resources stable across 100 browser frames", async ({
+test("high-quality ambient motion keeps resources stable across 120 rendered frames", async ({
   page,
 }, testInfo) => {
   test.setTimeout(90_000);
@@ -329,16 +329,16 @@ test("high-quality ambient motion keeps resources stable across 100 browser fram
   await expect
     .poll(() => page.evaluate(() => window.__XIANGQI_COMMITTED_PIECE_LOD__))
     .toBe(getQualityProfile("high").lod);
-  // Include the loaded pieces in the next 500 ms renderer-metrics publication.
-  await page.waitForTimeout(600);
   await expect(page.locator(".xiangqi-game-shell")).toHaveAttribute("data-reduced-motion", "false");
   await expect
-    .poll(() => page.evaluate(() => window.__XIANGQI_FLUSH_PERFORMANCE__?.().sampleCount ?? 0))
-    .toBeGreaterThanOrEqual(120);
+    .poll(() => page.evaluate(() => window.__XIANGQI_FLUSH_PERFORMANCE__?.().currentDrawCalls ?? 0))
+    .toBeGreaterThan(0);
   const baseline = await page.evaluate(() => window.__XIANGQI_FLUSH_PERFORMANCE__!());
 
+  // This is a resource-lifetime check, not a frame-rate gate. Count actual draws
+  // within the test deadline, including on software-rendered headless browsers.
   const browserFrames = await page.evaluate(
-    () =>
+    (initialRenderedFrames) =>
       new Promise<{
         elapsedMs: number;
         frameCount: number;
@@ -347,7 +347,10 @@ test("high-quality ambient motion keeps resources stable across 100 browser fram
         let frameCount = 0;
         const sample = () => {
           frameCount += 1;
-          if (frameCount >= 120) {
+          if (
+            (window.__XIANGQI_PERFORMANCE__?.renderedFrames ?? 0) - initialRenderedFrames >=
+            120
+          ) {
             resolve({ elapsedMs: performance.now() - startedAt, frameCount });
             return;
           }
@@ -355,6 +358,7 @@ test("high-quality ambient motion keeps resources stable across 100 browser fram
         };
         window.requestAnimationFrame(sample);
       }),
+    baseline.renderedFrames,
   );
   const settled = await page.evaluate(() => window.__XIANGQI_FLUSH_PERFORMANCE__!());
   const evidence = { baseline, browserFrames, settled };
@@ -365,9 +369,8 @@ test("high-quality ambient motion keeps resources stable across 100 browser fram
   });
 
   await waitForEnvironmentSettled(page, "ready");
-  expect(browserFrames.frameCount).toBeGreaterThanOrEqual(100);
   expect(browserFrames.elapsedMs).toBeGreaterThan(0);
-  expect(settled.sampleCount).toBeGreaterThan(0);
+  expect(settled.renderedFrames - baseline.renderedFrames).toBeGreaterThanOrEqual(120);
   expect(Math.abs(settled.geometries - baseline.geometries)).toBeLessThanOrEqual(1);
   expect(Math.abs(settled.textures - baseline.textures)).toBeLessThanOrEqual(1);
 });

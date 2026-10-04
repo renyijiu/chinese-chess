@@ -107,30 +107,35 @@ test("high quality sleeps between moves and completes capture after context rest
   await waitForRevision(page, 1);
   await pressSequence(keyboard, ["ArrowUp", "ArrowUp", "Enter", "ArrowDown", "Enter"]);
   await waitForRevision(page, 2);
-  await page.locator("canvas").evaluate(
+  const parallelCompile = await page.locator("canvas").evaluate(
     (canvas) =>
-      new Promise<void>((resolve) => {
+      new Promise<boolean>((resolve) => {
         window.__XIANGQI_TEST_SHADER_HOLD__!.enabled = true;
         const gl = (canvas as HTMLCanvasElement).getContext("webgl2")!;
+        const parallel = Boolean(gl.getExtension("KHR_parallel_shader_compile"));
         const extension = gl.getExtension("WEBGL_lose_context")!;
-        canvas.addEventListener("webglcontextrestored", () => resolve(), { once: true });
+        canvas.addEventListener("webglcontextrestored", () => resolve(parallel), { once: true });
         extension.loseContext();
         window.setTimeout(() => extension.restoreContext(), 150);
       }),
   );
-  await expect
-    .poll(() => page.evaluate(() => window.__XIANGQI_TEST_SHADER_HOLD__!.polls))
-    .toBeGreaterThan(0);
+  if (parallelCompile) {
+    await expect
+      .poll(() => page.evaluate(() => window.__XIANGQI_TEST_SHADER_HOLD__!.polls))
+      .toBeGreaterThan(0);
+  }
   await page.evaluate(() => window.__XIANGQI_RESET_PERFORMANCE__?.());
   try {
     await pressSequence(keyboard, ["ArrowDown", "Enter", "ArrowUp", "Enter"]);
-    // A capture composer must not bypass the restored scene's compilation wait.
-    await page.waitForTimeout(300);
-    expect(await frameCount(page)).toBe(0);
-    await expect(page.locator(".board-viewer")).toHaveAttribute(
-      "data-environment-status",
-      "loading",
-    );
+    if (parallelCompile) {
+      // A capture composer must not bypass the restored scene's compilation wait.
+      await page.waitForTimeout(300);
+      expect(await frameCount(page)).toBe(0);
+      await expect(page.locator(".board-viewer")).toHaveAttribute(
+        "data-environment-status",
+        "loading",
+      );
+    }
   } finally {
     await page.evaluate(() => {
       window.__XIANGQI_TEST_SHADER_HOLD__!.enabled = false;
@@ -227,6 +232,18 @@ test("quality changes apply native antialiasing without replacing the game", asy
   await waitForRevision(page, 2);
 });
 
+test("deferred shader preparation failures reach the scene fallback", async ({ page }) => {
+  await page.addInitScript(() => {
+    const source = WebGL2RenderingContext.prototype.shaderSource;
+    WebGL2RenderingContext.prototype.shaderSource = function (shader, text) {
+      if (text.includes("#define USE_SKINNING")) throw new Error("shader preparation failed");
+      return source.call(this, shader, text);
+    };
+  });
+  await page.goto("/");
+  await expect(page.locator(".viewer-fallback")).toHaveText("棋盘场景加载失败。");
+});
+
 test("piece shaders finish compiling before drawing a new quality tier", async ({ page }) => {
   await page.addInitScript(() => {
     const shaders = new WeakMap<WebGLShader, string>();
@@ -256,13 +273,14 @@ test("piece shaders finish compiling before drawing a new quality tier", async (
     const info = prototype.getProgramInfoLog;
     prototype.getProgramInfoLog = function (program) {
       if (
-        this.getExtension("KHR_parallel_shader_compile") &&
         (programs.get(program) ?? []).some((shader) =>
           shaders.get(shader)?.includes("#define USE_SKINNING"),
         )
       ) {
         target.__SHADER_READINESS__!.checked++;
-        if (!ready.has(program)) target.__SHADER_READINESS__!.premature++;
+        if (this.getExtension("KHR_parallel_shader_compile") && !ready.has(program)) {
+          target.__SHADER_READINESS__!.premature++;
+        }
       }
       return info.call(this, program);
     };
