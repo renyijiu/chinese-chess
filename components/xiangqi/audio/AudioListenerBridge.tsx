@@ -17,7 +17,7 @@ export function AudioListenerBridge({ audio }: { audio: AudioEngine }) {
   const lastUp = useRef(new THREE.Vector3(Number.POSITIVE_INFINITY, 0, 0));
   useFrame(({ camera, clock }) => {
     if (audio.state === "locked") return;
-    const now = clock.getElapsedTime();
+    const now = clock.elapsedTime;
     if (now - elapsed.current < 1 / 20) return;
     elapsed.current = now;
     camera.getWorldPosition(POSITION);

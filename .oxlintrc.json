@@ -27,6 +27,7 @@
     "output/**",
     "next-env.d.ts",
     "public/basis/**",
+    "third_party/braces/**",
     "public/engines/fairy-stockfish-nnue/**"
   ],
   "rules": {

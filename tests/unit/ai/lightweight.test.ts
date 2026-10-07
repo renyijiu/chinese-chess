@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   createInitialGame,
   dispatch,
@@ -13,6 +13,7 @@ import {
   evaluatePosition,
   getDeterministicFallbackCandidate,
   runLightweightSearchBatched,
+  yieldToEventLoopTask,
   type LightweightTier,
 } from "../../../lib/xiangqi/ai/index";
 import { makeState, piece } from "../xiangqi/fixtures";
@@ -160,7 +161,18 @@ describe("lightweight Xiangqi search", () => {
     expect(search.result()).toMatchObject({ source: "search", reason: "complete" });
   });
 
-  it("uses a real task timer as the default cooperative-yield boundary", async () => {
+  it("uses native task yielding without a nested zero-delay timer", async () => {
+    const yieldTask = vi.fn(async () => undefined);
+    vi.stubGlobal("scheduler", { yield: yieldTask });
+    try {
+      await yieldToEventLoopTask();
+      expect(yieldTask).toHaveBeenCalledOnce();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("lets a real cancellation task run at the default cooperative-yield boundary", async () => {
     let cancelled = false;
     setTimeout(() => {
       cancelled = true;
@@ -176,7 +188,36 @@ describe("lightweight Xiangqi search", () => {
       isCancelled: () => cancelled,
     });
     expect(result.reason).toBe("cancelled");
-    expect(result.nodes).toBe(1);
+    expect(result.nodes).toBeGreaterThanOrEqual(1);
+    expect(result.nodes).toBeLessThan(50_000);
+  });
+
+  it("releases MessageChannel ports after each fallback yield", async () => {
+    const NativeMessageChannel = MessageChannel;
+    const channels: MessageChannel[] = [];
+    vi.stubGlobal("scheduler", undefined);
+    vi.stubGlobal(
+      "MessageChannel",
+      class extends NativeMessageChannel {
+        constructor() {
+          super();
+          vi.spyOn(this.port1, "close");
+          vi.spyOn(this.port2, "close");
+          channels.push(this);
+        }
+      },
+    );
+    try {
+      await yieldToEventLoopTask();
+      await yieldToEventLoopTask();
+      expect(channels).toHaveLength(2);
+      for (const channel of channels) {
+        expect(channel.port1.close).toHaveBeenCalledOnce();
+        expect(channel.port2.close).toHaveBeenCalledOnce();
+      }
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("honors a safety deadline between resumable work units", async () => {

@@ -28,14 +28,25 @@ const ORTHOGONAL_DIRECTIONS = [
   { file: -1, rank: 0 },
 ] as const;
 
-const ROLE_CODES: Record<Role, string> = {
-  general: "G",
-  advisor: "A",
-  elephant: "E",
-  chariot: "R",
-  horse: "H",
-  cannon: "C",
-  soldier: "S",
+const POSITION_CODES: Record<Side, Record<Role, string>> = {
+  red: {
+    general: "rG",
+    advisor: "rA",
+    elephant: "rE",
+    chariot: "rR",
+    horse: "rH",
+    cannon: "rC",
+    soldier: "rS",
+  },
+  black: {
+    general: "bG",
+    advisor: "bA",
+    elephant: "bE",
+    chariot: "bR",
+    horse: "bH",
+    cannon: "bC",
+    soldier: "bS",
+  },
 };
 
 const ROLE_LABELS: Record<Side, Record<Role, string>> = {
@@ -145,14 +156,11 @@ function createInitialBoard(): Board {
 export function getPositionKey(
   state: Pick<GameState, "board" | "sideToMove" | "rulesetId">,
 ): string {
-  const cells = Array.from({ length: BOARD_SIZE }, (_, index) => {
+  const cells = new Array<string>(BOARD_SIZE);
+  for (let index = 0; index < BOARD_SIZE; index += 1) {
     const piece = state.board[index];
-    if (!piece) {
-      return "--";
-    }
-    const sideCode = piece.side === "red" ? "r" : "b";
-    return `${sideCode}${ROLE_CODES[piece.role]}`;
-  });
+    cells[index] = piece ? POSITION_CODES[piece.side][piece.role] : "--";
+  }
   return `${state.rulesetId}|${state.sideToMove}|${cells.join(".")}`;
 }
 
@@ -459,11 +467,13 @@ function movePiece(board: Board, piece: Piece, to: Square): Board {
   return next;
 }
 
+function moveWithoutSelfCheck(board: Board, piece: Piece, to: Square): Board | null {
+  const next = movePiece(board, piece, to);
+  return isInCheckOnBoard(next, piece.side) ? null : next;
+}
+
 function legalMovesForPiece(board: Board, piece: Piece): Square[] {
-  return pseudoMoves(board, piece).filter((destination) => {
-    const nextBoard = movePiece(board, piece, destination);
-    return !isInCheckOnBoard(nextBoard, piece.side);
-  });
+  return pseudoMoves(board, piece).filter((to) => moveWithoutSelfCheck(board, piece, to) !== null);
 }
 
 export function getLegalMoves(state: GameState, pieceId: string): Square[] {
@@ -478,7 +488,11 @@ export function getLegalMoves(state: GameState, pieceId: string): Square[] {
 }
 
 function sideHasLegalMove(board: Board, side: Side): boolean {
-  return board.some((piece) => piece?.side === side && legalMovesForPiece(board, piece).length > 0);
+  return board.some(
+    (piece) =>
+      piece?.side === side &&
+      pseudoMoves(board, piece).some((to) => moveWithoutSelfCheck(board, piece, to) !== null),
+  );
 }
 
 export function formatSquareCoordinate(square: Square): string {
@@ -566,21 +580,29 @@ function advancePosition(
 
 /** Legal search candidates share move and terminal rules with authoritative dispatch. */
 export function getLegalPositionMoves(state: PositionState) {
-  if (state.status.kind !== "playing") return [];
-  return state.board.flatMap((piece) => {
-    if (!piece || piece.side !== state.sideToMove) return [];
-    return legalMovesForPiece(state.board, piece).map((to) => {
-      const board = movePiece(state.board, piece, to);
+  const moves: Array<{
+    from: Square;
+    to: Square;
+    givesCheck: boolean;
+    advance: () => PositionState;
+  }> = [];
+  if (state.status.kind !== "playing") return moves;
+  for (const piece of state.board) {
+    if (!piece || piece.side !== state.sideToMove) continue;
+    for (const to of pseudoMoves(state.board, piece)) {
+      const board = moveWithoutSelfCheck(state.board, piece, to);
+      if (!board) continue;
       const captured = pieceAt(state.board, to);
       const givesCheck = isInCheckOnBoard(board, otherSide(state.sideToMove));
-      return {
+      moves.push({
         from: piece.square,
         to,
         givesCheck,
         advance: () => advancePosition(state, board, captured, givesCheck),
-      };
-    });
-  });
+      });
+    }
+  }
+  return moves;
 }
 
 function dispatchMove(
@@ -604,8 +626,10 @@ function dispatchMove(
       "The selected piece does not belong to the side to move.",
     );
   }
-  const legal = getLegalMoves(state, piece.id);
-  if (!legal.some((square) => sameSquare(square, command.to))) {
+  const nextBoard = pseudoMoves(state.board, piece).some((square) => sameSquare(square, command.to))
+    ? moveWithoutSelfCheck(state.board, piece, command.to)
+    : null;
+  if (!nextBoard) {
     return rejected(state, "illegal-move", "The destination is not legal for the selected piece.");
   }
 
@@ -620,7 +644,6 @@ function dispatchMove(
   const captured: CapturedPiece | null = target
     ? { ...target, square: cloneSquare(target.square) }
     : null;
-  const nextBoard = movePiece(state.board, piece, command.to);
   const nextSide = otherSide(state.sideToMove);
   const nextRevision = state.revision + 1;
   const inCheck = isInCheckOnBoard(nextBoard, nextSide);

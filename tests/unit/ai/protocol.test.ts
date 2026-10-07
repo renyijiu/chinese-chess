@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import * as engine from "../../../lib/xiangqi/engine";
+import { GameReplayValidator } from "../../../lib/xiangqi/persistence";
 import { createInitialGame, dispatch, serializeGame } from "../../../lib/xiangqi/index";
 import {
   createOpponentErrorV1,
@@ -107,6 +109,80 @@ describe("opponent protocol v1", () => {
     };
     expect(decodeOpponentStopV1(stop)).toEqual(stop);
     expect(decodeOpponentStopV1({ ...stop, generation: 2.5 })).toBeNull();
+  });
+
+  it("replays only new commands while still rejecting tampered, divergent, and invalid inputs", async () => {
+    const validator = new GameReplayValidator();
+    const initial = createInitialGame();
+    const moved = dispatch(initial, {
+      type: "move",
+      expectedRevision: 0,
+      from: { file: 0, rank: 3 },
+      to: { file: 0, rank: 4 },
+    }).state;
+    const undone = dispatch(moved, { type: "undo", expectedRevision: 1 }).state;
+    const makeRequest = (game: typeof initial) => {
+      const serializedGame = serializeGame(game);
+      return request({
+        serializedGame,
+        positionFingerprint: sha256(serializedGame),
+        positionRevision: game.revision,
+        sideToMove: game.sideToMove,
+      });
+    };
+    const validate = (candidate: OpponentRequestV1) =>
+      validateOpponentRequestPosition(candidate, sha256, validator);
+    const replay = vi.spyOn(engine, "dispatch");
+    try {
+      await expect(validate(makeRequest(moved))).resolves.toMatchObject({ ok: true, game: moved });
+      replay.mockClear();
+      await expect(validate(makeRequest(undone))).resolves.toMatchObject({
+        ok: true,
+        game: undone,
+      });
+      expect(replay).toHaveBeenCalledTimes(1);
+      replay.mockClear();
+      await expect(validate(makeRequest(undone))).resolves.toMatchObject({ ok: true });
+      expect(replay).not.toHaveBeenCalled();
+
+      const alternate = dispatch(initial, {
+        type: "move",
+        expectedRevision: 0,
+        from: { file: 2, rank: 3 },
+        to: { file: 2, rank: 4 },
+      }).state;
+      await expect(validate(makeRequest(alternate))).resolves.toMatchObject({
+        ok: true,
+        game: alternate,
+      });
+      const invalid = serializeGame({
+        ...alternate,
+        commandLog: [...alternate.commandLog, alternate.commandLog[0]!],
+      });
+      await expect(
+        validate(request({ serializedGame: invalid, positionFingerprint: sha256(invalid) })),
+      ).resolves.toMatchObject({ ok: false, code: "invalid-serialization" });
+      await expect(
+        validate({ ...makeRequest(alternate), positionFingerprint: "0".repeat(64) }),
+      ).resolves.toMatchObject({ ok: false, code: "fingerprint-mismatch" });
+      await expect(
+        validate({ ...makeRequest(alternate), sideToMove: "red" }),
+      ).resolves.toMatchObject({ ok: false, code: "identity-mismatch" });
+      const nonCanonical = JSON.stringify(JSON.parse(serializeGame(alternate)), null, 2);
+      await expect(
+        validate({
+          ...makeRequest(alternate),
+          serializedGame: nonCanonical,
+          positionFingerprint: sha256(nonCanonical),
+        }),
+      ).resolves.toMatchObject({ ok: false, code: "non-canonical" });
+      await expect(validate(makeRequest(alternate))).resolves.toMatchObject({
+        ok: true,
+        game: alternate,
+      });
+    } finally {
+      replay.mockRestore();
+    }
   });
 
   it("strictly decodes stopped and error output variants from unknown", () => {

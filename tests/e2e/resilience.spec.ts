@@ -159,9 +159,10 @@ test("a failed optional ambient task degrades its owner without blocking the gam
     window.__XIANGQI_TEST_FAULTS__ = { ambientTask: true };
   });
   await openCleanGame(page, "high");
-  await waitForEnvironmentSettled(page, "degraded");
-
   const keyboard = await startGame(page);
+  await page.getByRole("button", { name: "自动巡游" }).click();
+  await waitForEnvironmentSettled(page, "degraded");
+  await page.getByRole("button", { name: "停止巡游" }).click();
   await keyboard.focus();
   await pressSequence(keyboard, [
     "ArrowLeft",
@@ -230,21 +231,16 @@ test.describe("authored audio failure isolation", () => {
     page,
   }, testInfo) => {
     await page.addInitScript(() => {
-      const nativeStart = AudioBufferSourceNode.prototype.start;
+      const nativePlay = HTMLMediaElement.prototype.play;
       let failed = false;
-      AudioBufferSourceNode.prototype.start = function start(
-        when?: number,
-        offset?: number,
-        duration?: number,
-      ) {
-        if (!failed && this.loop && this.loopStart > 0) {
+      HTMLMediaElement.prototype.play = function play() {
+        if (!failed && this.src.startsWith("blob:")) {
           failed = true;
-          throw new DOMException("Injected authored source-start failure", "NotSupportedError");
+          return Promise.reject(
+            new DOMException("Injected authored source-start failure", "NotSupportedError"),
+          );
         }
-        if (duration !== undefined) return nativeStart.call(this, when, offset, duration);
-        if (offset !== undefined) return nativeStart.call(this, when, offset);
-        if (when !== undefined) return nativeStart.call(this, when);
-        return nativeStart.call(this);
+        return nativePlay.call(this);
       };
     });
     await runFailedAudioSession(page, testInfo);
@@ -322,26 +318,27 @@ test.describe("authored audio failure isolation", () => {
   });
 });
 
-test("high-quality ambient motion keeps resources stable across 100 browser frames", async ({
+test("high-quality ambient motion keeps resources stable across 120 rendered frames", async ({
   page,
 }, testInfo) => {
   test.setTimeout(90_000);
   await openCleanGame(page, "high", false);
+  await startGame(page);
+  await page.getByRole("button", { name: "自动巡游" }).click();
   await waitForEnvironmentSettled(page, "ready");
   await expect
     .poll(() => page.evaluate(() => window.__XIANGQI_COMMITTED_PIECE_LOD__))
     .toBe(getQualityProfile("high").lod);
-  // Include the loaded pieces in the next 500 ms renderer-metrics publication.
-  await page.waitForTimeout(600);
   await expect(page.locator(".xiangqi-game-shell")).toHaveAttribute("data-reduced-motion", "false");
   await expect
-    .poll(() => page.evaluate(() => window.__XIANGQI_PERFORMANCE__?.geometries ?? 0))
+    .poll(() => page.evaluate(() => window.__XIANGQI_FLUSH_PERFORMANCE__?.().currentDrawCalls ?? 0))
     .toBeGreaterThan(0);
-  const baseline = await page.evaluate(() => window.__XIANGQI_PERFORMANCE__!);
-  await page.evaluate(() => window.__XIANGQI_RESET_PERFORMANCE__?.());
+  const baseline = await page.evaluate(() => window.__XIANGQI_FLUSH_PERFORMANCE__!());
 
+  // This is a resource-lifetime check, not a frame-rate gate. Count actual draws
+  // within the test deadline, including on software-rendered headless browsers.
   const browserFrames = await page.evaluate(
-    () =>
+    (initialRenderedFrames) =>
       new Promise<{
         elapsedMs: number;
         frameCount: number;
@@ -350,7 +347,10 @@ test("high-quality ambient motion keeps resources stable across 100 browser fram
         let frameCount = 0;
         const sample = () => {
           frameCount += 1;
-          if (frameCount >= 120) {
+          if (
+            (window.__XIANGQI_PERFORMANCE__?.renderedFrames ?? 0) - initialRenderedFrames >=
+            120
+          ) {
             resolve({ elapsedMs: performance.now() - startedAt, frameCount });
             return;
           }
@@ -358,8 +358,9 @@ test("high-quality ambient motion keeps resources stable across 100 browser fram
         };
         window.requestAnimationFrame(sample);
       }),
+    baseline.renderedFrames,
   );
-  const settled = await page.evaluate(() => window.__XIANGQI_PERFORMANCE__!);
+  const settled = await page.evaluate(() => window.__XIANGQI_FLUSH_PERFORMANCE__!());
   const evidence = { baseline, browserFrames, settled };
   console.info(`AMBIENT_LIFECYCLE ${JSON.stringify(evidence)}`);
   await testInfo.attach("ambient-lifecycle.json", {
@@ -368,9 +369,8 @@ test("high-quality ambient motion keeps resources stable across 100 browser fram
   });
 
   await waitForEnvironmentSettled(page, "ready");
-  expect(browserFrames.frameCount).toBeGreaterThanOrEqual(100);
   expect(browserFrames.elapsedMs).toBeGreaterThan(0);
-  expect(settled.sampleCount).toBeGreaterThan(0);
+  expect(settled.renderedFrames - baseline.renderedFrames).toBeGreaterThanOrEqual(120);
   expect(Math.abs(settled.geometries - baseline.geometries)).toBeLessThanOrEqual(1);
   expect(Math.abs(settled.textures - baseline.textures)).toBeLessThanOrEqual(1);
 });
@@ -456,7 +456,7 @@ test("high-low-high environment switching settles without cumulative renderer gr
     return sample;
   });
   await expect.poll(() => lowLodRequestSeen).toBe(true);
-  await waitForEnvironmentSettled(page, "ready");
+  await expect(page.locator(".board-viewer")).toHaveAttribute("data-environment-status", "loading");
   try {
     await page.waitForTimeout(2_000);
     expect(lowSwitchSettled).toBe(false);

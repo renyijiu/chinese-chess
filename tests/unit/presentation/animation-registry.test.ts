@@ -1,9 +1,31 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import * as THREE from "three";
 
 import { AnimationRegistry } from "../../../components/xiangqi/animation/AnimationRegistry";
 
 describe("AnimationRegistry", () => {
+  it("keeps idle mixers still and finishes the transition back from a moving clip", () => {
+    const registry = new AnimationRegistry();
+    const root = new THREE.Object3D();
+    const mixer = new THREE.AnimationMixer(root);
+    const idle = new THREE.AnimationClip("idle_loop", 1, []);
+    const move = new THREE.AnimationClip("move_loop", 1, []);
+    registry.register("actor", mixer, [idle, move]);
+    const update = vi.spyOn(mixer, "update");
+
+    registry.update(0.016);
+    expect(update).not.toHaveBeenCalled();
+    registry.play("actor", "move_loop");
+    registry.update(0.016);
+    expect(update).toHaveBeenCalledOnce();
+    registry.play("actor", "idle_loop");
+    for (let frame = 0; frame < 20; frame += 1) registry.update(0.1);
+    update.mockClear();
+    registry.update(0.016);
+    expect(update).not.toHaveBeenCalled();
+    expect(registry.hasUrgentAnimation).toBe(false);
+    registry.dispose();
+  });
   it("updates independently cloned actor mixers from one registry tick", () => {
     const registry = new AnimationRegistry();
     const firstRoot = new THREE.Object3D();

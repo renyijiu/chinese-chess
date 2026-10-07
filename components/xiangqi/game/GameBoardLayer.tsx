@@ -17,6 +17,7 @@ import type { AnimationRegistry } from "../animation/AnimationRegistry";
 import { PieceActor } from "../pieces/PieceActor";
 import { FACTION_MARKER_CLEARANCE, FACTION_MARKER_STYLES } from "../pieces/faction-marker";
 import type { PresentationStore } from "../presentation/PresentationStore";
+import { moveLandingProgress } from "../presentation/piece-motion";
 import {
   BOARD_FILES,
   BOARD_RANKS,
@@ -25,7 +26,7 @@ import {
   squareToWorld,
 } from "../runtime/board-coordinates";
 import { getQualityProfile, type PieceLod, type QualityTier } from "../runtime/quality";
-import { PieceLayer, type ScenePieceSlot } from "../scene/PieceLayer";
+import { PieceLayer, type MovingPiece, type ScenePieceSlot } from "../scene/PieceLayer";
 import { BOARD_HIT_RADIUS } from "../scene/board-geometry";
 import { QIN_DIORAMA_THEME } from "../scene/scene-theme";
 import { PieceCombatVfx } from "../vfx/PieceCombatVfx";
@@ -275,13 +276,11 @@ function PieceContactShadows({ pieces }: { pieces: readonly ScenePieceSlot<Piece
 
 function FactionMarkerInstances({
   pieces,
-  resolveWorldPosition,
+  movingPiece,
   side,
 }: {
   pieces: readonly ScenePieceSlot<Piece>[];
-  resolveWorldPosition: (
-    slot: ScenePieceSlot<Piece>,
-  ) => readonly [number, number, number] | undefined;
+  movingPiece?: MovingPiece | undefined;
   side: Piece["side"];
 }) {
   const ref = useRef<THREE.InstancedMesh>(null);
@@ -292,14 +291,33 @@ function FactionMarkerInstances({
     if (!mesh) return;
     const transform = new THREE.Object3D();
     pieces.forEach((piece, index) => {
-      const [x, y, z] = resolveWorldPosition(piece) ?? squareToWorld(piece.square);
+      const [x, y, z] = squareToWorld(piece.square);
       transform.position.set(x, y + FACTION_MARKER_CLEARANCE, z);
       transform.rotation.set(-Math.PI / 2, 0, style.rotationZ);
       transform.updateMatrix();
       mesh.setMatrixAt(index, transform.matrix);
     });
     mesh.instanceMatrix.needsUpdate = true;
-  }, [pieces, resolveWorldPosition, style.rotationZ]);
+    mesh.instanceMatrix.clearUpdateRanges();
+    mesh.instanceMatrix.addUpdateRange(0, pieces.length * 16);
+    if (!movingPiece) return;
+    const index = pieces.findIndex((piece) => piece.id === movingPiece.id);
+    if (index < 0) return;
+    const update = () => {
+      const [x, y, z] = interpolateSquareToWorld(
+        movingPiece.from,
+        movingPiece.to,
+        moveLandingProgress(movingPiece.presentation.getProgress(), movingPiece.capture),
+      );
+      transform.position.set(x, y + FACTION_MARKER_CLEARANCE, z);
+      transform.updateMatrix();
+      mesh.setMatrixAt(index, transform.matrix);
+      mesh.instanceMatrix.addUpdateRange(index * 16, 16);
+      mesh.instanceMatrix.needsUpdate = true;
+    };
+    update();
+    return movingPiece.presentation.subscribeFrame(update);
+  }, [pieces, movingPiece, style.rotationZ]);
 
   return (
     <instancedMesh
@@ -323,12 +341,10 @@ function FactionMarkerInstances({
 
 function FactionBaseMarkers({
   pieces,
-  resolveWorldPosition,
+  movingPiece,
 }: {
   pieces: readonly ScenePieceSlot<Piece>[];
-  resolveWorldPosition: (
-    slot: ScenePieceSlot<Piece>,
-  ) => readonly [number, number, number] | undefined;
+  movingPiece?: MovingPiece | undefined;
 }) {
   const redPieces = useMemo(() => pieces.filter((piece) => piece.data.side === "red"), [pieces]);
   const blackPieces = useMemo(
@@ -339,18 +355,10 @@ function FactionBaseMarkers({
   return (
     <group name="faction-base-markers" raycast={() => null}>
       {redPieces.length > 0 ? (
-        <FactionMarkerInstances
-          pieces={redPieces}
-          resolveWorldPosition={resolveWorldPosition}
-          side="red"
-        />
+        <FactionMarkerInstances pieces={redPieces} movingPiece={movingPiece} side="red" />
       ) : null}
       {blackPieces.length > 0 ? (
-        <FactionMarkerInstances
-          pieces={blackPieces}
-          resolveWorldPosition={resolveWorldPosition}
-          side="black"
-        />
+        <FactionMarkerInstances pieces={blackPieces} movingPiece={movingPiece} side="black" />
       ) : null}
     </group>
   );
@@ -396,27 +404,22 @@ export function GameBoardLayer({
   const capturedEvent = active?.transition.events.find((event) => event.type === "PieceCaptured");
   const captured = capturedEvent?.type === "PieceCaptured" ? capturedEvent.piece : null;
   const capture = Boolean(captured);
-  const progress = active?.progress ?? 1;
   const visualFrom = moveEvent?.type === "MoveUndone" ? move?.to : move?.from;
   const visualTo = moveEvent?.type === "MoveUndone" ? move?.from : move?.to;
   const movingPieceId = move?.pieceId ?? null;
-  const moveLanding = capture
-    ? smoothStep(Math.min(1, Math.max(0, (progress - 0.58) / 0.36)))
-    : smoothStep(progress);
-  const movingWorldPosition =
-    visualFrom && visualTo
-      ? interpolateSquareToWorld(visualFrom, visualTo, moveLanding)
-      : undefined;
+  const pieceMotion = useMemo<MovingPiece | undefined>(
+    () =>
+      visualFrom && visualTo && movingPieceId
+        ? { capture, from: visualFrom, id: movingPieceId, presentation, to: visualTo }
+        : undefined,
+    [capture, movingPieceId, presentation, visualFrom, visualTo],
+  );
   const terminalLoser =
     game.status.kind === "ended" && game.status.winner
       ? game.status.winner === "red"
         ? "black"
         : "red"
       : null;
-  const terminalDestroyProgress = active
-    ? Math.min(0.98, Math.max(0, (progress - 0.52) / 0.42))
-    : 0.98;
-
   const slots = useMemo<readonly ScenePieceSlot<Piece>[]>(
     () =>
       game.board.flatMap((piece) =>
@@ -439,30 +442,8 @@ export function GameBoardLayer({
       active?.transition.before.board.find((piece) => piece?.id === move.pieceId) ??
       null)
     : null;
-  const movingAnimation = capture
-    ? progress < 0.58
-      ? "attack_primary"
-      : progress < 0.88
-        ? "move_loop"
-        : "move_end"
-    : progress < 0.18
-      ? "move_start"
-      : progress < 0.82
-        ? "move_loop"
-        : "move_end";
-  const ghostAnimation = progress < 0.48 ? "idle_loop" : progress < 0.62 ? "hit_react" : "destroy";
-  const terminalAnimation = active
-    ? progress < 0.48
-      ? "idle_loop"
-      : progress < 0.62
-        ? "hit_react"
-        : "destroy"
-    : "destroy";
-  const ghostDestroyProgress = Math.min(0.99, Math.max(0, (progress - 0.61) / 0.34));
   const qualityProfile = getQualityProfile(quality);
   const lod = qualityProfile.lod;
-  const resolvePieceWorldPosition = (slot: ScenePieceSlot<Piece>) =>
-    slot.id === movingPieceId ? movingWorldPosition : undefined;
 
   return (
     <group name="interactive-game-layer">
@@ -471,26 +452,32 @@ export function GameBoardLayer({
       <LegalMoveMarkers game={game} moves={legalMoves} />
       {keyboardSquare ? <KeyboardFocusMarker square={keyboardSquare} /> : null}
       <PieceContactShadows pieces={slots} />
-      <FactionBaseMarkers pieces={slots} resolveWorldPosition={resolvePieceWorldPosition} />
+      <FactionBaseMarkers pieces={slots} movingPiece={pieceMotion} />
       <PieceLayer
-        resolveWorldPosition={resolvePieceWorldPosition}
+        movingPiece={pieceMotion}
         slots={slots}
         renderPiece={(slot) => (
           <PieceActor
             actorId={slot.id}
             animation={
-              slot.id === movingPieceId
-                ? movingAnimation
-                : terminalLoser === slot.data.side && slot.data.role === "general"
-                  ? terminalAnimation
-                  : "idle_loop"
+              terminalLoser === slot.data.side && slot.data.role === "general"
+                ? "destroy"
+                : "idle_loop"
             }
+            motion={
+              slot.id === movingPieceId
+                ? capture
+                  ? "capture"
+                  : "move"
+                : active && terminalLoser === slot.data.side && slot.data.role === "general"
+                  ? "defeat"
+                  : undefined
+            }
+            presentation={presentation}
             animations={animations}
             disabled={disabled}
             destroyProgress={
-              terminalLoser === slot.data.side && slot.data.role === "general"
-                ? terminalDestroyProgress
-                : 0
+              terminalLoser === slot.data.side && slot.data.role === "general" ? 0.98 : 0
             }
             lod={lod}
             onPress={handlePiecePress}
@@ -507,9 +494,9 @@ export function GameBoardLayer({
         >
           <PieceActor
             actorId={`captured:${active?.transition.actionId ?? "settled"}:${ghostPiece.id}`}
-            animation={ghostAnimation}
+            motion="captured"
+            presentation={presentation}
             animations={animations}
-            destroyProgress={ghostDestroyProgress}
             disabled
             ghost
             lod={lod}
@@ -523,7 +510,7 @@ export function GameBoardLayer({
         active={Boolean(active && move && movingPiece)}
         capture={capture}
         from={visualFrom ?? { file: 4, rank: 0 }}
-        progress={progress}
+        presentation={presentation}
         quality={qualityProfile}
         reducedMotion={active?.transition.reducedMotion ?? false}
         role={movingPiece?.role ?? "general"}
@@ -532,8 +519,4 @@ export function GameBoardLayer({
       />
     </group>
   );
-}
-
-function smoothStep(value: number) {
-  return value * value * (3 - 2 * value);
 }

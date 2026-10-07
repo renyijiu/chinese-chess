@@ -1,5 +1,6 @@
 import type { AudioBus, AudioCueId, AudioMix, AudioTransientCueId } from "./audio-types";
 import { DEFAULT_AUDIO_MIX } from "./audio-types";
+import { StreamingMusic, type MusicElement } from "./StreamingMusic";
 import {
   AUDIO_PACK_BUDGETS,
   QIN_AUDIO_MANIFEST_URL,
@@ -81,6 +82,7 @@ export interface AudioContextLike {
   createBufferSource(): BufferSourceLike;
   createGain(): GainNodeLike;
   createPanner(): PannerNodeLike;
+  createMediaElementSource?(element: HTMLMediaElement): AudioNodeLike;
   decodeAudioData(data: ArrayBuffer): Promise<AudioBuffer>;
   resume(): Promise<void>;
   suspend(): Promise<void>;
@@ -132,6 +134,7 @@ export type AudioEngineOptions = Readonly<{
   contextFactory?: (options?: AudioContextOptions) => AudioContextLike;
   fetcher?: FetchLike | null;
   maxVoicesPerCue?: number;
+  musicElementFactory?: (() => MusicElement) | null;
   packDeadlineMs?: number;
   scheduleDeadline?: (callback: () => void, delayMs: number) => DeadlineHandle;
   speech?: Pick<SpeechSynthesis, "cancel" | "speak"> | null;
@@ -178,13 +181,30 @@ function seededNoise(seed: number) {
   };
 }
 
-function fillLoop(buffer: AudioBuffer, cue: "music.fortress" | "ambient.fortress") {
+function yieldAudioTask() {
+  const scheduler = (
+    globalThis as typeof globalThis & {
+      scheduler?: { yield(): Promise<void> };
+    }
+  ).scheduler;
+  return scheduler?.yield() ?? new Promise<void>((resolve) => setTimeout(resolve, 0));
+}
+
+async function fillLoop(
+  buffer: AudioBuffer,
+  cue: "music.fortress" | "ambient.fortress",
+  cancelled: () => boolean,
+) {
   const sampleRate = buffer.sampleRate;
   const random = seededNoise(cueHash(cue));
   for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
     const data = buffer.getChannelData(channel);
     let wind = 0;
     for (let sample = 0; sample < data.length; sample += 1) {
+      if (sample % 16_384 === 0) {
+        await yieldAudioTask();
+        if (cancelled()) return false;
+      }
       const time = sample / sampleRate;
       if (cue === "music.fortress") {
         const phrase = Math.floor(time * 1.5) % 8;
@@ -203,6 +223,7 @@ function fillLoop(buffer: AudioBuffer, cue: "music.fortress" | "ambient.fortress
       }
     }
   }
+  return true;
 }
 
 function cueDuration(cue: AudioCueId) {
@@ -312,6 +333,7 @@ export class AudioEngine {
   private readonly contextFactory: (options?: AudioContextOptions) => AudioContextLike;
   private readonly fetcher: FetchLike | null;
   private readonly maxVoicesPerCue: number;
+  private readonly musicElementFactory: (() => MusicElement) | null;
   private readonly packDeadlineMs: number;
   private readonly scheduleDeadline: (callback: () => void, delayMs: number) => DeadlineHandle;
   private readonly speech: Pick<SpeechSynthesis, "cancel" | "speak"> | null;
@@ -341,6 +363,17 @@ export class AudioEngine {
   private packState: AudioPackState = "unrequested";
   private pendingDecodes = 0;
   private pendingFetches = 0;
+  private preparingLoops: Promise<void> | null = null;
+  private prepareLoopsAgain = false;
+  private primingMusic: StreamingMusic | null = null;
+  private unlocking: Promise<void> | null = null;
+  private streamedMusic: {
+    music: StreamingMusic;
+    node: AudioNodeLike;
+    gain: GainNodeLike;
+    started: boolean;
+    pending: boolean;
+  } | null = null;
   private sourceEnds = 0;
   private readonly sourceEndsByKind = emptySourceKindCounts();
   private readonly sourceStartAttemptsByKind = emptySourceKindCounts();
@@ -352,11 +385,18 @@ export class AudioEngine {
   private synthMusic: ActiveSource | null = null;
   private synthStartTime = 0;
   private unlocked = false;
+  private unlockRequested = false;
   private voiceCount = 0;
 
   constructor(options: AudioEngineOptions = {}) {
     this.contextFactory = options.contextFactory ?? contextFactory;
     this.maxVoicesPerCue = Math.max(1, options.maxVoicesPerCue ?? 4);
+    this.musicElementFactory =
+      options.musicElementFactory === undefined
+        ? typeof Audio === "undefined"
+          ? null
+          : () => new Audio()
+        : options.musicElementFactory;
     this.baseUrl =
       options.baseUrl ??
       (import.meta as ImportMeta & { env?: { BASE_URL?: string } }).env?.BASE_URL ??
@@ -386,12 +426,46 @@ export class AudioEngine {
   }
 
   get state(): AudioEngineState {
+    if (this.muted && !this.disposed) return "muted";
     if (!this.unlocked) return "locked";
-    return this.muted ? "muted" : "running";
+    return "running";
   }
 
   async unlock() {
     if (this.disposed) return;
+    this.unlockRequested = true;
+    if (this.isSilent() || !this.foregroundVisible) return;
+    const pending = (this.unlocking ??= this.performUnlock());
+    try {
+      await pending;
+    } finally {
+      if (this.unlocking === pending) this.unlocking = null;
+    }
+  }
+
+  private async performUnlock() {
+    if (!this.context && this.musicElementFactory) {
+      if (!this.primingMusic) {
+        try {
+          this.primingMusic = new StreamingMusic(this.musicElementFactory(), () =>
+            this.failPack(this.packGeneration),
+          );
+        } catch {
+          // Native media is optional; preserve direct Web Audio fallback.
+        }
+      }
+      const music = this.primingMusic;
+      if (music) {
+        await music.primed;
+        if (
+          this.primingMusic !== music ||
+          this.disposed ||
+          this.isSilent() ||
+          !this.foregroundVisible
+        )
+          return;
+      }
+    }
     if (!this.context) {
       try {
         this.context = this.contextFactory({ sampleRate: 48_000 });
@@ -399,24 +473,34 @@ export class AudioEngine {
         this.context = this.contextFactory();
       }
       this.createGraph(this.context);
+      this.createStreamingMusic(this.context);
     }
     const contextGeneration = this.contextGeneration;
     const resumed = await this.enqueueContextOperation(contextGeneration, async (context) => {
+      if (this.isSilent() || !this.foregroundVisible) return false;
       if (context.state !== "running") await context.resume();
       return context.state === "running";
     });
-    if (!resumed || this.disposed || contextGeneration !== this.contextGeneration) return;
+    if (
+      !resumed ||
+      this.disposed ||
+      this.isSilent() ||
+      contextGeneration !== this.contextGeneration
+    )
+      return;
     if (!this.unlocked) {
       this.unlocked = true;
-      this.foregroundEligible = this.foregroundVisible && !this.muted;
+      this.foregroundEligible = this.computeForegroundEligibility();
       this.applyMix();
-      this.startSynthMusic(1);
-      this.playInternal("ambient.fortress", true);
       this.startPackLoading();
     }
+    this.foregroundEligible = this.computeForegroundEligibility();
+    this.prepareLoops();
+    this.maybeStartAuthoredMusic();
   }
 
   setMix(mix: AudioMix) {
+    const wasSilent = this.isSilent();
     this.mix = {
       ambient: clamp01(mix.ambient),
       master: clamp01(mix.master),
@@ -426,14 +510,45 @@ export class AudioEngine {
       voice: clamp01(mix.voice),
     };
     this.applyMix();
+    if (wasSilent !== this.isSilent()) this.syncPlayback();
+    for (const entry of [...this.active]) {
+      if (!entry.source.loop || this.mix[cueBus(entry.cue)] > 0) continue;
+      this.stopEntry(entry);
+      this.cleanupEntry(entry);
+    }
+    if (this.mix.music === 0) {
+      this.streamedMusic?.music.pause();
+      if (!this.streamedMusic?.started) this.musicMode = "synth";
+    }
+    this.prepareLoops();
+    this.maybeStartAuthoredMusic();
   }
 
   setMuted(muted: boolean) {
+    if (this.disposed || this.muted === muted) return;
     this.muted = muted;
-    this.foregroundEligible = this.computeForegroundEligibility();
-    if (muted) this.speech?.cancel();
     this.applyMix();
-    if (!muted) this.maybeStartAuthoredMusic();
+    this.syncPlayback();
+  }
+
+  private isSilent() {
+    return this.muted || this.mix.master === 0;
+  }
+
+  private syncPlayback() {
+    this.foregroundEligible = this.computeForegroundEligibility();
+    if (this.isSilent()) {
+      this.speech?.cancel();
+      this.stopTransients();
+      this.disposePrimingMusic();
+      this.streamedMusic?.music.pause();
+      void this.enqueueContextOperation(this.contextGeneration, async (context) => {
+        if (context.state === "running") await context.suspend();
+        return false;
+      });
+    } else if (this.unlockRequested) {
+      void this.unlock().catch(() => undefined);
+    }
   }
 
   isTransientEligible() {
@@ -537,6 +652,9 @@ export class AudioEngine {
         this.foregroundVisible = false;
         this.foregroundEligible = false;
         this.speech?.cancel();
+        this.stopTransients();
+        this.primingMusic?.pause();
+        this.streamedMusic?.music.pause();
         const contextGeneration = this.contextGeneration;
         void this.enqueueContextOperation(contextGeneration, async (context) => {
           if (context.state === "running") await context.suspend();
@@ -545,8 +663,14 @@ export class AudioEngine {
       } else {
         this.foregroundVisible = true;
         this.foregroundEligible = false;
+        if (this.isSilent()) return;
+        if (this.primingMusic || (!this.context && this.unlockRequested)) {
+          void this.unlock().catch(() => undefined);
+          return;
+        }
         const contextGeneration = this.contextGeneration;
         void this.enqueueContextOperation(contextGeneration, async (context) => {
+          if (this.isSilent() || !this.foregroundVisible) return false;
           if (context.state !== "running") await context.resume();
           return context.state === "running";
         }).then((running) => {
@@ -558,6 +682,7 @@ export class AudioEngine {
           )
             return;
           this.foregroundEligible = this.computeForegroundEligibility();
+          this.prepareLoops();
           this.maybeStartAuthoredMusic();
         });
       }
@@ -576,9 +701,13 @@ export class AudioEngine {
   debugSnapshot() {
     const activeSourcesByKind = emptySourceKindCounts();
     for (const entry of this.active) activeSourcesByKind[entry.kind] += 1;
+    const streaming = Boolean(
+      this.streamedMusic?.started && !this.streamedMusic.music.element.paused,
+    );
+    if (streaming) activeSourcesByKind["authored-music"] += 1;
     return {
       abortCount: this.abortCount,
-      activeSources: this.active.size,
+      activeSources: this.active.size + (streaming ? 1 : 0),
       activeSourcesByKind,
       authoredBufferCount: this.authoredBuffers.size,
       authoredDecodedBytes: this.authoredDecodedBytes(),
@@ -596,6 +725,8 @@ export class AudioEngine {
       packState: this.packState,
       pendingDecodes: this.pendingDecodes,
       pendingFetches: this.pendingFetches,
+      preparingLoops: this.preparingLoops !== null,
+      streamingMusic: this.streamedMusic !== null,
       packGeneration: this.packGeneration,
       sourceEnds: this.sourceEnds,
       sourceEndsByKind: { ...this.sourceEndsByKind },
@@ -626,6 +757,8 @@ export class AudioEngine {
     this.abortPack();
     this.clearPackDeadline();
     this.speech?.cancel();
+    this.disposePrimingMusic();
+    this.disposeStreamingMusic();
     this.voiceCount = 0;
     for (const detach of [...this.visibilityDetachers]) detach();
     await this.contextQueue.catch(() => undefined);
@@ -669,6 +802,168 @@ export class AudioEngine {
     });
   }
 
+  private prepareLoops() {
+    if (!this.computeForegroundEligibility()) return;
+    if (this.preparingLoops) {
+      this.prepareLoopsAgain = true;
+      return;
+    }
+    if (
+      (this.mix.ambient === 0 || this.activeByCue.get("ambient.fortress")) &&
+      (this.mix.music === 0 ||
+        (this.synthMusic && this.active.has(this.synthMusic) && !this.synthMusic.stopRequested) ||
+        (this.authoredMusic &&
+          this.active.has(this.authoredMusic) &&
+          !this.authoredMusic.stopRequested) ||
+        this.streamedMusic?.started)
+    )
+      return;
+    const context = this.context!;
+    const cancelled = () => !this.computeForegroundEligibility() || this.context !== context;
+    this.preparingLoops = (async () => {
+      await yieldAudioTask();
+      for (const cue of ["music.fortress", "ambient.fortress"] as const) {
+        if (cancelled()) return;
+        const cueCancelled = () =>
+          cancelled() ||
+          this.mix[cueBus(cue)] === 0 ||
+          (cue === "music.fortress" && Boolean(this.streamedMusic && this.packState === "ready"));
+        if (cueCancelled()) continue;
+        if (!this.buffers.has(cue)) {
+          const buffer = context.createBuffer(
+            2,
+            Math.ceil(cueDuration(cue) * context.sampleRate),
+            context.sampleRate,
+          );
+          if (!(await fillLoop(buffer, cue, cueCancelled))) continue;
+          this.buffers.set(cue, buffer);
+          if (
+            (this.packState === "loading" || this.packState === "ready") &&
+            this.totalDecodedBytes() > ENGINE_DECODED_BUDGET_BYTES
+          ) {
+            this.failPack(this.packGeneration);
+          }
+        }
+      }
+      if (cancelled()) return;
+      if (this.mix.music > 0 && this.musicMode !== "authored") this.startSynthMusic(1);
+      if (!this.activeByCue.get("ambient.fortress")) this.playInternal("ambient.fortress", true);
+      this.maybeStartAuthoredMusic();
+    })()
+      .catch(() => undefined)
+      .finally(() => {
+        this.preparingLoops = null;
+        if (this.prepareLoopsAgain) {
+          this.prepareLoopsAgain = false;
+          this.prepareLoops();
+        }
+      });
+  }
+
+  private createStreamingMusic(context: AudioContextLike) {
+    const music = this.primingMusic;
+    this.primingMusic = null;
+    if (!music) return;
+    if (!context.createMediaElementSource) {
+      music.dispose();
+      return;
+    }
+    let node: AudioNodeLike | null = null;
+    let gain: GainNodeLike | null = null;
+    try {
+      node = context.createMediaElementSource(music.element as HTMLMediaElement);
+      gain = context.createGain();
+      gain.gain.setValueAtTime(0, context.currentTime);
+      node.connect(gain);
+      gain.connect(this.buses.music!);
+      this.streamedMusic = { music, node, gain, started: false, pending: false };
+    } catch {
+      // Web Audio buffers remain the fallback when native media playback is unavailable.
+      music.dispose();
+      node?.disconnect();
+      gain?.disconnect();
+    }
+  }
+
+  private disposePrimingMusic() {
+    this.unlocking = null;
+    this.primingMusic?.dispose();
+    this.primingMusic = null;
+  }
+
+  private startStreamingMusic() {
+    const entry = this.streamedMusic;
+    const context = this.context;
+    if (!entry || !context || entry.pending || (entry.started && !entry.music.element.paused))
+      return;
+    entry.pending = true;
+    if (!entry.started) this.sourceStartAttemptsByKind["authored-music"] += 1;
+    void entry.music
+      .play()
+      .then(() => {
+        if (this.streamedMusic !== entry) return;
+        if (!this.computeForegroundEligibility() || this.mix.music === 0) {
+          entry.music.pause();
+          return;
+        }
+        if (entry.music.element.paused) return;
+        if (entry.started) return;
+        entry.started = true;
+        this.sourceStarts += 1;
+        this.sourceStartsByKind["authored-music"] += 1;
+        this.sourceStartsByCue.set(
+          "music.fortress",
+          (this.sourceStartsByCue.get("music.fortress") ?? 0) + 1,
+        );
+        this.musicMode = "authored";
+        this.buffers.delete("music.fortress");
+        const now = context.currentTime;
+        entry.gain.gain.setValueAtTime(0, now);
+        entry.gain.gain.linearRampToValueAtTime(1, now + 1);
+        const synth = this.synthMusic;
+        if (synth) {
+          synth.gain.gain.setValueAtTime(1, now);
+          synth.gain.gain.linearRampToValueAtTime(0, now + 1);
+          this.stopEntry(synth, now + 1);
+        }
+      })
+      .catch(() => {
+        if (
+          this.streamedMusic === entry &&
+          this.computeForegroundEligibility() &&
+          this.mix.music > 0
+        ) {
+          this.failPack(this.packGeneration);
+        }
+      })
+      .finally(() => {
+        entry.pending = false;
+        if (
+          this.streamedMusic === entry &&
+          this.computeForegroundEligibility() &&
+          this.mix.music > 0 &&
+          entry.music.element.paused
+        ) {
+          this.startStreamingMusic();
+        }
+      });
+  }
+
+  private disposeStreamingMusic() {
+    const entry = this.streamedMusic;
+    if (!entry) return;
+    this.streamedMusic = null;
+    entry.music.dispose();
+    entry.node.disconnect();
+    entry.gain.disconnect();
+    if (entry.started) {
+      this.sourceStops += 1;
+      this.sourceStopsByKind["authored-music"] += 1;
+      this.sourceEnds += 1;
+      this.sourceEndsByKind["authored-music"] += 1;
+    }
+  }
+
   private applyMix() {
     const context = this.context;
     if (!context) return;
@@ -685,7 +980,7 @@ export class AudioEngine {
     return Boolean(
       !this.disposed &&
       this.unlocked &&
-      !this.muted &&
+      !this.isSilent() &&
       this.foregroundVisible &&
       this.context?.state === "running",
     );
@@ -718,14 +1013,15 @@ export class AudioEngine {
     const cached = this.buffers.get(cue);
     if (cached) return cached;
     if (!this.context) throw new Error("Audio context is locked");
-    const loop = cue === "music.fortress" || cue === "ambient.fortress";
+    if (cue === "music.fortress" || cue === "ambient.fortress") {
+      throw new Error("Procedural loop is not ready");
+    }
     const buffer = this.context.createBuffer(
-      loop ? 2 : 1,
+      1,
       Math.ceil(cueDuration(cue) * this.context.sampleRate),
       this.context.sampleRate,
     );
-    if (loop) fillLoop(buffer, cue);
-    else fillCue(buffer, cue);
+    fillCue(buffer, cue);
     this.buffers.set(cue, buffer);
     if (
       (this.packState === "loading" || this.packState === "ready") &&
@@ -741,6 +1037,8 @@ export class AudioEngine {
     loop: boolean,
     position?: readonly [number, number, number],
   ) {
+    if (!this.computeForegroundEligibility() || (loop && this.mix[cueBus(cue)] === 0)) return false;
+    if (loop && !this.buffers.has(cue)) return false;
     const kind: ActiveSourceKind =
       cue === "music.fortress"
         ? "synth-music"
@@ -762,7 +1060,7 @@ export class AudioEngine {
     if (this.synthMusic && this.active.has(this.synthMusic) && !this.synthMusic.stopRequested)
       return this.synthMusic;
     const context = this.context;
-    if (!context) return null;
+    if (!context || !this.buffers.has("music.fortress")) return null;
     const entry = this.startSource(this.getBuffer("music.fortress"), {
       bus: "music",
       cue: "music.fortress",
@@ -786,7 +1084,13 @@ export class AudioEngine {
   ) {
     const context = this.context;
     const busNode = this.buses[bus];
-    if (!context || !busNode || this.disposed) return null;
+    if (
+      !context ||
+      !busNode ||
+      !this.computeForegroundEligibility() ||
+      (loop && this.mix[bus] === 0)
+    )
+      return null;
     const activeCount = this.activeByCue.get(cue) ?? 0;
     if (!loop && activeCount >= this.maxVoicesPerCue) return null;
 
@@ -859,14 +1163,24 @@ export class AudioEngine {
   }
 
   private stopEntry(entry: ActiveSource, when?: number) {
-    if (entry.stopRequested) return;
+    if (entry.stopRequested && (when !== undefined || entry.stopWhen === null)) return;
+    if (!entry.stopRequested) {
+      this.sourceStops += 1;
+      this.sourceStopsByKind[entry.kind] += 1;
+    }
     entry.stopRequested = true;
     entry.stopWhen = when ?? null;
-    this.sourceStops += 1;
-    this.sourceStopsByKind[entry.kind] += 1;
     try {
       entry.source.stop(when);
     } catch {
+      this.cleanupEntry(entry);
+    }
+  }
+
+  private stopTransients() {
+    for (const entry of [...this.active]) {
+      if (entry.kind !== "authored-transient" && entry.kind !== "synth-transient") continue;
+      this.stopEntry(entry);
       this.cleanupEntry(entry);
     }
   }
@@ -914,6 +1228,12 @@ export class AudioEngine {
       if ((await this.sha256(encoded)) !== asset.sha256)
         throw new Error(asset.id + " SHA-256 mismatch");
       this.guardPackGeneration(packGeneration);
+      if (asset.kind === "background" && this.streamedMusic) {
+        await this.streamedMusic.music.load(encoded, asset, signal);
+        encoded = null;
+        this.guardPackGeneration(packGeneration);
+        continue;
+      }
       const buffer = await this.decode(encoded);
       encoded = null;
       this.guardPackGeneration(packGeneration);
@@ -1010,13 +1330,16 @@ export class AudioEngine {
     const context = this.context;
     if (
       !context ||
-      this.disposed ||
-      !this.foregroundVisible ||
-      context.state !== "running" ||
+      !this.computeForegroundEligibility() ||
+      this.mix.music === 0 ||
       this.packState !== "ready" ||
       this.authoredMusic
     )
       return;
+    if (this.streamedMusic) {
+      this.startStreamingMusic();
+      return;
+    }
     const asset = this.manifest?.assets.find(
       (candidate) => candidate.id === "music.qin-procession",
     );
@@ -1064,6 +1387,7 @@ export class AudioEngine {
     this.loadingAuthoredBuffers.clear();
     this.authoredBuffers.clear();
     this.manifest = null;
+    this.disposeStreamingMusic();
     this.fallbackToSynthMusic();
   }
 
@@ -1072,7 +1396,8 @@ export class AudioEngine {
     const authored = this.authoredMusic;
     if (!context || !authored) {
       this.musicMode = "synth";
-      if (!this.synthMusic && this.unlocked && !this.disposed) this.startSynthMusic(1);
+      if (this.unlocked && !this.disposed) this.startSynthMusic(1);
+      this.prepareLoops();
       return;
     }
     const retiringSynth = this.synthMusic;

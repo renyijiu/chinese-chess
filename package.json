@@ -49,6 +49,7 @@
     "test:presentation": "vitest run --config tests/unit/presentation/vitest.config.ts",
     "test:unit": "npm run test:rules && npm run test:game && npm run test:online && npm run test:ai && npm run test:presentation",
     "test:runtime": "vitest run --config tests/unit/runtime/vitest.config.ts",
+    "test:dependencies": "node --test tests/dependency-security.test.mjs",
     "test:bundle": "node --test tests/javascript-budget.test.mjs && node scripts/verify-javascript-budget.mjs",
     "test:e2e": "playwright test --config playwright.config.ts --grep-invert @online",
     "test:e2e:dev": "npm run test:e2e",
@@ -90,6 +91,7 @@
     "@types/react-dom": "19.2.7",
     "@vitejs/plugin-react": "6.1.1",
     "@vitejs/plugin-rsc": "0.5.34",
+    "braces": "file:third_party/braces",
     "oxfmt": "0.66.0",
     "oxlint": "1.81.0",
     "oxlint-tsgolint": "7.0.2001",
@@ -102,7 +104,15 @@
     "wrangler": "4.129.0"
   },
   "overrides": {
-    "sharp": "0.35.4"
+    "braces": "$braces",
+    "miniflare@5.20260903.0-alpha": {
+      "undici": "7.29.1"
+    },
+    "oxfmt@0.66.0": {
+      "tinypool": "2.1.2"
+    },
+    "sharp": "0.35.5",
+    "source-map-js": "1.2.2"
   },
   "engines": {
     "node": ">=22.13.0"

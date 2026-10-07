@@ -2,6 +2,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createInitialGame, dispatch } from "../../../lib/xiangqi/index";
 import { PresentationStore } from "../../../components/xiangqi/presentation/PresentationStore";
+import {
+  moveLandingProgress,
+  resolvePieceMotion,
+} from "../../../components/xiangqi/presentation/piece-motion";
 
 afterEach(() => vi.useRealTimers());
 
@@ -25,6 +29,53 @@ function firstSoldierMove() {
 }
 
 describe("PresentationStore", () => {
+  it("advances transforms without publishing a React snapshot between timeline markers", async () => {
+    const store = new PresentationStore();
+    const finished = store.play(firstSoldierMove());
+    store.tick(1);
+    const snapshot = store.getSnapshot();
+    const stateListener = vi.fn();
+    const frameListener = vi.fn();
+    store.subscribe(stateListener);
+    store.subscribeFrame(frameListener);
+
+    store.tick(16);
+    store.tick(16);
+
+    expect(store.getProgress()).toBeCloseTo(33 / 700);
+    expect(store.getSnapshot()).toBe(snapshot);
+    expect(stateListener).not.toHaveBeenCalled();
+    expect(frameListener).toHaveBeenCalledTimes(2);
+    store.tick(100);
+    expect(store.getSnapshot().active?.firedMarkers.has("release")).toBe(true);
+    expect(snapshot.active?.firedMarkers.has("release")).toBe(false);
+    expect(stateListener).toHaveBeenCalledOnce();
+    store.skip();
+    await finished;
+    store.dispose();
+  });
+
+  it("preserves capture, destruction and settlement timing without React frames", () => {
+    expect(moveLandingProgress(0.5, true)).toBe(0);
+    expect(moveLandingProgress(0.76, true)).toBeCloseTo(0.5);
+    expect(moveLandingProgress(1, true)).toBe(1);
+    expect(moveLandingProgress(0.5, false)).toBe(0.5);
+    expect(resolvePieceMotion("capture", 0.57).animation).toBe("attack_primary");
+    expect(resolvePieceMotion("capture", 0.7).animation).toBe("move_loop");
+    expect(resolvePieceMotion("capture", 1).animation).toBe("move_end");
+    expect(resolvePieceMotion("captured", 0.5)).toEqual({
+      animation: "hit_react",
+      destroyProgress: 0,
+    });
+    expect(resolvePieceMotion("captured", 1)).toEqual({
+      animation: "destroy",
+      destroyProgress: 0.99,
+    });
+    expect(resolvePieceMotion("defeat", 1)).toEqual({
+      animation: "destroy",
+      destroyProgress: 0.98,
+    });
+  });
   it("keeps the committed rule snapshots separate from interpolated visual progress", async () => {
     const store = new PresentationStore();
     const transition = firstSoldierMove();
@@ -35,7 +86,7 @@ describe("PresentationStore", () => {
     expect(store.getSnapshot().active?.progress).toBe(0);
 
     store.tick(350);
-    expect(store.getSnapshot().active?.progress).toBeGreaterThan(0);
+    expect(store.getProgress()).toBeGreaterThan(0);
     expect(transition.after.board[4 * 9]?.id).toBe("red:soldier:0");
 
     store.skip("user-skip");
@@ -81,13 +132,16 @@ describe("PresentationStore", () => {
     const store = new PresentationStore();
     const stateListener = vi.fn();
     const cueListener = vi.fn();
+    const frameListener = vi.fn();
     store.subscribe(stateListener);
     store.subscribeCue(cueListener);
+    store.subscribeFrame(frameListener);
     const finished = store.play(firstSoldierMove());
 
     expect(store.resourceCounts).toEqual({
       activeTimelines: 1,
       cueListeners: 1,
+      frameListeners: 1,
       listeners: 1,
       timers: 1,
     });
@@ -97,6 +151,7 @@ describe("PresentationStore", () => {
     expect(store.resourceCounts).toEqual({
       activeTimelines: 0,
       cueListeners: 0,
+      frameListeners: 0,
       listeners: 0,
       timers: 0,
     });
@@ -121,6 +176,7 @@ describe("PresentationStore", () => {
       expect(store.resourceCounts).toEqual({
         activeTimelines: 0,
         cueListeners: 0,
+        frameListeners: 0,
         listeners: 0,
         timers: 0,
       });

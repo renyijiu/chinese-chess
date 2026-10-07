@@ -14,6 +14,7 @@ import {
   type OpponentRequestV1,
   type OpponentStoppedV1,
 } from "./types";
+import { GameReplayValidator } from "../persistence";
 
 type ActiveSearch = OpponentIdentityV1 & { cancelled: boolean; stopAcknowledged: boolean };
 
@@ -22,6 +23,7 @@ const scope = globalThis as typeof globalThis & {
 };
 
 let active: ActiveSearch | null = null;
+const replayValidator = new GameReplayValidator();
 
 function sameIdentity(left: OpponentIdentityV1, right: OpponentIdentityV1): boolean {
   return (
@@ -64,7 +66,7 @@ async function execute(request: OpponentRequestV1, search: ActiveSearch): Promis
       );
       return;
     }
-    const validated = await validateOpponentRequestPosition(request, sha256Hex);
+    const validated = await validateOpponentRequestPosition(request, sha256Hex, replayValidator);
     if (!validated.ok) {
       postError(request, "invalid-position", `Position validation failed: ${validated.code}.`);
       return;

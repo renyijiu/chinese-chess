@@ -22,7 +22,8 @@ function BattleBloom({ light }: { light: THREE.Light }) {
       lights={[light]}
       luminanceSmoothing={0.18}
       luminanceThreshold={0.28}
-      radius={0.46}
+      mipmapBlur={false}
+      resolutionScale={0.5}
     />
   );
 }
@@ -38,7 +39,7 @@ export function BattlePostprocessing() {
   return (
     <>
       <primitive object={bloomLight} />
-      <EffectComposer depthBuffer enableNormalPass={false} multisampling={0} resolutionScale={0.65}>
+      <EffectComposer depthBuffer enableNormalPass={false} multisampling={0}>
         <BattleBloom light={bloomLight} />
       </EffectComposer>
     </>

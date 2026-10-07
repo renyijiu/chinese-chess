@@ -14,7 +14,9 @@ const screenshotOptions = {
   maxDiffPixelRatio: 0.005,
 };
 
-test("390 × 844 touch layout keeps game controls usable", async ({ page }) => {
+test("390 × 844 touch layout keeps game controls usable", async ({ page, headless }) => {
+  // Native text and controls differ by mode even in the same Chromium build.
+  const screenshotPrefix = headless ? "mobile" : "mobile-headed";
   await openCleanGame(page);
   await page.getByRole("button", { name: "开始本机双人对局" }).tap();
   const keyboardControl = page.locator(".game-keyboard-control button");
@@ -34,6 +36,9 @@ test("390 × 844 touch layout keeps game controls usable", async ({ page }) => {
   await expect
     .poll(async () => (await keyboardControl.boundingBox())?.width ?? Number.POSITIVE_INFINITY)
     .toBeLessThanOrEqual(48);
+  const keyboardBox = await keyboardControl.boundingBox();
+  const turnCardBox = await page.locator(".game-turn-card").boundingBox();
+  expect(keyboardBox!.y).toBeGreaterThanOrEqual(turnCardBox!.y + turnCardBox!.height);
   await expect(page.locator(".game-history")).toHaveAttribute("data-expanded", "false");
   await expect(page.getByRole("button", { name: "展开完整着法历史" })).toBeVisible();
   await setReducedMotion(page);
@@ -47,7 +52,7 @@ test("390 × 844 touch layout keeps game controls usable", async ({ page }) => {
   await waitForEnvironmentSettled(page);
   await settleVisualScene(page);
   await expect(page.locator(".viewer-shell")).toHaveScreenshot(
-    "mobile-low-settings.png",
+    `${screenshotPrefix}-low-settings.png`,
     screenshotOptions,
   );
   const undersizedSettingsTargets = await page
@@ -112,7 +117,7 @@ test("390 × 844 touch layout keeps game controls usable", async ({ page }) => {
 
   await settleVisualScene(page);
   await expect(page.locator(".viewer-shell")).toHaveScreenshot(
-    "mobile-low-playing.png",
+    `${screenshotPrefix}-low-playing.png`,
     screenshotOptions,
   );
 
@@ -121,7 +126,7 @@ test("390 × 844 touch layout keeps game controls usable", async ({ page }) => {
   await expect(page.getByRole("heading", { name: /胜 · 认输/ })).toBeVisible();
   await settleVisualScene(page);
   await expect(page.locator(".viewer-shell")).toHaveScreenshot(
-    "mobile-low-terminal.png",
+    `${screenshotPrefix}-low-terminal.png`,
     screenshotOptions,
   );
 });

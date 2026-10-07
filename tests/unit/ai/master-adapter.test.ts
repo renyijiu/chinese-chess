@@ -269,6 +269,38 @@ describe("Master UCI adapter", () => {
     expect(worker.posted).toEqual([]);
   });
 
+  it("waits for cancelled startup to settle before reusing the Worker for another match", async () => {
+    const worker = new FakeMasterWorker();
+    const adapter = await initialize(worker);
+    const beforeSearch = worker.posted.length;
+    const first = adapter.search(request);
+    await vi.waitFor(() => expect(worker.posted.length).toBe(beforeSearch + 2));
+    let stopped = false;
+    const stopping = adapter.stop(request).then(() => {
+      stopped = true;
+    });
+    await flush();
+    expect(stopped).toBe(false);
+    worker.emit({ type: "line", line: "readyok" });
+    await stopping;
+    await expect(first).resolves.toMatchObject({ ok: false, failure: { code: "cancelled" } });
+
+    const beforeNext = worker.posted.length;
+    const next = adapter.search({ ...request, matchId: "match-b", requestId: "request-b" });
+    await vi.waitFor(() => expect(worker.posted.length).toBe(beforeNext + 2));
+    expect(worker.posted.at(-2)).toEqual({ type: "command", line: "ucinewgame" });
+    worker.emit({ type: "line", line: "readyok" });
+    await vi.waitFor(() =>
+      expect(worker.posted.at(-1)).toMatchObject({ line: expect.stringMatching(/^go /) }),
+    );
+    worker.emit({ type: "line", line: "bestmove b1c3" });
+    await expect(next).resolves.toMatchObject({ ok: true, result: { matchId: "match-b" } });
+    expect(
+      worker.posted.filter((message) => (message as { type: string }).type === "boot"),
+    ).toHaveLength(1);
+    adapter.dispose();
+  });
+
   it("cooperatively stops once, then terminates and recreates after grace expiry", async () => {
     const first = new FakeMasterWorker();
     const second = new FakeMasterWorker();

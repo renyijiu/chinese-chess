@@ -6,6 +6,7 @@ import { useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 
 import type { Role, Side, Square } from "../../../lib/xiangqi/index";
+import type { PresentationStore } from "../presentation/PresentationStore";
 import type { QualityProfile } from "../runtime/quality";
 import {
   COMBAT_VFX_GROUND_CLEARANCE,
@@ -33,12 +34,10 @@ function PayloadGeometry({ payload }: { payload: VfxPayload }) {
 function EffectParticles({
   color,
   count,
-  strength,
   target,
 }: {
   color: string;
   count: number;
-  strength: number;
   target: THREE.Vector3;
 }) {
   const mesh = useRef<THREE.InstancedMesh>(null);
@@ -63,9 +62,10 @@ function EffectParticles({
   }, [count]);
 
   return (
-    <group position={target} scale={0.82 + strength * 0.18} visible={strength > 0 && strength < 1}>
+    <group name="vfx-particles" position={target} visible={false}>
       <instancedMesh
         ref={mesh}
+        name="vfx-particle-mesh"
         args={[undefined, undefined, 16]}
         raycast={() => null}
         renderOrder={14}
@@ -79,7 +79,6 @@ function EffectParticles({
           emissive={color}
           emissiveIntensity={0.7}
           metalness={0.02}
-          opacity={1 - strength * 0.72}
           roughness={0.74}
           transparent
         />
@@ -93,7 +92,7 @@ export function PieceCombatVfx({
   active,
   capture,
   from,
-  progress,
+  presentation,
   quality,
   reducedMotion,
   role,
@@ -103,13 +102,14 @@ export function PieceCombatVfx({
   active: boolean;
   capture: boolean;
   from: Square;
-  progress: number;
+  presentation: PresentationStore;
   quality: QualityProfile;
   reducedMotion: boolean;
   role: Role;
   side: Side;
   to: Square;
 }) {
+  const root = useRef<THREE.Group>(null);
   const profile = getPieceVfxProfile(role, side);
   const fromWorld = useMemo(
     () => new THREE.Vector3(...elevatedSquareToWorld(from, COMBAT_VFX_GROUND_CLEARANCE)),
@@ -119,9 +119,6 @@ export function PieceCombatVfx({
     () => new THREE.Vector3(...elevatedSquareToWorld(to, COMBAT_VFX_GROUND_CLEARANCE)),
     [to],
   );
-  const payloadProgress = clampedRange(progress, 0.15, capture ? 0.51 : 0.76);
-  const payloadPosition = useMemo(() => new THREE.Vector3(), []);
-  payloadPosition.fromArray(resolveCombatPayloadWorldPosition(from, to, payloadProgress));
   const particleTarget = useMemo(
     () => toWorld.clone().add(new THREE.Vector3(0, 0.28, 0)),
     [toWorld],
@@ -135,29 +132,103 @@ export function PieceCombatVfx({
       ),
     [direction],
   );
-  const telegraph = 1 - clampedRange(progress, 0.12, 0.3);
-  const release =
-    clampedRange(progress, 0.12, 0.28) *
-    (1 - clampedRange(progress, capture ? 0.5 : 0.76, capture ? 0.61 : 0.86));
-  const impact = capture
-    ? clampedRange(progress, 0.47, 0.54) * (1 - clampedRange(progress, 0.68, 0.82))
-    : clampedRange(progress, 0.72, 0.8) * (1 - clampedRange(progress, 0.87, 1));
-  const fracture = capture ? clampedRange(progress, 0.6, 0.95) : 0;
-  const burst = Math.min(0.98, Math.max(impact * 0.9, fracture * 0.82));
   const particleCount = reducedMotion
     ? 0
     : Math.max(3, Math.round(profile.particleCount * quality.particleScale));
   const intensity = reducedMotion ? 0.52 : capture ? 1 : 0.68;
   const angular = profile.pattern === "verdigris-angle";
 
+  useLayoutEffect(() => {
+    const group = root.current;
+    if (!group) return;
+    const light = group.getObjectByName("vfx-impact-light") as THREE.PointLight | undefined;
+    if (light) light.intensity = 0;
+    if (!active) return;
+    const object = (name: string) => group.getObjectByName(name)!;
+    const mesh = (name: string) => object(name) as THREE.Mesh<THREE.BufferGeometry, THREE.Material>;
+    const telegraphGroup = object("vfx-telegraph");
+    const telegraphRing = mesh("vfx-telegraph-ring");
+    const telegraphHalo = mesh("vfx-telegraph-halo");
+    const payload = object("vfx-payload");
+    const payloadMesh = mesh("vfx-payload-mesh");
+    const cannonCap = role === "cannon" ? mesh("vfx-cannon-cap") : null;
+    const cannonSmoke = role === "cannon" ? mesh("vfx-cannon-smoke") : null;
+    const impactGroup = object("vfx-impact");
+    const impactRing = mesh("vfx-impact-ring");
+    const impactHoops = object("vfx-impact-hoops");
+    const firstHoop = mesh("vfx-impact-hoop-a");
+    const secondHoop = mesh("vfx-impact-hoop-b");
+    const impactCore = mesh("vfx-impact-core");
+    const particles = object("vfx-particles");
+    const particleMesh = mesh("vfx-particle-mesh");
+    const update = () => {
+      const progress = presentation.getProgress();
+      const telegraph = 1 - clampedRange(progress, 0.12, 0.3);
+      const release =
+        clampedRange(progress, 0.12, 0.28) *
+        (1 - clampedRange(progress, capture ? 0.5 : 0.76, capture ? 0.61 : 0.86));
+      const impact = capture
+        ? clampedRange(progress, 0.47, 0.54) * (1 - clampedRange(progress, 0.68, 0.82))
+        : clampedRange(progress, 0.72, 0.8) * (1 - clampedRange(progress, 0.87, 1));
+      const fracture = capture ? clampedRange(progress, 0.6, 0.95) : 0;
+      const burst = Math.min(0.98, Math.max(impact * 0.9, fracture * 0.82));
+      telegraphGroup.visible = telegraph > 0;
+      telegraphRing.rotation.z = progress * Math.PI * (angular ? -1 : 1);
+      telegraphRing.scale.setScalar(0.94 + telegraph * 0.06);
+      telegraphRing.material.opacity = telegraph * 0.92 * intensity;
+      telegraphHalo.rotation.z = -progress * 2.2;
+      telegraphHalo.material.opacity = telegraph * 0.58 * intensity;
+      payload.visible = release > 0;
+      payload.position.fromArray(
+        resolveCombatPayloadWorldPosition(
+          from,
+          to,
+          clampedRange(progress, 0.15, capture ? 0.51 : 0.76),
+        ),
+      );
+      payloadMesh.material.opacity = release * intensity;
+      if (cannonCap) cannonCap.material.opacity = release * 0.82;
+      if (cannonSmoke) {
+        cannonSmoke.scale.setScalar(0.08 + release * 0.06);
+        cannonSmoke.material.opacity = release * 0.26;
+      }
+      impactGroup.visible = impact > 0;
+      impactRing.scale.setScalar(0.9 + impact * 0.1);
+      impactRing.material.opacity = impact * intensity;
+      impactHoops.scale.setScalar(0.78 + impact * 0.22);
+      firstHoop.material.opacity = impact * 0.86 * intensity;
+      secondHoop.material.opacity = impact * 0.72 * intensity;
+      impactCore.scale.setScalar(0.14 + impact * profile.impactRadius * 0.38);
+      impactCore.material.opacity = impact * 0.9 * intensity;
+      if (light) light.intensity = reducedMotion ? 0 : impact * 1.45;
+      particles.visible = burst > 0 && burst < 1;
+      particles.scale.setScalar(0.82 + burst * 0.18);
+      particleMesh.material.opacity = 1 - burst * 0.72;
+    };
+    update();
+    return presentation.subscribeFrame(update);
+  }, [
+    active,
+    angular,
+    capture,
+    from,
+    intensity,
+    presentation,
+    profile.impactRadius,
+    quality.dynamicEffectLights,
+    reducedMotion,
+    role,
+    to,
+  ]);
+
   return (
-    <group name="battle-bloom-selection">
+    <group ref={root} name="battle-bloom-selection">
       <group name={`piece-combat-vfx:${profile.motif}`} visible={active}>
-        <group position={fromWorld} visible={telegraph > 0}>
+        <group name="vfx-telegraph" position={fromWorld}>
           <mesh
             renderOrder={12}
-            rotation={[-Math.PI / 2, 0, progress * Math.PI * (angular ? -1 : 1)]}
-            scale={0.94 + telegraph * 0.06}
+            name="vfx-telegraph-ring"
+            rotation={[-Math.PI / 2, 0, 0]}
             raycast={() => null}
           >
             <ringGeometry
@@ -172,13 +243,13 @@ export function PieceCombatVfx({
               color={profile.colors.bright}
               depthTest={false}
               depthWrite={false}
-              opacity={telegraph * 0.92 * intensity}
               transparent
             />
           </mesh>
           <mesh
             position={[0, 0.34, 0]}
-            rotation={[-Math.PI / 2, 0, -progress * 2.2]}
+            name="vfx-telegraph-halo"
+            rotation={[-Math.PI / 2, 0, 0]}
             raycast={() => null}
           >
             {role === "advisor" ? (
@@ -188,18 +259,14 @@ export function PieceCombatVfx({
             ) : (
               <ringGeometry args={[0.12, 0.18, angular ? 4 : 12]} />
             )}
-            <meshBasicMaterial
-              color={profile.colors.core}
-              depthWrite={false}
-              opacity={telegraph * 0.58 * intensity}
-              transparent
-            />
+            <meshBasicMaterial color={profile.colors.core} depthWrite={false} transparent />
           </mesh>
         </group>
 
-        <group position={payloadPosition} quaternion={payloadQuaternion} visible={release > 0}>
+        <group name="vfx-payload" quaternion={payloadQuaternion}>
           <mesh
             renderOrder={13}
+            name="vfx-payload-mesh"
             scale={
               reducedMotion
                 ? 0.72
@@ -217,12 +284,11 @@ export function PieceCombatVfx({
               color={profile.colors.bright}
               depthTest={false}
               depthWrite={false}
-              opacity={release * intensity}
               transparent
             />
           </mesh>
           {role === "cannon" ? (
-            <mesh position={[0, 0.36, 0]} raycast={() => null}>
+            <mesh name="vfx-cannon-cap" position={[0, 0.36, 0]} raycast={() => null}>
               <coneGeometry args={[0.065, 0.16, 8]} />
               <meshStandardMaterial
                 color={profile.colors.bright}
@@ -231,17 +297,15 @@ export function PieceCombatVfx({
                 metalness={0.12}
                 roughness={0.72}
                 transparent
-                opacity={release * 0.82}
               />
             </mesh>
           ) : null}
           {role === "cannon" ? (
-            <mesh position={[0, -0.18, 0]} scale={0.08 + release * 0.06} raycast={() => null}>
+            <mesh name="vfx-cannon-smoke" position={[0, -0.18, 0]} raycast={() => null}>
               <dodecahedronGeometry args={[1, 0]} />
               <meshStandardMaterial
                 color={profile.colors.smoke}
                 depthWrite={false}
-                opacity={release * 0.26}
                 roughness={1}
                 transparent
               />
@@ -249,11 +313,11 @@ export function PieceCombatVfx({
           ) : null}
         </group>
 
-        <group position={toWorld} visible={impact > 0}>
+        <group name="vfx-impact" position={toWorld}>
           <mesh
             renderOrder={12}
             rotation={[-Math.PI / 2, 0, angular ? Math.PI / 4 : 0]}
-            scale={0.9 + impact * 0.1}
+            name="vfx-impact-ring"
             raycast={() => null}
           >
             <ringGeometry
@@ -264,30 +328,32 @@ export function PieceCombatVfx({
               color={profile.colors.bright}
               depthTest={false}
               depthWrite={false}
-              opacity={impact * intensity}
               transparent
             />
           </mesh>
-          <group position={[0, 0.5, 0]} scale={0.78 + impact * 0.22}>
-            <mesh renderOrder={13} raycast={() => null}>
+          <group name="vfx-impact-hoops" position={[0, 0.5, 0]}>
+            <mesh name="vfx-impact-hoop-a" renderOrder={13} raycast={() => null}>
               <torusGeometry args={[0.42, 0.028, 8, 32]} />
               <meshBasicMaterial
                 blending={THREE.AdditiveBlending}
                 color={profile.colors.bright}
                 depthTest={false}
                 depthWrite={false}
-                opacity={impact * 0.86 * intensity}
                 transparent
               />
             </mesh>
-            <mesh renderOrder={13} rotation={[0, Math.PI / 2, 0]} raycast={() => null}>
+            <mesh
+              name="vfx-impact-hoop-b"
+              renderOrder={13}
+              rotation={[0, Math.PI / 2, 0]}
+              raycast={() => null}
+            >
               <torusGeometry args={[0.42, 0.028, 8, 32]} />
               <meshBasicMaterial
                 blending={THREE.AdditiveBlending}
                 color={profile.colors.core}
                 depthTest={false}
                 depthWrite={false}
-                opacity={impact * 0.72 * intensity}
                 transparent
               />
             </mesh>
@@ -295,7 +361,7 @@ export function PieceCombatVfx({
           <mesh
             position={[0, role === "elephant" ? 0.38 : 0.48, 0]}
             renderOrder={14}
-            scale={0.14 + impact * profile.impactRadius * 0.38}
+            name="vfx-impact-core"
             raycast={() => null}
           >
             {role === "elephant" ? (
@@ -310,27 +376,26 @@ export function PieceCombatVfx({
               color={profile.colors.core}
               depthTest={false}
               depthWrite={false}
-              opacity={impact * 0.9 * intensity}
               transparent
             />
           </mesh>
-          {quality.dynamicEffectLights && !reducedMotion ? (
-            <pointLight
-              color={profile.colors.bright}
-              distance={1.65}
-              intensity={impact * 1.45}
-              position={[0, 0.42, 0]}
-            />
-          ) : null}
         </group>
-
         <EffectParticles
           color={profile.colors.bright}
           count={particleCount}
-          strength={burst}
           target={particleTarget}
         />
       </group>
+      {/* Keep the light count stable between actions as well as during impact. */}
+      {quality.dynamicEffectLights ? (
+        <pointLight
+          color={profile.colors.bright}
+          distance={1.65}
+          name="vfx-impact-light"
+          intensity={0}
+          position={[toWorld.x, toWorld.y + 0.42, toWorld.z]}
+        />
+      ) : null}
     </group>
   );
 }

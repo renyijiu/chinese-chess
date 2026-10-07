@@ -34,6 +34,30 @@ function assertSuccessors(state: GameState) {
 }
 
 describe("search position rules", () => {
+  it("keeps persisted position keys byte-compatible and leaves the source board unchanged", () => {
+    const state = createInitialGame();
+    const original = structuredClone(state);
+    const roleCodes = {
+      general: "G",
+      advisor: "A",
+      elephant: "E",
+      chariot: "R",
+      horse: "H",
+      cannon: "C",
+      soldier: "S",
+    };
+    const positions = [state, ...getLegalPositionMoves(state).map((move) => move.advance())];
+    for (const position of positions) {
+      const legacyCells = Array.from({ length: 90 }, (_, index) => {
+        const piece = position.board[index];
+        return piece ? `${piece.side === "red" ? "r" : "b"}${roleCodes[piece.role]}` : "--";
+      });
+      expect(getPositionKey(position)).toBe(
+        `${position.rulesetId}|${position.sideToMove}|${legacyCells.join(".")}`,
+      );
+    }
+    expect(state).toEqual(original);
+  });
   it("matches authoritative moves and derived state throughout varied play", () => {
     let state = createInitialGame();
     let seed = 12345;

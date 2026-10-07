@@ -44,7 +44,7 @@ export type GameSettings = Readonly<{
 }>;
 
 export const DEFAULT_GAME_SETTINGS: GameSettings = Object.freeze({
-  quality: "high",
+  quality: "medium",
   masterVolume: DEFAULT_AUDIO_MIX.master,
   musicVolume: DEFAULT_AUDIO_MIX.music,
   ambientVolume: DEFAULT_AUDIO_MIX.ambient,

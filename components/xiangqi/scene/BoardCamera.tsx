@@ -19,6 +19,7 @@ function CameraRig({
 }) {
   const { camera, invalidate, size } = useThree();
   const moving = useRef(true);
+  const firstFrame = useRef(true);
   const destination = useMemo(() => {
     const narrowViewport = size.width / Math.max(size.height, 1) < 0.86;
     if (view === "overhead") {
@@ -44,13 +45,15 @@ function CameraRig({
       moving.current = false;
     } else {
       moving.current = true;
+      firstFrame.current = true;
     }
     invalidate();
   }, [camera, destination, invalidate, reducedMotion, side, view]);
 
   useFrame((_, delta) => {
     if (!moving.current) return;
-    camera.position.lerp(destination, 1 - Math.exp(-delta * 3.5));
+    camera.position.lerp(destination, firstFrame.current ? 0 : 1 - Math.exp(-delta * 3.5));
+    firstFrame.current = false;
     camera.lookAt(0, 0.45, 0);
     moving.current = camera.position.distanceTo(destination) >= 0.025;
     if (moving.current) invalidate();
@@ -80,7 +83,8 @@ export function BoardCamera({
         enableDamping
         makeDefault
         maxDistance={34}
-        maxPolarAngle={Math.PI * 0.48}
+        // Overhead uses Z as up; the battle view's Y-up limit fights its destination.
+        maxPolarAngle={view === "overhead" ? Math.PI : Math.PI * 0.48}
         minDistance={10}
         minPolarAngle={0.08}
         target={[0, 0.45, 0]}
