@@ -4,28 +4,28 @@ import type { OnlineMatchSessionSnapshot } from "./OnlineMatchSession";
 
 const PEER_LABELS: Record<OnlineMatchSessionSnapshot["peer"]["phase"], string> = {
   idle: "等待开始",
-  gathering: "正在收集网络候选地址",
-  "waiting-answer": "邀请已生成，等待好友响应",
-  "answer-ready": "响应已生成，等待好友完成连接",
-  connecting: "正在建立直连",
-  open: "直连通道已打开",
+  gathering: "正在探测网络",
+  "waiting-answer": "邀请已生成，等待好友回复",
+  "answer-ready": "回复已生成，等待好友完成连接",
+  connecting: "正在连接",
+  open: "已连接",
   "disconnected-grace": "连接短暂中断，正在等待恢复",
-  failed: "直连失败",
+  failed: "连接失败",
   closed: "连接已关闭",
 };
 
 const COORDINATOR_LABELS = {
-  idle: "等待协议启动",
-  handshaking: "正在校验棋局版本",
+  idle: "等待连接",
+  handshaking: "正在核对双方版本",
   "awaiting-ready": "等待双方准备",
   playable: "双方已准备，可以落子",
   "awaiting-ack": "等待好友确认落子",
-  revalidating: "正在重新校验连接与棋局",
-  stalled: "联机响应超时，棋盘已暂时锁定",
-  syncing: "正在恢复一致棋局",
+  revalidating: "正在重新核对连接与棋局",
+  stalled: "等待好友响应超时，棋盘已暂时锁定",
+  syncing: "正在同步棋局",
   terminal: "棋局已经结束",
-  "repair-required": "局面不一致，已锁定输入",
-  failed: "联机协议失败",
+  "repair-required": "双方局面不一致，棋盘已锁定",
+  failed: "联机出错",
   disposed: "联机会话已关闭",
 } as const;
 
@@ -81,8 +81,8 @@ export function OnlineStatusCard({
           {coordinator.remoteReady ? "已准备" : "未准备"}
         </small>
       ) : null}
-      {failed ? <em>棋盘输入已锁定；请返回菜单后重新配对。</em> : null}
-      {snapshot.rotatingToMatchId ? <em>正在保留当前直连并创建下一局…</em> : null}
+      {failed ? <em>棋盘已锁定，请返回菜单重新配对。</em> : null}
+      {snapshot.rotatingToMatchId ? <em>正在创建下一局，连接保持不变…</em> : null}
       {canChooseReconnect && onReconnect ? (
         <button
           className="game-secondary-action online-reconnect-action"

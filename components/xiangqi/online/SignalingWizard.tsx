@@ -37,7 +37,7 @@ export function SignalingWizard({
   const peerPhase = snapshot?.peer.phase ?? "idle";
   const coordinator = snapshot?.coordinator ?? null;
   const needsInput = role === "guest" ? outbound.length === 0 : peerPhase === "waiting-answer";
-  const inputKind = role === "guest" ? "Offer 邀请文本" : "Answer 响应文本";
+  const inputLabel = role === "guest" ? "粘贴好友发来的邀请文本" : "粘贴好友发回的回复文本";
   const gathering = peerPhase === "gathering";
   const canReady = coordinator?.phase === "awaiting-ready" && !coordinator.localReady;
   const qrAvailable = signalingTextFitsQr(outbound);
@@ -60,7 +60,7 @@ export function SignalingWizard({
     if (!outbound || typeof navigator.share !== "function") return;
     try {
       await navigator.share({
-        title: role === "host" ? "中国象棋好友直连邀请" : "中国象棋好友直连响应",
+        title: role === "host" ? "中国象棋好友直连邀请" : "中国象棋好友直连回复",
         text: outbound,
       });
       setShareNotice({ signal: outbound, message: "已打开系统分享。" });
@@ -93,14 +93,13 @@ export function SignalingWizard({
       <p className="game-kicker">PEER TO PEER · 好友直连</p>
       <h2 id="online-wizard-title">{role === "host" ? "创建邀请" : "加入棋局"}</h2>
       <p>
-        只交换棋局命令，不上传棋局到游戏服务端。首版不提供 TURN，部分企业网络或复杂 NAT
-        可能无法连接。
+        棋局只在你和好友的浏览器之间传输，不经过游戏服务器。没有中继（TURN），公司网络等限制较严的环境可能连不上。
       </p>
 
       {snapshot ? <OnlineStatusCard snapshot={snapshot} /> : null}
       {gathering ? (
         <p className="online-progress" role="status">
-          正在等待 ICE gathering complete，请勿关闭页面…
+          {role === "host" ? "正在生成邀请" : "正在生成回复"}，请勿关闭页面…
         </p>
       ) : null}
       {error || snapshot?.error ? (
@@ -112,7 +111,7 @@ export function SignalingWizard({
       {outbound ? (
         <div className="online-signal-block">
           <label htmlFor="online-outbound-signal">
-            {role === "host" ? "完整 Offer 邀请文本" : "完整 Answer 响应文本"}
+            {role === "host" ? "发给好友的邀请文本" : "发回给房主的回复文本"}
           </label>
           <textarea id="online-outbound-signal" readOnly rows={5} value={outbound} />
           <div className="online-inline-actions">
@@ -150,7 +149,7 @@ export function SignalingWizard({
             ) : null}
           </div>
           {visibleShareNotice ? <small role="status">{visibleShareNotice}</small> : null}
-          {!qrAvailable ? <small>邀请文本较长，二维码不可用；请使用复制或系统分享。</small> : null}
+          {!qrAvailable ? <small>文本较长，无法生成二维码；请使用复制或系统分享。</small> : null}
           {visibleQrNotice ? (
             <small className="game-warning" role="alert">
               {visibleQrNotice}
@@ -159,13 +158,13 @@ export function SignalingWizard({
           {qrDataUrl ? (
             <figure className="online-signal-qr">
               <Image
-                alt={`完整${role === "host" ? "邀请" : "响应"}文本二维码`}
+                alt={`${role === "host" ? "邀请" : "回复"}文本二维码`}
                 height={280}
                 src={qrDataUrl}
                 unoptimized
                 width={280}
               />
-              <figcaption>二维码同样包含临时网络信息，只向本局好友展示。</figcaption>
+              <figcaption>二维码里同样有临时网络信息，只给本局好友看。</figcaption>
             </figure>
           ) : null}
         </div>
@@ -183,7 +182,7 @@ export function SignalingWizard({
             }
           }}
         >
-          <label htmlFor="online-inbound-signal">粘贴好友的{inputKind}</label>
+          <label htmlFor="online-inbound-signal">{inputLabel}</label>
           <textarea
             id="online-inbound-signal"
             autoComplete="off"
@@ -198,7 +197,7 @@ export function SignalingWizard({
             disabled={busy || input.trim().length === 0}
             type="submit"
           >
-            {busy ? "正在处理…" : role === "guest" ? "生成 Answer" : "接受 Answer 并连接"}
+            {busy ? "正在处理…" : role === "guest" ? "生成回复" : "开始连接"}
           </button>
         </form>
       ) : null}
@@ -226,7 +225,7 @@ export function SignalingWizard({
       >
         取消并关闭连接
       </button>
-      <small>邀请文本包含临时网络信息，请只发给本局好友；刷新页面后需要重新配对。</small>
+      <small>邀请和回复文本里有临时网络信息，请只发给本局好友；刷新页面后需要重新配对。</small>
     </section>
   );
 }

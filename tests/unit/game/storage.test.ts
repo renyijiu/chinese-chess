@@ -133,7 +133,7 @@ describe("local game persistence", () => {
     const result = saveGameSnapshot(storage, createLocalMatch(createInitialGame()));
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("Expected the storage write to fail");
-    expect(result.warning).toMatch(/内存/);
+    expect(result.warning).toMatch(/不会存档/);
     expect(result.resumable).toBe(false);
   });
 
@@ -148,7 +148,7 @@ describe("local game persistence", () => {
     expect(loadGameSnapshot(storage)).toMatchObject({
       game: null,
       source: "none",
-      warning: expect.stringMatching(/内存/),
+      warning: expect.stringMatching(/不会存档/),
     });
   });
 

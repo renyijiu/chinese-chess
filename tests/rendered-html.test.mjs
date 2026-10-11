@@ -36,9 +36,9 @@ test("server-renders the fullscreen Qin terracotta game", async () => {
   assert.match(html, /--qin-black-lacquer:#171612/);
   assert.match(html, /--qin-hud-text:#eadcc3/);
   assert.match(html, /<title>兵临九宫｜Q 版秦俑 3D 中国象棋<\/title>/);
-  assert.match(html, /手动信令 WebRTC 好友直连/);
+  assert.match(html, /打开浏览器就能两人同屏对弈或挑战电脑/);
   assert.match(html, /board-stage board-stage--fullscreen/);
-  assert.match(html, /支持本机、人机与可选 WebRTC 好友直连的 3D 中国象棋/);
+  assert.match(html, /兵临九宫 · 秦俑主题 3D 中国象棋/);
   assert.match(html, /开始本机双人对局/);
   assert.match(html, /aria-label="Q 版秦俑沙盘中国象棋棋盘三维预览"/);
   assert.match(html, /俯视棋盘/);

@@ -1,10 +1,10 @@
-**全项目性能分析 · 2026-10-01**
+# 全项目性能分析 · 2026-10-01
 
 基线提交：`2819496a`。范围覆盖页面启动、R3F/Three.js 场景、动画与拾取、音频、轻量 AI、Master、存档、WebRTC、生产构建和性能测试。此次只做分析与诊断，未修改业务实现。下文区分实际测量、代码确认和待验证建议；没有把预期收益当成已经实现的提升。
 
 最值得先做的是：减少等待落子时的持续渲染，消除开局音频的同步工作，把动画进度移出 React 整层更新路径，并修正画质设置中未真正生效的降级。模型和资源已有较好的基础，不需要先重写渲染引擎或规则系统。
 
-**1. 本次实测与证据边界**
+## 1. 本次实测与证据边界
 
 环境为本机 Apple M1 Max、可见 Chromium / ANGLE Metal、1920×1080、实际 Canvas DPR 1，运行当前提交的生产构建，服务为本地 Wrangler。构建工具运行于 Node 26.5.1；CI 的 Node 版本不同。没有 Android/iPhone 真机、远程网络、GPU 分配字节或整机功耗测量。
 
@@ -49,7 +49,7 @@ low 静音最初在仅等待 1 秒后记录到 81 个绘制帧；将音频就绪
 - [搜索与帧调度结果](../output/playwright/performance-audit/cpu-results.json)
 - [Worker 定时器探针](../output/playwright/performance-audit/worker-timers.mjs)、[结果](../output/playwright/performance-audit/worker-timers.json)
 
-**2. 优先级与实施规模**
+## 2. 优先级与实施规模
 
 P1 表示建议第一批解决，P2 表示随后按测量收益推进。规模是相对改动范围，不是工期承诺。
 
@@ -68,7 +68,7 @@ P1 表示建议第一批解决，P2 表示随后按测量收益推进。规模�
 | P2     | Master 生命周期、重放校验与内存测量  | 降低重复启动和长局面校验成本                        | 中     | 源码确认                         |
 | P2     | 可选功能拆包、模型缓存与拾取         | 改善首次使用和切档峰值                              | 小～中 | 源码确认，尚未量化收益           |
 
-**3. 空闲渲染：最直接的资源节省机会**
+## 3. 空闲渲染：最直接的资源节省机会
 
 位置：[quality.ts](../components/xiangqi/runtime/quality.ts)、[FrameScheduler.tsx](../components/xiangqi/runtime/FrameScheduler.tsx)、[BoardScene.tsx](../components/xiangqi/scene/BoardScene.tsx)、[AnimationRegistry.ts](../components/xiangqi/animation/AnimationRegistry.ts)。
 
@@ -80,7 +80,7 @@ Canvas 已经是 `frameloop="demand"`，但 high 的环境调度为 60 FPS，旗
 
 验收应包含：静止 30 秒的绘制帧数与主线程任务时间，随后立即落子/旋转镜头，确认没有第一帧跳变或延迟。标签页隐藏已有暂停逻辑，应保留。R3F 官方也将允许场景静止、使用按需渲染作为降低持续负担的基本手段：[官方说明](https://raw.githubusercontent.com/pmndrs/react-three-fiber/master/docs/advanced/scaling-performance.mdx)。
 
-**4. 开局音频：已有可归因的交互长任务**
+## 4. 开局音频：已有可归因的交互长任务
 
 位置：[AudioEngine.ts](../components/xiangqi/audio/AudioEngine.ts) 的 `unlock()`、`fillLoop()`、`getBuffer()`，以及 [XiangqiGame.tsx](../components/xiangqi/XiangqiGame.tsx) 的 `handleStart()`。
 
@@ -96,7 +96,7 @@ Canvas 已经是 `frameloop="demand"`，但 high 的环境调度为 60 FPS，旗
 
 静音样本目前仍加载完整音频包、持有约 32.94 MiB PCM，AudioEngine 状态虽然显示 muted，内部声源仍存在。`setMuted()` 主要改增益，并不等于暂停解码、释放缓存或关闭 AudioContext。这是明确的无效资源开销，不是推测。
 
-**5. 音频内存：压缩 MP3 不会同步缩小 PCM**
+## 5. 音频内存：压缩 MP3 不会同步缩小 PCM
 
 位置：[音频 manifest](../public/audio/qin-diorama/v1/manifest.json)、[AudioEngine.ts](../components/xiangqi/audio/AudioEngine.ts) 的 `loadPack()`。
 
@@ -108,7 +108,7 @@ Canvas 已经是 `frameloop="demand"`，但 high 的环境调度为 60 FPS，旗
 
 当前 manifest 虽区分 `critical` 与 `deferred`，运行时仍顺序下载并解码六个资源，全部完成后才标记 ready。它限制了并发峰值，这是优点；但 critical/deferred 尚未形成实际的就绪优先级。保留有限并发即可，没有必要为 6 个文件引入通用资源调度框架。
 
-**6. 走子动画：每一帧都让棋子层经过 React**
+## 6. 走子动画：每一帧都让棋子层经过 React
 
 位置：[PresentationStore.ts](../components/xiangqi/presentation/PresentationStore.ts) 的 `publishActive()`、[GameBoardLayer.tsx](../components/xiangqi/game/GameBoardLayer.tsx) 的 `useSyncExternalStore()`、[PieceLayer.tsx](../components/xiangqi/scene/PieceLayer.tsx)。
 
@@ -120,7 +120,7 @@ Canvas 已经是 `frameloop="demand"`，但 high 的环境调度为 60 FPS，旗
 
 这与 R3F 对高频状态更新的建议一致：[Performance pitfalls](https://raw.githubusercontent.com/pmndrs/react-three-fiber/master/docs/advanced/pitfalls.mdx)。本项尚未做实现前后 profile，不能承诺固定 FPS 百分比。验收重点是一次走子/吃子的 React commit 数、主线程耗时、分配量和动作正确性。
 
-**7. 画质降级存在两个具体落差**
+## 7. 画质降级存在两个具体落差
 
 首先是帧调度。`FrameScheduler` 在执行后令 `lastFrame = timestamp`，丢弃超出的时间余量。60 Hz 屏幕每次回调约 16.67 ms，medium 的目标间隔 41.67 ms 必须等到第 3 个回调，实际成为 50 ms，即 20 FPS。本次实测 medium 4 秒绘制 80 帧，与之吻合。
 
@@ -140,7 +140,7 @@ Canvas 已经是 `frameloop="demand"`，但 high 的环境调度为 60 FPS，旗
 
 最小决策是明确采用固定的上下文抗锯齿策略，动态性能主要由 DPR 和效果开关调节。如果必须动态切换原生 MSAA，再针对这个参数重建 renderer，并验证棋局、资产引用和 GPU 释放；不要让自动 DPR 调节频繁重建整个 Canvas。[WebGL 上下文说明](https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/getContext)。
 
-**8. 吃子后处理：分辨率参数和资源生命周期**
+## 8. 吃子后处理：分辨率参数和资源生命周期
 
 位置：[BattlePostprocessing.tsx](../components/xiangqi/scene/BattlePostprocessing.tsx)、[BoardScene.tsx](../components/xiangqi/scene/BoardScene.tsx)。
 
@@ -150,7 +150,7 @@ Canvas 已经是 `frameloop="demand"`，但 high 的环境调度为 60 FPS，旗
 
 建议先将分辨率控制放到实际支持缩放的效果上，并量测其 render target。若首次吃子仍卡顿，再在 high 会话中初始化一次、仅在吃子时启用执行，降到 medium/low 时释放。这个方案会用常驻 GPU 内存交换更稳定的动画，必须同时看帧时间和资源占用，不能一律把全部效果永久挂载。
 
-**9. 移动端与高 DPI：画质应先匹配设备负担**
+## 9. 移动端与高 DPI：画质应先匹配设备负担
 
 位置：[storage.ts](../components/xiangqi/game/storage.ts) 的 `DEFAULT_GAME_SETTINGS`、[quality.ts](../components/xiangqi/runtime/quality.ts)、[BoardViewer.tsx](../app/BoardViewer.tsx)。
 
@@ -160,7 +160,7 @@ Canvas 已经是 `frameloop="demand"`，但 high 的环境调度为 60 FPS，旗
 
 DPR 从 1.5 降到 1，像素数减少约 55.6%，这是像素工作量的数学比例，不是 FPS 提升承诺。本次实际 DPR 为 1，因此没有验证高 DPI 的最坏情况。`powerPreference="high-performance"` 也不宜被当作省电设置，它只是浏览器选 GPU 的提示；是否调整应以目标设备验证为准。
 
-**10. 轻量 AI：Worker 已隔离主线程，但内部仍可省时间**
+## 10. 轻量 AI：Worker 已隔离主线程，但内部仍可省时间
 
 位置：[lightweight.ts](../lib/xiangqi/ai/lightweight.ts)、[engine.ts](../lib/xiangqi/engine.ts)、[lightweight.worker.ts](../lib/xiangqi/ai/lightweight.worker.ts)。
 
@@ -176,7 +176,7 @@ Easy/Normal/Hard 已在 Worker 中运行，迁移到 Worker 不是待办。当�
 
 可先减少局面 key 的临时分配、复用已验证的候选棋盘、让“是否存在合法着法”早停。保持规则结果和局面 key 兼容，再评估更复杂的增量表示；暂不建议直接引入位棋盘、通用置换表或重写整套规则。
 
-**11. Master：下载大小之外，还有独立的内存与校验成本**
+## 11. Master：下载大小之外，还有独立的内存与校验成本
 
 位置：[MasterEngineAdapter.ts](../components/xiangqi/ai/MasterEngineAdapter.ts)、[OpponentCoordinator.ts](../components/xiangqi/ai/OpponentCoordinator.ts)、[engine-cache.ts](../components/xiangqi/ai/engine-cache.ts)、[Master host](../public/workers/xiangqi-master-v1.worker.js)。
 
@@ -189,7 +189,7 @@ Easy/Normal/Hard 已在 Worker 中运行，迁移到 Worker 不是待办。当�
 - 热缓存路径仍会读取并校验所有文件，随后克隆可转移 ArrayBuffer；冷加载写缓存也有拷贝。应先复用同一模式的活跃实例减少重复启动，再测是否需要改 buffer 所有权；不能随意删除校验或共享一个会被 transfer 脱离的 buffer。
 - 增补 Master 启动/退出/反复开局时 Worker heap、WASM memory、ArrayBuffer 与浏览器进程内存证据。不要直接降低初始 WASM memory，编译产物、NNUE 和线程堆栈是否允许更小值还需验证。
 
-**12. 其余模块：有机会，但不应抢在前面重构**
+## 12. 其余模块：有机会，但不应抢在前面重构
 
 | 模块          | 当前情况                                                                                                      | 建议                                                                                                                                               |
 | ------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -204,7 +204,7 @@ Easy/Normal/Hard 已在 Worker 中运行，迁移到 Worker 不是待办。当�
 | Worker 服务端 | 主要输出页面和静态资源，业务棋局无数据库请求                                                                  | 不需要加 Redis、数据库索引、后台计算服务；保留引擎 MIME、隔离头和缓存完整性                                                                        |
 | HTTP 缓存     | Master 版本化资源已有 immutable，manifest 强制重新验证                                                        | 普通 GLB/全景/音频可在正式 CDN 验证缓存命中与压缩，只有 URL 随内容更新时才使用长期 immutable。本地响应体统计不证明公网传输效率                     |
 
-**13. 性能测量本身需要补齐**
+## 13. 性能测量本身需要补齐
 
 位置：[performance-metrics.ts](../components/xiangqi/runtime/performance-metrics.ts)、[PerformanceSummary.tsx](../components/xiangqi/runtime/PerformanceSummary.tsx)、[performance.spec.ts](../tests/e2e/performance.spec.ts)、[CI](../.github/workflows/ci.yml)。
 
@@ -215,7 +215,7 @@ Easy/Normal/Hard 已在 Worker 中运行，迁移到 Worker 不是待办。当�
 - CI 已有文件预算、单元测试和生产浏览器 smoke，但没有自动运行完整 performance 场景。普通 CI 可以锁住资源量、静止绘制与主线程长任务；真实 GPU 帧预算应在固定机器/设备上单独重复测量，不能拿 SwiftShader 结果代替。
 - geometry/texture 数稳定只是资源数量稳定，不是 GPU 字节数达标。长局面需分别测 page heap、AudioBuffer、Worker/WASM 和 GPU/进程资源，不将它们混成一个 heap 数字。
 
-**14. 建议的落地顺序与验收**
+## 14. 建议的落地顺序与验收
 
 第一批以少量改动为主：静止环境策略、静音不初始化音频、备用循环离线生成、调度保留时间余量、抗锯齿策略纠正，同时修复性能采样窗口。可以先用现有“减少动态效果”作为资源对照，不需要新依赖。
 

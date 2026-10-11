@@ -19,11 +19,11 @@ const END_REASON_LABELS = {
 const ERROR_MESSAGES: Readonly<Record<CommandErrorCode, string>> = Object.freeze({
   "stale-revision": "这次操作已过期，请重新选择棋子。",
   "game-over": "棋局已经结束。",
-  "invalid-square": "该交叉点不在棋盘范围内。",
+  "invalid-square": "这个位置不在棋盘上。",
   "no-piece": "起点没有棋子。",
-  "not-your-turn": "现在轮到另一方行动。",
-  "illegal-move": "该落点不符合当前局面的规则。",
-  "cannot-undo": "当前不能再次悔棋。",
+  "not-your-turn": "现在轮到另一方走棋。",
+  "illegal-move": "这步棋不符合规则。",
+  "cannot-undo": "现在不能悔棋。",
 });
 
 const ROLE_LABELS: Readonly<Record<Role, string>> = Object.freeze({

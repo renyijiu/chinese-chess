@@ -9,13 +9,13 @@ async function readSignal(page: Page, label: string) {
 }
 
 async function exchangeOfferAndAnswer(host: Page, guest: Page) {
-  const offer = await readSignal(host, "完整 Offer 邀请文本");
-  await guest.getByLabel("粘贴好友的Offer 邀请文本").fill(offer);
-  await guest.getByRole("button", { name: "生成 Answer" }).click();
+  const offer = await readSignal(host, "发给好友的邀请文本");
+  await guest.getByLabel("粘贴好友发来的邀请文本").fill(offer);
+  await guest.getByRole("button", { name: "生成回复" }).click();
 
-  const answer = await readSignal(guest, "完整 Answer 响应文本");
-  await host.getByLabel("粘贴好友的Answer 响应文本").fill(answer);
-  await host.getByRole("button", { name: "接受 Answer 并连接" }).click();
+  const answer = await readSignal(guest, "发回给房主的回复文本");
+  await host.getByLabel("粘贴好友发回的回复文本").fill(answer);
+  await host.getByRole("button", { name: "开始连接" }).click();
 
   await expect(host.getByRole("button", { name: "我已准备" })).toBeVisible();
   await expect(guest.getByRole("button", { name: "我已准备" })).toBeVisible();

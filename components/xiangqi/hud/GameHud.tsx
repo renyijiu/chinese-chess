@@ -217,13 +217,13 @@ export function describeOpponentStatus(opponent: OpponentHudState): string {
       activity = "电脑正在落子";
       break;
     case "stopping":
-      activity = "正在停止旧的计算";
+      activity = "正在取消上一次思考";
       break;
     case "fallback":
-      activity = "电脑对手正在降级恢复";
+      activity = "正在切换到备用难度";
       break;
     case "hidden":
-      activity = "页面已隐藏，电脑计算已暂停";
+      activity = "页面已隐藏，电脑暂停思考";
       break;
     case "terminal":
       activity = "棋局已经结束";
@@ -239,7 +239,7 @@ export function describeOpponentStatus(opponent: OpponentHudState): string {
   }
   return opponent.config.requestedDifficulty === "master" &&
     opponent.config.effectiveTier === "lightweight-hard"
-    ? `大师引擎不可用，已保存并回退至困难；${activity}`
+    ? `大师引擎不可用，本局已改用困难难度；${activity}`
     : activity;
 }
 
@@ -286,7 +286,9 @@ export function GameMenu({
       <p className="game-kicker">QIN DIORAMA · 秦俑棋局</p>
       <h2 id="game-menu-title">兵临九宫</h2>
       <p>
-        选择本机双人、无需后端的人机对战，或与好友手动建立浏览器直连。规则均由同一套中国象棋引擎裁定。
+        {onlineEnabled
+          ? "两人同屏对弈、与电脑对战，或邀请好友联机。"
+          : "两人同屏对弈，或与电脑对战。"}
       </p>
       {warning ? (
         <p className="game-warning" role="status">
@@ -340,7 +342,7 @@ export function GameMenu({
       {mode === "local" ? (
         <section className="local-match-setup" aria-labelledby="local-setup-title">
           <h3 id="local-setup-title">同屏对弈</h3>
-          <p>红黑双方轮流操作；保留单步悔棋，所有走法、将军与终局规则保持不变。</p>
+          <p>红黑双方在同一台设备上轮流走棋，可以悔一步。</p>
           <button
             className="game-primary-action"
             disabled={loading}
@@ -363,10 +365,9 @@ export function GameMenu({
         />
       ) : (
         <section className="online-match-setup" aria-labelledby="online-setup-title">
-          <h3 id="online-setup-title">手动信令直连</h3>
+          <h3 id="online-setup-title">邀请好友对局</h3>
           <p>
-            房主生成 Offer，好友粘贴后生成
-            Answer，再由房主粘贴响应。不提供匹配大厅、账户或权威游戏服务端。
+            连接分三步：你创建邀请发给好友，好友粘贴后把回复发回来，你再粘贴回复。无需注册，也没有匹配大厅。
           </p>
           <div className="online-inline-actions">
             <button
@@ -387,8 +388,8 @@ export function GameMenu({
             </button>
           </div>
           <p className="online-disclosure">
-            公共 STUN 只协助发现连接路径；首版无
-            TURN，某些网络会失败。本模式不提供防作弊或竞技级可靠性。
+            公共 STUN
+            服务器只帮两台设备找到彼此，不经手棋局。没有中继（TURN），部分网络会连不上。仅适合朋友间的休闲对局，不防作弊。
           </p>
         </section>
       )}
@@ -471,7 +472,7 @@ export function GameOverPanel({
     <section className="game-over-panel game-overlay-panel" aria-labelledby="game-over-title">
       <p className="game-kicker">BATTLE CONCLUDED · 战局已定</p>
       <h2 id="game-over-title">{formatGameOutcome(game)}</h2>
-      <p>将帅仍保留在规则棋盘中，后续战斗时间线可在这里叠加败亡演出。</p>
+      <p>终局局面已保留在棋盘上。</p>
       <div className="game-menu-actions">
         {canUndo ? (
           <button className="game-secondary-action" type="button" onClick={onUndo}>
@@ -516,7 +517,7 @@ export function GameOverPanel({
           ) : onlineRematch.supported ? (
             <span className="online-rematch-note">当前连接不可用，请重新配对后继续。</span>
           ) : (
-            <span className="online-rematch-note">好友版本不支持同连接重开。</span>
+            <span className="online-rematch-note">好友的版本不支持直接再来一局，请重新配对。</span>
           )
         ) : onRestart ? (
           <button className="game-primary-action" type="button" onClick={onRestart}>
@@ -576,7 +577,7 @@ export function GameHud({
   const check = game.status.kind === "playing" ? game.status.check : null;
   const opponentStatus = opponent ? describeOpponentStatus(opponent) : null;
   const turnLabel = presentationBusy
-    ? "演出处理中"
+    ? "动画播放中"
     : ended
       ? "棋局结束"
       : opponent
@@ -628,7 +629,7 @@ export function GameHud({
           </div>
           <p>{opponentStatus}</p>
           <small>
-            你执{SIDE_LABELS[opponent.config.humanSide]} · 实际强度{" "}
+            你执{SIDE_LABELS[opponent.config.humanSide]} · 当前难度{" "}
             {TIER_LABELS[opponent.config.effectiveTier]}
           </small>
           {opponent.snapshot.failure ? <em>当前局面保持不变，可使用“重新开局”重试。</em> : null}
@@ -684,7 +685,7 @@ export function GameHud({
       <nav className="game-action-bar" aria-label="棋局操作">
         {presentationBusy ? (
           <button className="game-skip-action" type="button" onClick={onSkip}>
-            跳过演出
+            跳过动画
           </button>
         ) : null}
         {permissions.showUndo ? (
