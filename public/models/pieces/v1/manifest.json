@@ -23,7 +23,12 @@
       "faction_trim": ["#612e09", "#472409"],
       "aged_bronze": ["#291406", "#1d1107"]
     },
-    "nonFactionPolicy": "RGB values outside the semantic tolerance remain unchanged",
+    "nonFactionPolicy": "RGB values outside the semantic tolerance remain unchanged; their clay shading is already baked in",
+    "shade": {
+      "attribute": "_SHADE",
+      "accessorType": "SCALAR",
+      "policy": "Baked occlusion multiplied into faction colors after the remap"
+    },
     "materialPattern": "{role}_terracotta_vertex_palette"
   },
   "factions": {
@@ -67,8 +72,8 @@
       },
       "dimensions": {
         "baseDiameter": 0.89,
-        "maxFootprint": 0.89,
-        "approximateHeight": 1.683
+        "maxFootprint": 0.9027,
+        "approximateHeight": 1.4213
       },
       "lodBudgets": {
         "lod0": {
@@ -222,8 +227,8 @@
       },
       "dimensions": {
         "baseDiameter": 0.89,
-        "maxFootprint": 0.89,
-        "approximateHeight": 1.4802
+        "maxFootprint": 0.9027,
+        "approximateHeight": 1.1784
       },
       "lodBudgets": {
         "lod0": {
@@ -377,8 +382,8 @@
       },
       "dimensions": {
         "baseDiameter": 0.89,
-        "maxFootprint": 0.9431,
-        "approximateHeight": 1.232
+        "maxFootprint": 0.9709,
+        "approximateHeight": 0.8605
       },
       "lodBudgets": {
         "lod0": {
@@ -532,8 +537,8 @@
       },
       "dimensions": {
         "baseDiameter": 0.89,
-        "maxFootprint": 0.89,
-        "approximateHeight": 1.19
+        "maxFootprint": 0.9504,
+        "approximateHeight": 1.0466
       },
       "lodBudgets": {
         "lod0": {
@@ -687,8 +692,8 @@
       },
       "dimensions": {
         "baseDiameter": 0.89,
-        "maxFootprint": 0.9054,
-        "approximateHeight": 1.7394
+        "maxFootprint": 0.9626,
+        "approximateHeight": 1.2914
       },
       "lodBudgets": {
         "lod0": {
@@ -842,8 +847,8 @@
       },
       "dimensions": {
         "baseDiameter": 0.89,
-        "maxFootprint": 0.94,
-        "approximateHeight": 0.9
+        "maxFootprint": 0.9739,
+        "approximateHeight": 0.8658
       },
       "lodBudgets": {
         "lod0": {
@@ -997,8 +1002,8 @@
       },
       "dimensions": {
         "baseDiameter": 0.89,
-        "maxFootprint": 0.89,
-        "approximateHeight": 1.5701
+        "maxFootprint": 0.9027,
+        "approximateHeight": 1.4215
       },
       "lodBudgets": {
         "lod0": {

@@ -251,6 +251,9 @@ function validateManifest(manifest) {
   if (manifest.textureCompression?.status !== "not-applicable-no-bitmap-textures") {
     fail("This texture-free vertical slice must explicitly mark KTX2 as not applicable");
   }
+  if (manifest.vertexColorEncoding?.shade?.attribute !== "_SHADE") {
+    fail("Manifest must declare _SHADE as the baked shade applied to remapped faction colors");
+  }
   if (
     manifest.vertexColorEncoding?.accessorType !== "VEC3" ||
     manifest.vertexColorEncoding?.alpha
@@ -373,6 +376,12 @@ async function validateGlb(
     fail(`${role}/${lod}: single-material primitive must contain COLOR_0`);
   const runtimeColor = gltf.accessors?.[primitives[0].attributes.COLOR_0];
   if (runtimeColor?.type !== "VEC3") fail(`${role}/${lod}: runtime COLOR_0 must remain VEC3`);
+  // Faction regions keep exact reference colours in COLOR_0, so their baked
+  // clay shading has to travel in a separate scalar attribute.
+  const runtimeShade = gltf.accessors?.[primitives[0].attributes._SHADE];
+  if (runtimeShade?.type !== "SCALAR" || runtimeShade.count !== runtimeColor.count) {
+    fail(`${role}/${lod}: _SHADE must carry one baked shade value per vertex`);
+  }
   if ((gltf.materials?.length ?? 0) !== 1) fail(`${role}/${lod}: expected exactly one material`);
   const material = gltf.materials[0];
   if ((material.alphaMode ?? "OPAQUE") !== "OPAQUE" || material.doubleSided === true) {
@@ -456,8 +465,8 @@ async function main() {
     if (!existsSync(sourceBlend)) fail(`Missing editable Blender source: ${sourceBlend}`);
     const metadata = readJson(resolve(root, asset.source.metadata), `${role} asset metadata`);
     if (metadata.role !== role) fail(`${role} metadata has mismatched role ${metadata.role}`);
-    if (metadata.sourceCommit !== "96cadeb") {
-      fail(`${role} metadata must identify authoritative source commit 96cadeb`);
+    if (metadata.styleFamily !== sourceLock.styleFamily) {
+      fail(`${role} metadata must identify the locked style family ${sourceLock.styleFamily}`);
     }
     if (metadata.derivationMode !== "authoritative-import") {
       fail(`${role} metadata must come from the authoritative import pipeline`);

@@ -1,5 +1,5 @@
 {
-  "schema": "xiangqi-source-asset/v1",
+  "schema": "xiangqi-source-asset/v2",
   "role": "marshal",
   "displayNames": {
     "red": "帅",
@@ -7,48 +7,53 @@
   },
   "generator": {
     "application": "Blender",
-    "version": "5.2.0 LTS",
+    "version": "5.2.2 LTS",
     "script": "scripts/blender/create_xiangqi_piece_assets.py"
   },
   "authoritativeVisualSource": {
-    "path": "assets/models/red-marshal-terracotta-cartoon-v2.glb",
-    "sha256": "a84955b6b0c6e0123c6caebd45a2af350b1cb695d3d7579a09355c1e74b750be",
-    "editableMaster": "assets/models/red-marshal-terracotta-cartoon-v2.blend",
-    "editableMasterSha256": "e6fb767f4257a80f5a6c651186058d7d0ccb76517d253b72cb2421a3d599da76"
+    "path": "assets/models/red-marshal-terracotta-cartoon-v3.glb",
+    "sha256": "07f321e9cc8faa09be3d7b85ecd61d4a22143b780a812db67e8f330a34ee37cd",
+    "editableMaster": "assets/models/red-marshal-terracotta-cartoon-v3.blend",
+    "editableMasterSha256": "83e1a444477f72a5da133e8ff1e195464eec9d46543742d71840bf991a4fcbb4"
   },
   "derivedRawLods": {
     "lod0": {
       "path": "assets/characters/marshal/exports/marshal-lod0-raw.glb",
-      "sha256": "3c39d39699056507d13e9fa5ad45680960cb40dcbd157c6e7852c57518431526"
+      "sha256": "84b6177789d3ba4a803b0e4341618943470c71d586eb08736a0569d34f5758b1"
     },
     "lod1": {
       "path": "assets/characters/marshal/exports/marshal-lod1-raw.glb",
-      "sha256": "f0dabd2e26c38b80e5f38eab35e8667b8bc2c64597750a18ed05d42baee06912"
+      "sha256": "4fcb44a3df2840cea95ca3ce5636ef1d01442a6ab43ca36471b0ed5442d106ad"
     },
     "lod2": {
       "path": "assets/characters/marshal/exports/marshal-lod2-raw.glb",
-      "sha256": "4d8500b7b6585df96f4d748d451775ad2ffdb6b85b55607e8cc7b7973026b625"
+      "sha256": "466f951d459c0de8232a7d98f519f9e5f9e71466e1dd65fb01cd87b8ee691c05"
     }
   },
-  "sourceCommit": "96cadeb",
+  "styleFamily": "red-xiangqi-qin-terracotta-cartoon-v3",
   "derivationMode": "authoritative-import",
   "reference": "assets/models/README.md",
   "license": "Repository-owned Qin-terracotta research asset; no third-party geometry or bitmap textures",
   "visualIntent": [
-    "Qin terracotta general",
-    "double-tail officer headdress",
-    "command sword and broad lamellar mantle"
+    "Q-version Qin commander",
+    "twin-tailed crown with a jade seal",
+    "both hands on a jade-hilted sword over lamellar armour"
   ],
   "periodPolicy": "Qin terracotta visual fantasy: no gunpowder artillery; cannon role is represented by a heavy siege crossbow",
-  "derivation": "Authoritative research GLB normalized and decimated per LOD, then adapted to the shared runtime rig, actions, sockets and faction palette contract",
+  "scale": {
+    "baseDiameter": 0.89,
+    "uniformScale": 0.412037,
+    "policy": "one factor for all axes; the sculpt's proportions are preserved"
+  },
+  "derivation": "Sculpted research GLB scaled uniformly onto the plinth, decimated per LOD, then bound island by island to the shared runtime rig, actions, sockets and faction palette contract",
   "knownLimitations": [
-    "first-pass broad automatic skin weights require manual deformation polish before an extreme close-up",
-    "source solid materials are baked to vertex colors; bitmap normal maps are intentionally absent",
+    "each sculpted island follows one bone; only the torso and sleeves blend between bones",
+    "source colours and clay shading are baked to vertex colours; bitmap normal maps are intentionally absent",
     "canonical runtime actions are adapters and may be iterated without changing the visual source authority"
   ],
   "texturePolicy": {
     "bitmapTextures": 0,
     "ktx2": "not-applicable-no-bitmap-textures",
-    "solidColorBake": "COLOR_0 VEC3 exact RGB reference colors; one marshal_terracotta_vertex_palette material"
+    "solidColorBake": "COLOR_0 VEC3 exact RGB reference colors with shading in _SHADE; one marshal_terracotta_vertex_palette material"
   }
 }

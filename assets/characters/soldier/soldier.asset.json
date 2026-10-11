@@ -1,5 +1,5 @@
 {
-  "schema": "xiangqi-source-asset/v1",
+  "schema": "xiangqi-source-asset/v2",
   "role": "soldier",
   "displayNames": {
     "red": "兵",
@@ -7,48 +7,53 @@
   },
   "generator": {
     "application": "Blender",
-    "version": "5.2.0 LTS",
+    "version": "5.2.2 LTS",
     "script": "scripts/blender/create_xiangqi_piece_assets.py"
   },
   "authoritativeVisualSource": {
-    "path": "assets/models/red-soldier-terracotta-cartoon-v1.glb",
-    "sha256": "8c491be659e434189585e7bb543509871f44c0dee0d0f015b9ba991d3e4fb149",
-    "editableMaster": "assets/models/red-soldier-terracotta-cartoon-v1.blend",
-    "editableMasterSha256": "cd9437f2fc140aafeb0f0869b6ba1e28ccd561fb430fd47a6133f5c9f02fe9ba"
+    "path": "assets/models/red-soldier-terracotta-cartoon-v3.glb",
+    "sha256": "3084b7fb7bc04f6f24740f8f26611180eeaf375bd24ef38aa7042f58b0e9e775",
+    "editableMaster": "assets/models/red-soldier-terracotta-cartoon-v3.blend",
+    "editableMasterSha256": "35a333546bf39a7d536a4d2d363bd36a92b3bb08ee5d8bcc6f30e3809af7c085"
   },
   "derivedRawLods": {
     "lod0": {
       "path": "assets/characters/soldier/exports/soldier-lod0-raw.glb",
-      "sha256": "f958e432a635c76cf9fa0c1aac6e461a95974a646c2d90c96268c9598f9df7d9"
+      "sha256": "4dd3bec7da5704ab95324c332ef5dda3e4d6da4ca30915bd71dac5e03c608fdc"
     },
     "lod1": {
       "path": "assets/characters/soldier/exports/soldier-lod1-raw.glb",
-      "sha256": "3c59a73e2ec1abae77b89fe42291f58538d59e68e647a46b8780031c6ecde539"
+      "sha256": "591d437ba7fd482e34c478a9d37f891bb52494cd9c9dbe1df3028561889dfc1b"
     },
     "lod2": {
       "path": "assets/characters/soldier/exports/soldier-lod2-raw.glb",
-      "sha256": "bbc39ca7082cd7a35864edeb2fbf4715d577be199e06b495ba86e0f3db8e5311"
+      "sha256": "bfc8dd010e94c776478ecfbed1e92f68aa3a68d32819d7c5ec417dabbe2e3b42"
     }
   },
-  "sourceCommit": "96cadeb",
+  "styleFamily": "red-xiangqi-qin-terracotta-cartoon-v3",
   "derivationMode": "authoritative-import",
   "reference": "assets/models/README.md",
   "license": "Repository-owned Qin-terracotta research asset; no third-party geometry or bitmap textures",
   "visualIntent": [
-    "Qin terracotta infantry",
-    "long spear and rectangular lamellar armour",
-    "right-side topknot and grounded stance"
+    "Q-version Qin spearman",
+    "tied topknot and lamellar vest",
+    "tall spear with a cinnabar tassel"
   ],
   "periodPolicy": "Qin terracotta visual fantasy: no gunpowder artillery; cannon role is represented by a heavy siege crossbow",
-  "derivation": "Authoritative research GLB normalized and decimated per LOD, then adapted to the shared runtime rig, actions, sockets and faction palette contract",
+  "scale": {
+    "baseDiameter": 0.89,
+    "uniformScale": 0.412037,
+    "policy": "one factor for all axes; the sculpt's proportions are preserved"
+  },
+  "derivation": "Sculpted research GLB scaled uniformly onto the plinth, decimated per LOD, then bound island by island to the shared runtime rig, actions, sockets and faction palette contract",
   "knownLimitations": [
-    "first-pass broad automatic skin weights require manual deformation polish before an extreme close-up",
-    "source solid materials are baked to vertex colors; bitmap normal maps are intentionally absent",
+    "each sculpted island follows one bone; only the torso and sleeves blend between bones",
+    "source colours and clay shading are baked to vertex colours; bitmap normal maps are intentionally absent",
     "canonical runtime actions are adapters and may be iterated without changing the visual source authority"
   ],
   "texturePolicy": {
     "bitmapTextures": 0,
     "ktx2": "not-applicable-no-bitmap-textures",
-    "solidColorBake": "COLOR_0 VEC3 exact RGB reference colors; one soldier_terracotta_vertex_palette material"
+    "solidColorBake": "COLOR_0 VEC3 exact RGB reference colors with shading in _SHADE; one soldier_terracotta_vertex_palette material"
   }
 }

@@ -119,7 +119,13 @@ export function createManifest(metrics = {}) {
         faction_trim: ["#612e09", "#472409"],
         aged_bronze: ["#291406", "#1d1107"],
       },
-      nonFactionPolicy: "RGB values outside the semantic tolerance remain unchanged",
+      nonFactionPolicy:
+        "RGB values outside the semantic tolerance remain unchanged; their clay shading is already baked in",
+      shade: {
+        attribute: "_SHADE",
+        accessorType: "SCALAR",
+        policy: "Baked occlusion multiplied into faction colors after the remap",
+      },
       materialPattern: "{role}_terracotta_vertex_palette",
     },
     factions: {

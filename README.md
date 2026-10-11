@@ -113,7 +113,7 @@ npm run assets:pieces:validate
 npm run assets:pieces:report
 ```
 
-当前 21 个运行时 GLB 均为单一 opaque skinned primitive、14 joints、7 clips；LOD1 七类合计约 1.90 MiB。模型通过顶点级烧土明暗、墓土侵蚀、裂隙、低金属度和高粗糙度避免塑料玩具感，完整红黑阵容接触表在 [`roster-contact-sheet-qin-terracotta.png`](assets/characters/reviews/roster-contact-sheet-qin-terracotta.png)。定位是适合棋盘阅读的 Q 版秦俑实时中模，不宣称达到博物馆扫描精度。
+当前 21 个运行时 GLB 均为单一 opaque skinned primitive、14 joints、7 clips；LOD1 七类合计约 3.21 MiB。七个角色的母版是一体雕塑的 Q 版秦俑（圆脸、釉面大眼、带手指的手、衣褶与成片甲片），运行时等比缩放到 0.89 m 棋座，并通过烘焙到顶点的烧土明暗、低金属度和高粗糙度避免塑料玩具感，完整红黑阵容接触表在 [`roster-contact-sheet-qin-terracotta.png`](assets/characters/reviews/roster-contact-sheet-qin-terracotta.png)。定位是适合棋盘阅读的 Q 版秦俑实时中模，不宣称达到博物馆扫描精度。
 
 ## 初始性能预算
 

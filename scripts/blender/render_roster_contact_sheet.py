@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import bpy
+import numpy as np
 from mathutils import Vector
 
 
@@ -77,21 +78,30 @@ def review_material(side):
 
 
 def recolor_faction(mesh, side):
-    """Mirror the runtime nearest-RGB semantic remap, preserving all natural materials."""
+    """Mirror the runtime remap: nearest-RGB semantic colours, shaded by the baked _SHADE."""
     color_attribute = mesh.color_attributes.active_color
     if color_attribute is None:
         raise RuntimeError(f"{mesh.name} has no active COLOR_0 import")
-    for entry in color_attribute.data:
-        original = tuple(entry.color[:3])
-        nearest_name = min(
-            SEMANTIC_REFERENCES,
-            key=lambda name: sum((original[index] - SEMANTIC_REFERENCES[name][index]) ** 2 for index in range(3)),
-        )
-        nearest = SEMANTIC_REFERENCES[nearest_name]
-        distance = sum((original[index] - nearest[index]) ** 2 for index in range(3))
-        if distance <= 0.00018:
-            replacement = PALETTES[side][nearest_name]
-            entry.color = (*replacement, 1.0)
+    shade_attribute = mesh.attributes.get("_SHADE")
+    if shade_attribute is None:
+        raise RuntimeError(f"{mesh.name} has no baked _SHADE import")
+    colors = np.zeros(len(color_attribute.data) * 4, dtype=np.float32)
+    color_attribute.data.foreach_get("color", colors)
+    colors = colors.reshape(-1, 4)
+    shade = np.zeros(len(shade_attribute.data), dtype=np.float32)
+    shade_attribute.data.foreach_get("value", shade)
+    if color_attribute.domain == "CORNER":
+        loop_vertex = np.zeros(len(mesh.loops), dtype=np.int32)
+        mesh.loops.foreach_get("vertex_index", loop_vertex)
+        shade = shade[loop_vertex]
+    names = list(SEMANTIC_REFERENCES)
+    references = np.array([SEMANTIC_REFERENCES[name] for name in names], dtype=np.float32)
+    targets = np.array([PALETTES[side][name] for name in names], dtype=np.float32)
+    distance = ((colors[:, None, :3] - references[None]) ** 2).sum(axis=2)
+    nearest = distance.argmin(axis=1)
+    mapped = distance.min(axis=1) <= 0.00018
+    colors[mapped, :3] = targets[nearest[mapped]] * shade[mapped, None]
+    color_attribute.data.foreach_set("color", colors.ravel())
 
 
 def label(text, location, color):
