@@ -13,9 +13,9 @@ export const DIFFICULTY_LABELS: Record<ComputerDifficulty, string> = {
 
 const DIFFICULTY_DESCRIPTIONS: Record<ComputerDifficulty, string> = {
   easy: "节奏轻快，适合熟悉棋盘与角色。",
-  normal: "兼顾响应速度与基础攻防。",
-  hard: "更深的局面搜索，适合有经验的棋手。",
-  master: "可选强力引擎，首次使用需要下载运行资源。",
+  normal: "出手较快，攻防均衡。",
+  hard: "算得更深，适合有经验的棋手。",
+  master: "最强的引擎，首次使用需要下载约 13 MB。",
 };
 
 const SIDE_LABELS = { red: "红方", black: "黑方" } as const;
@@ -67,7 +67,7 @@ export function ComputerMatchSetup({
       <div className="computer-setup-heading">
         <div>
           <span>SOLO CAMPAIGN · 人机对战</span>
-          <h3 id="computer-setup-title">选择对手强度</h3>
+          <h3 id="computer-setup-title">选择难度</h3>
         </div>
         <p>掷一枚公平六面骰：奇数执红，偶数执黑；红方始终先行。</p>
       </div>
@@ -99,8 +99,8 @@ export function ComputerMatchSetup({
 
       {difficulty === "master" ? (
         <p className="computer-master-disclosure" role="note">
-          大师模式首次使用需要下载并缓存 GPL
-          强力引擎资源；若浏览器能力、下载或初始化不可用，本局会明确提示并保存为困难难度继续，不会锁死棋盘。
+          大师难度首次使用需要下载约 13 MB 的引擎（Fairy-Stockfish，GPL
+          许可）。如果浏览器不支持或下载失败，本局会改用困难难度并提示你，棋局照常进行。
         </p>
       ) : null}
 

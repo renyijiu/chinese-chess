@@ -124,7 +124,7 @@ describe("game HUD policy", () => {
         computerOwnsTurn: false,
         snapshot: snapshot("ready"),
       }),
-    ).toContain("已保存并回退至困难");
+    ).toContain("本局已改用困难难度");
   });
 
   it("offers online resignation on either turn only while the peer protocol is healthy", () => {
