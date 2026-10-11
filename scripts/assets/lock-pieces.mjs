@@ -5,7 +5,7 @@
 //   (default)  sources and the raw LOD exports (run after the runtime build)
 
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import {
@@ -18,15 +18,31 @@ import { LODS, ROLE_NAMES } from "./piece-contract.mjs";
 const root = resolve(import.meta.dirname, "../..");
 const sourcesOnly = process.argv.includes("--sources");
 const lockPath = resolve(root, SOURCE_LOCK_PATH);
-const previous = existsSync(lockPath) ? JSON.parse(readFileSync(lockPath, "utf8")) : { roles: {} };
+
+// Read first and treat a missing file as the answer: checking for existence
+// beforehand would leave a window in which the file could change.
+function readPreviousLock() {
+  try {
+    return JSON.parse(readFileSync(lockPath, "utf8"));
+  } catch (error) {
+    if (error?.code === "ENOENT") return { roles: {} };
+    throw error;
+  }
+}
 
 function entry(path) {
-  const absolute = resolve(root, path);
-  if (!existsSync(absolute)) throw new Error(`Cannot lock a missing file: ${path}`);
-  return { path, sha256: createHash("sha256").update(readFileSync(absolute)).digest("hex") };
+  let bytes;
+  try {
+    bytes = readFileSync(resolve(root, path));
+  } catch (error) {
+    if (error?.code === "ENOENT") throw new Error(`Cannot lock a missing file: ${path}`);
+    throw error;
+  }
+  return { path, sha256: createHash("sha256").update(bytes).digest("hex") };
 }
 
 try {
+  const previous = readPreviousLock();
   const roles = {};
   for (const role of ROLE_NAMES) {
     const stem = `assets/models/red-${role}-terracotta-cartoon-v3`;
