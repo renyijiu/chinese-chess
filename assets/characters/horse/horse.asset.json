@@ -1,5 +1,5 @@
 {
-  "schema": "xiangqi-source-asset/v1",
+  "schema": "xiangqi-source-asset/v2",
   "role": "horse",
   "displayNames": {
     "red": "傌",
@@ -7,48 +7,53 @@
   },
   "generator": {
     "application": "Blender",
-    "version": "5.2.0 LTS",
+    "version": "5.2.2 LTS",
     "script": "scripts/blender/create_xiangqi_piece_assets.py"
   },
   "authoritativeVisualSource": {
-    "path": "assets/models/red-horse-terracotta-cartoon-v1.glb",
-    "sha256": "ae61dc95b58f89c3c0d0462a242cb2c8d358c3d29eb66c5b99f20587da6a6e06",
-    "editableMaster": "assets/models/red-horse-terracotta-cartoon-v1.blend",
-    "editableMasterSha256": "1b131ef91748f473f759d116ff015449a853142066e257d575c205e96c5bdfbe"
+    "path": "assets/models/red-horse-terracotta-cartoon-v3.glb",
+    "sha256": "bbef9fc8166b20f63e507870f4352e6fd33dcf13b75e6554e45eec9f222731b3",
+    "editableMaster": "assets/models/red-horse-terracotta-cartoon-v3.blend",
+    "editableMasterSha256": "77f3edda21dfb36a718a0e33b5fb64d870f953b48d6f25fd79e81af267725685"
   },
   "derivedRawLods": {
     "lod0": {
       "path": "assets/characters/horse/exports/horse-lod0-raw.glb",
-      "sha256": "cdcc8914f50c4fc303b8d5e49b5b09b4d62f90b66e1d0f15b03ba929ab0f3c39"
+      "sha256": "df6ed376500558aa53fa227a44f847c00789d3471e0a4158a4b3136ae66014c8"
     },
     "lod1": {
       "path": "assets/characters/horse/exports/horse-lod1-raw.glb",
-      "sha256": "c9c09fb7171b74a43843c07b887bd06f84917bcf62aa8cba6af8f31233f11f24"
+      "sha256": "1e3224133e7930ed54ba7c3b9f1351b86bf91a852343b7a7687753c87037cb2f"
     },
     "lod2": {
       "path": "assets/characters/horse/exports/horse-lod2-raw.glb",
-      "sha256": "a03f602a138eae74a350041e8c933cfe5393a8993f9af19340a4dd1c88c032e4"
+      "sha256": "51dd7b416cf04dd23ac189826b12310913ac078acfa38e714215bda21f275fb9"
     }
   },
-  "sourceCommit": "96cadeb",
+  "styleFamily": "red-xiangqi-qin-terracotta-cartoon-v3",
   "derivationMode": "authoritative-import",
   "reference": "assets/models/README.md",
   "license": "Repository-owned Qin-terracotta research asset; no third-party geometry or bitmap textures",
   "visualIntent": [
-    "terracotta Qin cavalry",
-    "armoured horse and mounted lancer",
-    "compact topknot silhouette"
+    "Q-version cavalry",
+    "barded war horse with a jade chamfron",
+    "helmeted rider holding the reins"
   ],
   "periodPolicy": "Qin terracotta visual fantasy: no gunpowder artillery; cannon role is represented by a heavy siege crossbow",
-  "derivation": "Authoritative research GLB normalized and decimated per LOD, then adapted to the shared runtime rig, actions, sockets and faction palette contract",
+  "scale": {
+    "baseDiameter": 0.89,
+    "uniformScale": 0.412037,
+    "policy": "one factor for all axes; the sculpt's proportions are preserved"
+  },
+  "derivation": "Sculpted research GLB scaled uniformly onto the plinth, decimated per LOD, then bound island by island to the shared runtime rig, actions, sockets and faction palette contract",
   "knownLimitations": [
-    "first-pass broad automatic skin weights require manual deformation polish before an extreme close-up",
-    "source solid materials are baked to vertex colors; bitmap normal maps are intentionally absent",
+    "each sculpted island follows one bone; only the torso and sleeves blend between bones",
+    "source colours and clay shading are baked to vertex colours; bitmap normal maps are intentionally absent",
     "canonical runtime actions are adapters and may be iterated without changing the visual source authority"
   ],
   "texturePolicy": {
     "bitmapTextures": 0,
     "ktx2": "not-applicable-no-bitmap-textures",
-    "solidColorBake": "COLOR_0 VEC3 exact RGB reference colors; one horse_terracotta_vertex_palette material"
+    "solidColorBake": "COLOR_0 VEC3 exact RGB reference colors with shading in _SHADE; one horse_terracotta_vertex_palette material"
   }
 }

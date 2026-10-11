@@ -2,10 +2,10 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-export const AUTHORITATIVE_SOURCE_COMMIT = "96cadeb";
+export const SOURCE_STYLE_FAMILY = "red-xiangqi-qin-terracotta-cartoon-v3";
 export const SOURCE_LOCK_PATH = "assets/models/authoritative-piece-sources.lock.json";
+export const LOCK_SCHEMA = "xiangqi-authoritative-piece-sources/v2";
 
-const LOCK_SCHEMA = "xiangqi-authoritative-piece-sources/v1";
 const LFS_POINTER_PREFIX = "version https://git-lfs.github.com/spec/v1";
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 
@@ -23,8 +23,8 @@ export function readSourceLock(root, roleNames) {
     fail(`Invalid authoritative source lock: ${error.message}`);
   }
   if (lock.schema !== LOCK_SCHEMA) fail(`Authoritative source lock schema must be ${LOCK_SCHEMA}`);
-  if (lock.sourceCommit !== AUTHORITATIVE_SOURCE_COMMIT) {
-    fail(`Authoritative source lock must pin source commit ${AUTHORITATIVE_SOURCE_COMMIT}`);
+  if (lock.styleFamily !== SOURCE_STYLE_FAMILY) {
+    fail(`Authoritative source lock must pin style family ${SOURCE_STYLE_FAMILY}`);
   }
   const lockedRoles = Object.keys(lock.roles ?? {}).sort();
   const expectedRoles = [...roleNames].sort();

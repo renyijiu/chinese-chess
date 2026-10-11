@@ -1,5 +1,5 @@
 {
-  "schema": "xiangqi-source-asset/v1",
+  "schema": "xiangqi-source-asset/v2",
   "role": "chariot",
   "displayNames": {
     "red": "俥",
@@ -7,48 +7,53 @@
   },
   "generator": {
     "application": "Blender",
-    "version": "5.2.0 LTS",
+    "version": "5.2.2 LTS",
     "script": "scripts/blender/create_xiangqi_piece_assets.py"
   },
   "authoritativeVisualSource": {
-    "path": "assets/models/red-chariot-terracotta-cartoon-v1.glb",
-    "sha256": "ca849e1b744d148fdbe429c04957ddabf9ee66bb1e5fee8d7c9f10dee451c44c",
-    "editableMaster": "assets/models/red-chariot-terracotta-cartoon-v1.blend",
-    "editableMasterSha256": "3eb37712c26f47416d2f1ceb0bc3b6d4b117e594e2645c76652b3998f449263e"
+    "path": "assets/models/red-chariot-terracotta-cartoon-v3.glb",
+    "sha256": "f6f1b4a17afba072e69ed696caa99fa84b966a2f6df1e94b2beb0d91729ea1ab",
+    "editableMaster": "assets/models/red-chariot-terracotta-cartoon-v3.blend",
+    "editableMasterSha256": "35d841284fac2af753bddd5dac1a42367d3d7f7d7441e40ffc01f240a5ef25b6"
   },
   "derivedRawLods": {
     "lod0": {
       "path": "assets/characters/chariot/exports/chariot-lod0-raw.glb",
-      "sha256": "6713af2aae9fad50da081a1d78da49252933729c1a0935f082b887e907ecc79c"
+      "sha256": "0d1832429c61ec839915180ceb46972647ea19f42aa38ade42632d0a10d3fc1e"
     },
     "lod1": {
       "path": "assets/characters/chariot/exports/chariot-lod1-raw.glb",
-      "sha256": "f1468afc3ec94fc3f0554200470869f6f753fa95783c996c6a7947b8eaf3cc8e"
+      "sha256": "b42adbb3dd4d82895490682235b5a26c3d2e34be2bdc1fb2a439338fbb7937fd"
     },
     "lod2": {
       "path": "assets/characters/chariot/exports/chariot-lod2-raw.glb",
-      "sha256": "3443818f2dbe220e1e36faa8a2c37fc83e71e83cea8c7f1e602cf0e8b5bd334f"
+      "sha256": "65796946c71ab97ae6ad0dcfabe690506cf71a7e8ba2f6a2e62b1c6eb694aa7d"
     }
   },
-  "sourceCommit": "96cadeb",
+  "styleFamily": "red-xiangqi-qin-terracotta-cartoon-v3",
   "derivationMode": "authoritative-import",
   "reference": "assets/models/README.md",
   "license": "Repository-owned Qin-terracotta research asset; no third-party geometry or bitmap textures",
   "visualIntent": [
-    "Qin terracotta war chariot",
-    "large clay-and-bronze wheels",
-    "armoured driver and high rear guard"
+    "Q-version command chariot",
+    "spoked wheels and shielded cart",
+    "driver at the reins beneath twin pennants"
   ],
   "periodPolicy": "Qin terracotta visual fantasy: no gunpowder artillery; cannon role is represented by a heavy siege crossbow",
-  "derivation": "Authoritative research GLB normalized and decimated per LOD, then adapted to the shared runtime rig, actions, sockets and faction palette contract",
+  "scale": {
+    "baseDiameter": 0.89,
+    "uniformScale": 0.412037,
+    "policy": "one factor for all axes; the sculpt's proportions are preserved"
+  },
+  "derivation": "Sculpted research GLB scaled uniformly onto the plinth, decimated per LOD, then bound island by island to the shared runtime rig, actions, sockets and faction palette contract",
   "knownLimitations": [
-    "first-pass broad automatic skin weights require manual deformation polish before an extreme close-up",
-    "source solid materials are baked to vertex colors; bitmap normal maps are intentionally absent",
+    "each sculpted island follows one bone; only the torso and sleeves blend between bones",
+    "source colours and clay shading are baked to vertex colours; bitmap normal maps are intentionally absent",
     "canonical runtime actions are adapters and may be iterated without changing the visual source authority"
   ],
   "texturePolicy": {
     "bitmapTextures": 0,
     "ktx2": "not-applicable-no-bitmap-textures",
-    "solidColorBake": "COLOR_0 VEC3 exact RGB reference colors; one chariot_terracotta_vertex_palette material"
+    "solidColorBake": "COLOR_0 VEC3 exact RGB reference colors with shading in _SHADE; one chariot_terracotta_vertex_palette material"
   }
 }

@@ -12,6 +12,10 @@ const factionGeometryCache = new WeakMap<
  * Recolor COLOR_0 once per source geometry and faction. All other GLTF buffers are
  * immutable and shared for the loader cache's lifetime. Do not dispose individual
  * variants: Three would also delete GPU buffers still used by the other faction.
+ *
+ * Natural clay arrives with its shading baked into COLOR_0. Faction regions hold
+ * exact reference colors there, so their baked shade comes from the custom _SHADE
+ * attribute and is multiplied in after the remap.
  */
 export function factionGeometry(source: THREE.BufferGeometry, side: Side) {
   const cached = factionGeometryCache.get(source)?.[side];
@@ -29,14 +33,16 @@ export function factionGeometry(source: THREE.BufferGeometry, side: Side) {
   geometry.userData = source.userData;
   const sourceColor = source.getAttribute("color");
   if (sourceColor) {
+    const sourceShade = source.getAttribute("_shade");
     const colors = new Float32Array(sourceColor.count * 4);
     const original = new THREE.Color();
     for (let index = 0; index < sourceColor.count; index += 1) {
       original.setRGB(sourceColor.getX(index), sourceColor.getY(index), sourceColor.getZ(index));
       const color = semanticColor(original, side);
-      colors[index * 4] = color.r;
-      colors[index * 4 + 1] = color.g;
-      colors[index * 4 + 2] = color.b;
+      const shade = sourceShade && color !== original ? sourceShade.getX(index) : 1;
+      colors[index * 4] = color.r * shade;
+      colors[index * 4 + 1] = color.g * shade;
+      colors[index * 4 + 2] = color.b * shade;
       colors[index * 4 + 3] = 1;
     }
     geometry.setAttribute("color", new THREE.BufferAttribute(colors, 4));
