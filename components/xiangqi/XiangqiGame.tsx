@@ -247,7 +247,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
       const storage = browserStorage();
       storageRef.current = storage;
       if (!storage) {
-        setStorageWarning("浏览器存储不可用，本局将只保存在内存中。");
+        setStorageWarning("浏览器存储不可用，本局不会存档，刷新后会丢失。");
         setLoading(false);
         return;
       }
@@ -356,7 +356,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
   const persistMatch = useCallback((nextMatch: SavedMatch): boolean => {
     const storage = storageRef.current;
     if (!storage) {
-      setStorageWarning("浏览器存储不可用，本局将只保存在内存中。");
+      setStorageWarning("浏览器存储不可用，本局不会存档，刷新后会丢失。");
       return false;
     }
     const result = saveGameSnapshot(storage, nextMatch);
@@ -423,7 +423,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
       } catch {
         semanticAudio.settle(transition.actionId, "presentation-error");
         presentation.skip("presentation-error");
-        if (mounted.current) setNotice("演出未能启动，棋盘已直接对齐到正确局面。");
+        if (mounted.current) setNotice("动画未能播放，棋盘已直接更新到最新局面。");
       }
 
       const externalAction = onActionRef.current
@@ -435,7 +435,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
         mounted.current &&
         matchEpoch.current === actionEpoch
       ) {
-        setNotice("演出未能完成，棋盘已直接对齐到正确局面。");
+        setNotice("动画未能播完，棋盘已直接更新到最新局面。");
       }
     },
     [installLedger, persistMatch, presentation, runtime, semanticAudio],
@@ -452,7 +452,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
       runtime.synchronize(fallback);
       setMatch(fallback);
       setResumableMatch(resumable ? fallback : null);
-      if (mounted.current) setNotice("大师引擎当前不可用，本局已切换为困难难度。");
+      if (mounted.current) setNotice("大师引擎不可用，本局已改用困难难度。");
     },
     [persistMatch, runtime],
   );
@@ -479,9 +479,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
       const current = matchRef.current;
       if (source === "human" && !canIssueHumanCommand(current, command)) {
         audio.play("ui.invalid");
-        setNotice(
-          command.type === "undo" ? "人机对局不支持悔棋。" : "当前由电脑行动，请等待对手落子。",
-        );
+        setNotice(command.type === "undo" ? "人机对局不能悔棋。" : "现在轮到电脑，请等它落子。");
         return { status: "superseded", reason: "guard" };
       }
 
@@ -500,7 +498,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
         receipt.reason === "busy" &&
         source === "human"
       ) {
-        if (mounted.current) setNotice("当前动作仍在结算，请稍候。");
+        if (mounted.current) setNotice("上一步的动画还没播完，请稍候。");
       }
       return receipt;
     },
@@ -577,7 +575,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
       setMatch(recovered);
       setResumableMatch(resumable ? recovered : null);
       setSelectedPieceId(null);
-      setNotice("已从双方一致的命令日志恢复棋局。");
+      setNotice("已恢复到双方一致的棋局。");
       return true;
     },
     [commandGate, persistMatch, presentation, runtime, semanticAudio],
@@ -665,7 +663,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
               return false;
             installFreshMatch(resumeMatch, "menu");
             setViewSide(config.localSide);
-            setNotice("直连已建立，正在核对本地存档与好友棋局。");
+            setNotice("已连上好友，正在核对双方的棋局。");
             return true;
           }
           if (bound.intent !== "new") return false;
@@ -751,8 +749,8 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
       if (role === "guest") {
         setNotice(
           intent === "resume"
-            ? "请粘贴好友为这份在线存档生成的新 Offer。"
-            : "请粘贴房主发来的完整 Offer 邀请文本。",
+            ? "请粘贴好友为这局棋新生成的邀请文本。"
+            : "请粘贴房主发来的邀请文本。",
         );
         return;
       }
@@ -792,7 +790,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
         setOnlineSetup((current) =>
           current ? { ...current, busy: false, error: undefined } : current,
         );
-        setNotice("完整 Offer 已生成，请发送给好友并等待 Answer。");
+        setNotice("邀请已生成，请发给好友，并等待对方的回复。");
       } catch {
         if (
           onlineSessionGeneration.current !== generation ||
@@ -855,11 +853,11 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
         if (setup.role === "guest") {
           await session.acceptOffer(signal);
           if (onlineSessionRef.current !== session) return false;
-          setNotice("完整 Answer 已生成，请发送给房主；浏览器会继续尝试直连。");
+          setNotice("回复已生成，请发回给房主；之后会自动连接。");
         } else {
           await session.acceptAnswer(signal);
           if (onlineSessionRef.current !== session) return false;
-          setNotice("Answer 已接受，正在建立好友直连。");
+          setNotice("已收到回复，正在连接好友。");
         }
         setOnlineSetup((current) =>
           current ? { ...current, busy: false, error: undefined } : current,
@@ -876,7 +874,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
             ? {
                 ...current,
                 busy: false,
-                error: "信令文本无效、已过期或与当前棋局不匹配，请重新配对。",
+                error: "这段文本无效、已过期，或不属于当前棋局，请重新配对。",
               }
             : current,
         );
@@ -897,7 +895,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
         ? {
             ...current,
             busy: false,
-            error: result.ok ? undefined : "当前还不能准备，请等待连接与棋局校验完成。",
+            error: result.ok ? undefined : "现在还不能准备，请等连接和棋局核对完成。",
           }
         : current,
     );
@@ -908,7 +906,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     setOnlineSetup(null);
     setPhase("menu");
     phaseRef.current = "menu";
-    setNotice("已关闭本次直连；如需继续在线存档，请重新配对。");
+    setNotice("已断开本次连接；想继续这局棋，请重新配对。");
   }, [replaceOnlineSession]);
 
   useEffect(() => {
@@ -1156,7 +1154,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     const resumableConfig = resumableMatch.config;
     if (resumableConfig.mode === "online") {
       if (!ONLINE_RUNTIME_CONFIG.enabled) {
-        setNotice("在线好友模式当前未启用；存档仍保留，启用功能后可重新配对。");
+        setNotice("好友直连目前未启用；存档仍然保留，启用后可以重新配对。");
         return;
       }
       const saved = resumableMatch;
@@ -1224,7 +1222,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
         }
         void session.submitLocalMove(decision.command).then((result) => {
           if (!result.ok && mounted.current && onlineSessionRef.current === session)
-            setNotice("本次在线落子未提交，请等待连接与棋局状态就绪。");
+            setNotice("这步棋没有发出，请等连接和棋局就绪后再试。");
         });
       } else {
         void applyCommand(decision.command);
@@ -1260,7 +1258,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
           ? "正在等待好友连接、准备或行动。"
           : computerOwnsTurn
             ? "电脑正在思考，请稍候。"
-            : "当前动作仍在结算，请稍候。",
+            : "上一步的动画还没播完，请稍候。",
       );
       return;
     }
@@ -1294,15 +1292,15 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
             title: "确认重新开局？",
             description:
               match.config.mode === "computer"
-                ? "当前棋局将被替换，并重新掷骰决定你在新局中的阵营。"
-                : "当前棋局和可恢复备份将被新的标准初始局面取代。",
+                ? "当前棋局会被清除，并重新掷骰决定你执红还是执黑。"
+                : "当前棋局和它的备份会被清除，从初始局面重新开始。",
             label: "重新开局",
           }
         : {
             title: "覆盖当前棋局？",
             description: unsafeSavePresent
-              ? "检测到损坏的本地存档。确认后将以标准初始局面覆盖它。"
-              : "当前棋局和可恢复备份将被新的标准初始局面取代。",
+              ? "本地存档已损坏。确认后会用一局新棋覆盖它。"
+              : "当前棋局和它的备份会被清除，从初始局面重新开始。",
             label: "开始新局",
           };
 
@@ -1315,7 +1313,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
       const current = matchRef.current;
       if (current.config.mode === "online") {
         if (current.revision !== expectedRevision || current.config.localSide !== resigningSide) {
-          setNotice("棋局状态已经变化，请重新确认认输。");
+          setNotice("棋局刚刚有变化，请重新确认是否认输。");
           return;
         }
         const session = onlineSessionRef.current;
@@ -1325,7 +1323,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
         }
         void session.submitLocalResign().then((result) => {
           if (!result.ok && mounted.current && onlineSessionRef.current === session) {
-            setNotice("当前无法同步认输，请等待连接恢复或重新配对。");
+            setNotice("认输暂时发不出去，请等连接恢复或重新配对。");
           }
         });
       } else {

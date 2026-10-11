@@ -190,7 +190,7 @@ export function loadGameSnapshot(storage: StorageLike): LoadGameResult {
       game: null,
       source: "none",
       resumeKind: "none",
-      warning: "浏览器存储不可用，本局将只保存在内存中。",
+      warning: "浏览器存储不可用，本局不会存档，刷新后会丢失。",
     };
   }
 
@@ -308,7 +308,7 @@ export function saveGameSnapshot(
     return {
       ok: false,
       resumable: false,
-      warning: "无法写入浏览器存储，本局将只保存在内存中。",
+      warning: "无法写入浏览器存储，本局不会存档，刷新后会丢失。",
     };
   }
 }

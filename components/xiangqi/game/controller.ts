@@ -116,13 +116,13 @@ export function resolveBoardClick(
     return {
       kind: "selection",
       selection,
-      announcement: target ? "该敌方棋子当前不可攻击。" : "该交叉点不是合法落点。",
+      announcement: target ? "这枚棋子现在吃不到。" : "这里不能落子。",
     };
   }
 
   return {
     kind: "selection",
     selection: EMPTY_SELECTION,
-    announcement: target ? "请先选择当前行动方的棋子。" : "请选择一枚己方棋子。",
+    announcement: target ? "还没轮到这一方走棋。" : "请先选一枚要走的棋子。",
   };
 }

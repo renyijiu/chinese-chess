@@ -1,10 +1,10 @@
-# Asset Attribution and Contribution Policy
+# 资产来源与贡献政策
 
-## Project assets
+## 项目资产
 
 除文件旁的来源说明或 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) 另有标注外，本仓库把项目原创源文件、生成说明和派生运行时资产按根目录 [`LICENSE`](LICENSE) 的 `GPL-3.0-only` 条款分发。
 
-主要资产边界：
+主要资产的位置和来源记录：
 
 | 范围                                     | 用途                       | 来源记录                               |
 | ---------------------------------------- | -------------------------- | -------------------------------------- |
@@ -14,7 +14,7 @@
 | `public/models/`                         | 游戏实际加载的模型         | 角色 manifest 与资产管线               |
 | `public/engines/`、`public/basis/`       | 第三方运行时               | `THIRD_PARTY_NOTICES.md` 与目录 README |
 
-## Contributing assets
+## 贡献资产
 
 提交资产即表示贡献者确认：
 
