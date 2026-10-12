@@ -18,6 +18,9 @@ const MATERIAL: Readonly<Record<Role, number>> = {
 };
 
 const CHECK_SCORE = 45;
+// An unfinished depth is discarded, so a new one only starts while at least
+// this share of its estimated cost is still left in the node budget.
+const NEXT_DEPTH_BUDGET_SHARE = 0.25;
 
 export const LIGHTWEIGHT_BATCH_NODES = 128;
 
@@ -242,6 +245,8 @@ export class ResumableLightweightSearch {
   #completedDepth = 0;
   #completedCandidate: CandidateMove | null = null;
   #completedScore = 0;
+  readonly #depthNodes: number[] = [];
+  #depthStartNodes = 0;
   #reason: Exclude<LightweightSearchReason, "cancelled"> | null = null;
 
   constructor(state: PositionState, options: LightweightSearchOptions) {
@@ -346,6 +351,16 @@ export class ResumableLightweightSearch {
     return this.#tier === "lightweight-easy" ? POSITIVE_INFINITY : -rootAlpha + 1;
   }
 
+  /**
+   * Cost alternates between odd and even depths, so the next step is expected
+   * to grow like the step two depths back rather than like the latest one.
+   */
+  private estimateNextDepthNodes(): number {
+    const used = this.#depthNodes;
+    const last = used.at(-1) ?? 0;
+    return used.length < 3 ? last : last * (used.at(-2)! / used.at(-3)!);
+  }
+
   private progress(): LightweightSearchProgress {
     return {
       done: this.#reason !== null,
@@ -368,8 +383,15 @@ export class ResumableLightweightSearch {
       this.#completedDepth = frame.depth;
       this.#completedCandidate = chosen?.candidate ?? frame.bestCandidate;
       this.#completedScore = chosen?.score ?? score;
+      this.#depthNodes.push(this.#nodes - this.#depthStartNodes);
+      this.#depthStartNodes = this.#nodes;
       if (this.#completedDepth >= this.#depthCeiling) {
         this.#reason = "complete";
+      } else if (
+        this.#nodeBudget - this.#nodes <
+        NEXT_DEPTH_BUDGET_SHARE * this.estimateNextDepthNodes()
+      ) {
+        this.#reason = "budget";
       } else {
         const nextDepth = this.#completedDepth + 1;
         this.#stack.push(
