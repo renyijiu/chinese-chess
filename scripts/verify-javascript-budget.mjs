@@ -11,6 +11,7 @@ const OPTIONAL_ENTRIES = [
   "components/xiangqi/ai/LightweightWorkerProvider.ts",
   "components/xiangqi/online/OnlineMatchSession.ts",
   "components/xiangqi/scene/BattlePostprocessing.tsx",
+  "node_modules/three/examples/jsm/loaders/KTX2Loader.js",
 ];
 
 const PRIMARY_CHUNK_BUDGET = Object.freeze({

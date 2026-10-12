@@ -5,14 +5,16 @@ import { createContext, useContext, useEffect, useMemo, type ReactNode } from "r
 import type { WebGLRenderer } from "three";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { GLTFLoader, type GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { KTX2Loader } from "three/examples/jsm/loaders/KTX2Loader.js";
+
+import { DeferredKtx2Loader } from "./deferred-ktx2-loader";
 
 const BASIS_TRANSCODER_PATH = "/basis/";
 type ConfigureLoader = (loader: GLTFLoader) => void;
 
 const PieceLoaderContext = createContext<ConfigureLoader | null>(null);
 
-function createKtx2Loader(gl: WebGLRenderer) {
+async function createKtx2Loader(gl: WebGLRenderer) {
+  const { KTX2Loader } = await import("three/examples/jsm/loaders/KTX2Loader.js");
   const loader = new KTX2Loader();
   loader.setTranscoderPath(BASIS_TRANSCODER_PATH);
   // This must happen after R3F has created and initialized its renderer.
@@ -23,11 +25,11 @@ function createKtx2Loader(gl: WebGLRenderer) {
 
 export function PieceAssetLoaderProvider({ children }: { children: ReactNode }) {
   const gl = useThree((state) => state.gl);
-  const ktx2Loader = useMemo(() => createKtx2Loader(gl), [gl]);
+  const ktx2Loader = useMemo(() => new DeferredKtx2Loader(() => createKtx2Loader(gl)), [gl]);
   const configureLoader = useMemo<ConfigureLoader>(
     () => (loader) => {
       loader.setMeshoptDecoder(MeshoptDecoder);
-      loader.setKTX2Loader(ktx2Loader);
+      loader.setKTX2Loader(ktx2Loader.asKtx2Loader());
     },
     [ktx2Loader],
   );
