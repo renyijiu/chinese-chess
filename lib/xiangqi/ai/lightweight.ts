@@ -309,8 +309,8 @@ export class ResumableLightweightSearch {
       const transition = frame.moves[frame.moveIndex];
       frame.moveIndex += 1;
       if (!transition) continue;
-      const childAlpha = frame.ply === 0 ? NEGATIVE_INFINITY : -frame.beta;
-      const childBeta = frame.ply === 0 ? POSITIVE_INFINITY : -frame.alpha;
+      const childAlpha = -frame.beta;
+      const childBeta = frame.ply === 0 ? this.rootChildBeta(frame.alpha) : -frame.alpha;
       this.#stack.push(
         createFrame(
           transition.advance(),
@@ -335,6 +335,15 @@ export class ResumableLightweightSearch {
       source: this.#completedCandidate ? "search" : fallback ? "fallback" : "none",
       reason: this.#reason ?? "complete",
     };
+  }
+
+  /**
+   * Easy picks among near-best root moves, so it needs every root score exact.
+   * The other tiers only need the best score and its ties: scores are integers,
+   * so a window one point below the best keeps those exact and cuts off the rest.
+   */
+  private rootChildBeta(rootAlpha: number): number {
+    return this.#tier === "lightweight-easy" ? POSITIVE_INFINITY : -rootAlpha + 1;
   }
 
   private progress(): LightweightSearchProgress {
