@@ -443,6 +443,16 @@ function attacksSquare(board: Board, piece: Piece, target: Square): boolean {
 }
 
 function findGeneral(board: Board, side: Side): Piece | null {
+  // Legal play keeps a general inside its palace, so those nine points are checked first.
+  const homeRank = side === "red" ? 0 : 7;
+  for (let rank = homeRank; rank < homeRank + 3; rank += 1) {
+    for (let file = 3; file <= 5; file += 1) {
+      const piece = board[rank * FILE_COUNT + file];
+      if (piece && piece.role === "general" && piece.side === side) {
+        return piece;
+      }
+    }
+  }
   return board.find((piece) => piece?.side === side && piece.role === "general") ?? null;
 }
 
@@ -451,9 +461,13 @@ function isInCheckOnBoard(board: Board, side: Side): boolean {
   if (!general) {
     return true;
   }
-  return board.some(
-    (piece) => piece?.side === otherSide(side) && attacksSquare(board, piece, general.square),
-  );
+  for (let index = 0; index < BOARD_SIZE; index += 1) {
+    const piece = board[index];
+    if (piece && piece.side !== side && attacksSquare(board, piece, general.square)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 export function isInCheck(state: Pick<GameState, "board">, side: Side): boolean {
@@ -545,23 +559,39 @@ function endedStatus(
   };
 }
 
+/**
+ * Records one more occurrence without copying the game's whole position history.
+ * Lookups read through to `counts`; enumeration sees only the new key, so this
+ * is reserved for short-lived search positions.
+ */
+function layerRepetitionCount(
+  counts: Readonly<Record<string, number>>,
+  positionKey: string,
+  count: number,
+): Readonly<Record<string, number>> {
+  const layered = Object.create(counts) as Record<string, number>;
+  layered[positionKey] = count;
+  return layered;
+}
+
 function advancePosition(
   state: PositionState,
   board: Board,
   captured: Piece | null,
   inCheck: boolean,
+  layerRepetition = false,
 ): PositionState {
   const sideToMove = otherSide(state.sideToMove);
   const noCapturePlies = captured ? 0 : state.noCapturePlies + 1;
   const positionKey = getPositionKey({ board, sideToMove, rulesetId: state.rulesetId });
-  const repetitionCounts = {
-    ...state.repetitionCounts,
-    [positionKey]: (state.repetitionCounts[positionKey] ?? 0) + 1,
-  };
+  const repetitionCount = (state.repetitionCounts[positionKey] ?? 0) + 1;
+  const repetitionCounts = layerRepetition
+    ? layerRepetitionCount(state.repetitionCounts, positionKey, repetitionCount)
+    : { ...state.repetitionCounts, [positionKey]: repetitionCount };
   let status: GameStatus;
   if (!sideHasLegalMove(board, sideToMove)) {
     status = endedStatus(state.sideToMove, inCheck ? "checkmate" : "stalemate");
-  } else if ((repetitionCounts[positionKey] ?? 0) >= 3) {
+  } else if (repetitionCount >= 3) {
     status = endedStatus(null, "repetition");
   } else if (noCapturePlies >= 100) {
     status = endedStatus(null, "no-capture");
@@ -578,8 +608,16 @@ function advancePosition(
   };
 }
 
-/** Legal search candidates share move and terminal rules with authoritative dispatch. */
-export function getLegalPositionMoves(state: PositionState) {
+/**
+ * Legal search candidates share move and terminal rules with authoritative dispatch.
+ * `layerRepetition` makes successors layer their repetition counts over this
+ * position's instead of copying them; a layered position must only be advanced
+ * the same way.
+ */
+export function getLegalPositionMoves(
+  state: PositionState,
+  { layerRepetition = false }: { layerRepetition?: boolean } = {},
+) {
   const moves: Array<{
     from: Square;
     to: Square;
@@ -598,7 +636,7 @@ export function getLegalPositionMoves(state: PositionState) {
         from: piece.square,
         to,
         givesCheck,
-        advance: () => advancePosition(state, board, captured, givesCheck),
+        advance: () => advancePosition(state, board, captured, givesCheck, layerRepetition),
       });
     }
   }

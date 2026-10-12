@@ -17,6 +17,8 @@ const MATERIAL: Readonly<Record<Role, number>> = {
   soldier: 100,
 };
 
+const CHECK_SCORE = 45;
+
 export const LIGHTWEIGHT_BATCH_NODES = 128;
 
 interface SearchTransition {
@@ -115,9 +117,7 @@ function terminalScore(state: PositionState, ply: number): number | null {
   return state.status.winner === state.sideToMove ? MATE_SCORE - ply : -MATE_SCORE + ply;
 }
 
-export function evaluatePosition(state: PositionState): number {
-  const terminal = terminalScore(state, 0);
-  if (terminal !== null) return terminal;
+function materialBalance(state: PositionState): number {
   let red = 0;
   let black = 0;
   for (const piece of state.board) {
@@ -126,14 +126,25 @@ export function evaluatePosition(state: PositionState): number {
     if (piece.side === "red") red += value;
     else black += value;
   }
-  let score = state.sideToMove === "red" ? red - black : black - red;
-  if (isInCheck(state, state.sideToMove)) score -= 45;
-  if (isInCheck(state, opposite(state.sideToMove))) score += 45;
+  return state.sideToMove === "red" ? red - black : black - red;
+}
+
+export function evaluatePosition(state: PositionState): number {
+  const terminal = terminalScore(state, 0);
+  if (terminal !== null) return terminal;
+  let score = materialBalance(state);
+  if (isInCheck(state, state.sideToMove)) score -= CHECK_SCORE;
+  if (isInCheck(state, opposite(state.sideToMove))) score += CHECK_SCORE;
   return score;
 }
 
 function evaluateLeaf(state: PositionState, ply: number): number {
-  return terminalScore(state, ply) ?? evaluatePosition(state);
+  const terminal = terminalScore(state, ply);
+  if (terminal !== null) return terminal;
+  if (ply === 0 || state.status.kind !== "playing") return evaluatePosition(state);
+  // Below the root the engine derived this status from a legal move: it already
+  // says whether the mover is in check, and the side that just moved never is.
+  return materialBalance(state) - (state.status.check === state.sideToMove ? CHECK_SCORE : 0);
 }
 
 function transitionOrder(
@@ -150,10 +161,13 @@ function transitionOrder(
 }
 
 function legalTransitions(state: PositionState): SearchTransition[] {
-  const transitions = getLegalPositionMoves(state).map(({ from, to, givesCheck, advance }) => {
-    const candidate = { from, to };
-    return { candidate, advance, orderScore: transitionOrder(state, candidate, givesCheck) };
-  });
+  // Layered counts keep per-node cost independent of how long the game has run.
+  const transitions = getLegalPositionMoves(state, { layerRepetition: true }).map(
+    ({ from, to, givesCheck, advance }) => {
+      const candidate = { from, to };
+      return { candidate, advance, orderScore: transitionOrder(state, candidate, givesCheck) };
+    },
+  );
   return transitions.sort(
     (left, right) =>
       right.orderScore - left.orderScore || compareCandidates(left.candidate, right.candidate),
