@@ -3,6 +3,7 @@
 import {
   Suspense,
   lazy,
+  memo,
   useCallback,
   useEffect,
   useState,
@@ -139,7 +140,7 @@ function AmbientScene({
   );
 }
 
-export function BoardScene({
+export const BoardScene = memo(function BoardScene({
   ambientMotion,
   animations,
   audio,
@@ -210,4 +211,4 @@ export function BoardScene({
       </PieceAssetLoaderProvider>
     </FrameScheduler>
   );
-}
+});

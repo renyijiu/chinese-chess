@@ -176,7 +176,7 @@ export const PieceActor = memo(function PieceActor({
   actorId,
   animation = "idle_loop",
   animations,
-  disabled,
+  disabled = false,
   destroyProgress = 0,
   ghost = false,
   lod = 1,
@@ -189,7 +189,7 @@ export const PieceActor = memo(function PieceActor({
   actorId: string;
   animation?: string;
   animations: AnimationRegistry;
-  disabled: boolean;
+  disabled?: boolean;
   destroyProgress?: number;
   ghost?: boolean;
   lod?: PieceLod;
