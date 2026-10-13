@@ -9,9 +9,11 @@ const SAVED_QUALITIES = ["low", "medium"] as const satisfies readonly QualityTie
 for (const quality of SAVED_QUALITIES) {
   test(`restores saved ${quality} quality before mounting the 3D scene`, async ({ page }) => {
     const panoramaRequests: string[] = [];
+    const ktx2Requests: string[] = [];
     page.on("request", (request) => {
       const path = new URL(request.url()).pathname;
       if (path.startsWith("/background/qin-diorama-panorama-v1-")) panoramaRequests.push(path);
+      if (/KTX2Loader|basis_transcoder/.test(path)) ktx2Requests.push(path);
     });
     await page.addInitScript((savedQuality) => {
       window.localStorage.setItem(
@@ -38,6 +40,8 @@ for (const quality of SAVED_QUALITIES) {
 
     expect(panoramaRequests).toContain(getPanoramaUrl(quality));
     expect(panoramaRequests).not.toContain(getPanoramaUrl("high"));
+    // The pieces carry no bitmap textures, so the KTX2 loader must stay unloaded.
+    expect(ktx2Requests).toEqual([]);
     expect(new Set(panoramaRequests)).toEqual(new Set([getPanoramaUrl(quality)]));
   });
 }

@@ -17,6 +17,11 @@ const MATERIAL: Readonly<Record<Role, number>> = {
   soldier: 100,
 };
 
+const CHECK_SCORE = 45;
+// An unfinished depth is discarded, so a new one only starts while at least
+// this share of its estimated cost is still left in the node budget.
+const NEXT_DEPTH_BUDGET_SHARE = 0.25;
+
 export const LIGHTWEIGHT_BATCH_NODES = 128;
 
 interface SearchTransition {
@@ -115,9 +120,7 @@ function terminalScore(state: PositionState, ply: number): number | null {
   return state.status.winner === state.sideToMove ? MATE_SCORE - ply : -MATE_SCORE + ply;
 }
 
-export function evaluatePosition(state: PositionState): number {
-  const terminal = terminalScore(state, 0);
-  if (terminal !== null) return terminal;
+function materialBalance(state: PositionState): number {
   let red = 0;
   let black = 0;
   for (const piece of state.board) {
@@ -126,14 +129,25 @@ export function evaluatePosition(state: PositionState): number {
     if (piece.side === "red") red += value;
     else black += value;
   }
-  let score = state.sideToMove === "red" ? red - black : black - red;
-  if (isInCheck(state, state.sideToMove)) score -= 45;
-  if (isInCheck(state, opposite(state.sideToMove))) score += 45;
+  return state.sideToMove === "red" ? red - black : black - red;
+}
+
+export function evaluatePosition(state: PositionState): number {
+  const terminal = terminalScore(state, 0);
+  if (terminal !== null) return terminal;
+  let score = materialBalance(state);
+  if (isInCheck(state, state.sideToMove)) score -= CHECK_SCORE;
+  if (isInCheck(state, opposite(state.sideToMove))) score += CHECK_SCORE;
   return score;
 }
 
 function evaluateLeaf(state: PositionState, ply: number): number {
-  return terminalScore(state, ply) ?? evaluatePosition(state);
+  const terminal = terminalScore(state, ply);
+  if (terminal !== null) return terminal;
+  if (ply === 0 || state.status.kind !== "playing") return evaluatePosition(state);
+  // Below the root the engine derived this status from a legal move: it already
+  // says whether the mover is in check, and the side that just moved never is.
+  return materialBalance(state) - (state.status.check === state.sideToMove ? CHECK_SCORE : 0);
 }
 
 function transitionOrder(
@@ -150,10 +164,13 @@ function transitionOrder(
 }
 
 function legalTransitions(state: PositionState): SearchTransition[] {
-  const transitions = getLegalPositionMoves(state).map(({ from, to, givesCheck, advance }) => {
-    const candidate = { from, to };
-    return { candidate, advance, orderScore: transitionOrder(state, candidate, givesCheck) };
-  });
+  // Layered counts keep per-node cost independent of how long the game has run.
+  const transitions = getLegalPositionMoves(state, { layerRepetition: true }).map(
+    ({ from, to, givesCheck, advance }) => {
+      const candidate = { from, to };
+      return { candidate, advance, orderScore: transitionOrder(state, candidate, givesCheck) };
+    },
+  );
   return transitions.sort(
     (left, right) =>
       right.orderScore - left.orderScore || compareCandidates(left.candidate, right.candidate),
@@ -228,6 +245,8 @@ export class ResumableLightweightSearch {
   #completedDepth = 0;
   #completedCandidate: CandidateMove | null = null;
   #completedScore = 0;
+  readonly #depthNodes: number[] = [];
+  #depthStartNodes = 0;
   #reason: Exclude<LightweightSearchReason, "cancelled"> | null = null;
 
   constructor(state: PositionState, options: LightweightSearchOptions) {
@@ -295,8 +314,8 @@ export class ResumableLightweightSearch {
       const transition = frame.moves[frame.moveIndex];
       frame.moveIndex += 1;
       if (!transition) continue;
-      const childAlpha = frame.ply === 0 ? NEGATIVE_INFINITY : -frame.beta;
-      const childBeta = frame.ply === 0 ? POSITIVE_INFINITY : -frame.alpha;
+      const childAlpha = -frame.beta;
+      const childBeta = frame.ply === 0 ? this.rootChildBeta(frame.alpha) : -frame.alpha;
       this.#stack.push(
         createFrame(
           transition.advance(),
@@ -323,6 +342,25 @@ export class ResumableLightweightSearch {
     };
   }
 
+  /**
+   * Easy picks among near-best root moves, so it needs every root score exact.
+   * The other tiers only need the best score and its ties: scores are integers,
+   * so a window one point below the best keeps those exact and cuts off the rest.
+   */
+  private rootChildBeta(rootAlpha: number): number {
+    return this.#tier === "lightweight-easy" ? POSITIVE_INFINITY : -rootAlpha + 1;
+  }
+
+  /**
+   * Cost alternates between odd and even depths, so the next step is expected
+   * to grow like the step two depths back rather than like the latest one.
+   */
+  private estimateNextDepthNodes(): number {
+    const used = this.#depthNodes;
+    const last = used.at(-1) ?? 0;
+    return used.length < 3 ? last : last * (used.at(-2)! / used.at(-3)!);
+  }
+
   private progress(): LightweightSearchProgress {
     return {
       done: this.#reason !== null,
@@ -345,8 +383,15 @@ export class ResumableLightweightSearch {
       this.#completedDepth = frame.depth;
       this.#completedCandidate = chosen?.candidate ?? frame.bestCandidate;
       this.#completedScore = chosen?.score ?? score;
+      this.#depthNodes.push(this.#nodes - this.#depthStartNodes);
+      this.#depthStartNodes = this.#nodes;
       if (this.#completedDepth >= this.#depthCeiling) {
         this.#reason = "complete";
+      } else if (
+        this.#nodeBudget - this.#nodes <
+        NEXT_DEPTH_BUDGET_SHARE * this.estimateNextDepthNodes()
+      ) {
+        this.#reason = "budget";
       } else {
         const nextDepth = this.#completedDepth + 1;
         this.#stack.push(

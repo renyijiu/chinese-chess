@@ -5,8 +5,9 @@ import {
   getLegalMoves,
   getLegalPositionMoves,
   getPositionKey,
+  isInCheck,
 } from "../../../lib/xiangqi/engine";
-import type { GameState } from "../../../lib/xiangqi/types";
+import type { GameState, PositionState, Square } from "../../../lib/xiangqi/types";
 import { makeState, piece } from "./fixtures";
 
 function assertSuccessors(state: GameState) {
@@ -114,5 +115,94 @@ describe("search position rules", () => {
     expect(
       getLegalPositionMoves(dispatch(initial, { type: "resign", expectedRevision: 0 }).state),
     ).toEqual([]);
+  });
+
+  it("derives the same rules from layered repetition counts as from copied ones", () => {
+    let copied: PositionState = createInitialGame();
+    let layered: PositionState = copied;
+    let seed = 2468;
+    for (let ply = 0; ply < 40 && copied.status.kind === "playing"; ply += 1) {
+      const copiedMoves = getLegalPositionMoves(copied);
+      const layeredMoves = getLegalPositionMoves(layered, { layerRepetition: true });
+      expect(layeredMoves).toHaveLength(copiedMoves.length);
+      for (const [index, move] of copiedMoves.entries()) {
+        const expected = move.advance();
+        const actual = layeredMoves[index]!.advance();
+        expect({ ...actual, repetitionCounts: null }).toEqual({
+          ...expected,
+          repetitionCounts: null,
+        });
+        for (const [key, count] of Object.entries(expected.repetitionCounts)) {
+          expect(actual.repetitionCounts[key]).toBe(count);
+        }
+      }
+      seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+      copied = copiedMoves[seed % copiedMoves.length]!.advance();
+      layered = layeredMoves[seed % layeredMoves.length]!.advance();
+    }
+  });
+
+  it("detects threefold repetition through layered counts", () => {
+    const shuffle: ReadonlyArray<readonly [from: Square, to: Square]> = [
+      [
+        { file: 0, rank: 0 },
+        { file: 0, rank: 1 },
+      ],
+      [
+        { file: 0, rank: 9 },
+        { file: 0, rank: 8 },
+      ],
+      [
+        { file: 0, rank: 1 },
+        { file: 0, rank: 0 },
+      ],
+      [
+        { file: 0, rank: 8 },
+        { file: 0, rank: 9 },
+      ],
+    ];
+    let position: PositionState = createInitialGame();
+    for (let ply = 0; ply < 8; ply += 1) {
+      expect(position.status.kind).toBe("playing");
+      const [from, to] = shuffle[ply % shuffle.length]!;
+      position = getLegalPositionMoves(position, { layerRepetition: true })
+        .find(
+          (move) =>
+            move.from.file === from.file &&
+            move.from.rank === from.rank &&
+            move.to.file === to.file &&
+            move.to.rank === to.rank,
+        )!
+        .advance();
+    }
+    expect(position.status).toMatchObject({ kind: "ended", reason: "repetition" });
+  });
+
+  it("records the check facts that search leaves read from a derived status", () => {
+    let state = createInitialGame();
+    let seed = 97531;
+    let derived = 0;
+    for (let ply = 0; ply < 60 && state.status.kind === "playing"; ply += 1) {
+      const candidates = getLegalPositionMoves(state);
+      for (const candidate of candidates) {
+        const position = candidate.advance();
+        if (position.status.kind !== "playing") continue;
+        derived += 1;
+        const mover = position.sideToMove === "red" ? "black" : "red";
+        expect(isInCheck(position, mover)).toBe(false);
+        expect(position.status.check === position.sideToMove).toBe(
+          isInCheck(position, position.sideToMove),
+        );
+      }
+      seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+      const move = candidates[seed % candidates.length]!;
+      state = dispatch(state, {
+        type: "move",
+        expectedRevision: state.revision,
+        from: move.from,
+        to: move.to,
+      }).state;
+    }
+    expect(derived).toBeGreaterThan(1_000);
   });
 });

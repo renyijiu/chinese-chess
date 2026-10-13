@@ -16,6 +16,8 @@ import {
   yieldToEventLoopTask,
   type LightweightTier,
 } from "../../../lib/xiangqi/ai/index";
+import { getLegalPositionMoves } from "../../../lib/xiangqi/engine";
+import type { PositionState } from "../../../lib/xiangqi/types";
 import { makeState, piece } from "../xiangqi/fixtures";
 
 function commit(state: GameState, from: [number, number], to: [number, number]): GameState {
@@ -159,6 +161,95 @@ describe("lightweight Xiangqi search", () => {
     const progress = search.step(exactBudget);
     expect(progress).toMatchObject({ done: true, completedDepth: 1, nodes: exactBudget });
     expect(search.result()).toMatchObject({ source: "search", reason: "complete" });
+  });
+
+  it("stops at a completed depth rather than start one the node budget cannot cover", () => {
+    const run = (nodeBudget: number, depthCeiling: number) => {
+      const search = createLightweightSearch(createInitialGame(), {
+        tier: "lightweight-hard",
+        seed: "next-depth",
+        nodeBudget,
+        depthCeiling,
+        safetyDeadlineMs: 60_000,
+        now: () => 0,
+      });
+      while (!search.step(4_096).done) {
+        /* drain deterministic cooperative batches */
+      }
+      return search.result();
+    };
+    const depthThree = run(10_000_000, 3);
+    expect(depthThree).toMatchObject({ completedDepth: 3, reason: "complete" });
+    // A few hundred spare nodes cannot pay for depth four, so none are spent on it.
+    expect(run(depthThree.nodes + 400, 7)).toEqual({ ...depthThree, reason: "budget" });
+    // A budget with a real chance of finishing the next depth is still spent on it.
+    const depthFour = run(10_000_000, 4);
+    expect(depthFour).toMatchObject({ completedDepth: 4, reason: "complete" });
+    expect(run(depthFour.nodes, 7)).toEqual({ ...depthFour, reason: "budget" });
+  });
+
+  it("prunes the Normal and Hard root without changing the move an exhaustive search picks", () => {
+    const squareOrder = (square: { file: number; rank: number }) => square.rank * 9 + square.file;
+    const exhaustive = (state: PositionState, depth: number): number => {
+      if (depth === 0) return evaluatePosition(state);
+      let best = Number.NEGATIVE_INFINITY;
+      for (const move of getLegalPositionMoves(state)) {
+        const next = move.advance();
+        // The reference has no mate-distance scoring, so the fixtures must stay quiet.
+        if (next.status.kind !== "playing") throw new Error("fixture reached a terminal position");
+        best = Math.max(best, -exhaustive(next, depth - 1));
+      }
+      return best;
+    };
+    const run = (state: GameState, tier: LightweightTier, depthCeiling: number) => {
+      const search = createLightweightSearch(state, {
+        tier,
+        seed: "root-window",
+        nodeBudget: 10_000_000,
+        depthCeiling,
+        safetyDeadlineMs: 60_000,
+        now: () => 0,
+      });
+      while (!search.step(4_096).done) {
+        /* drain deterministic cooperative batches */
+      }
+      return search.result();
+    };
+
+    let developed = createInitialGame();
+    developed = commit(developed, [1, 2], [4, 2]);
+    developed = commit(developed, [7, 9], [6, 7]);
+    developed = commit(developed, [1, 0], [2, 2]);
+    developed = commit(developed, [7, 7], [7, 3]);
+    // Here a worse root move comes back as a bound equal to the best score, so
+    // a window without the one-point margin would let it win the tie-break.
+    let tied = createInitialGame();
+    tied = commit(tied, [1, 2], [1, 4]);
+    tied = commit(tied, [0, 9], [0, 8]);
+    for (const [state, depth] of [
+      [createInitialGame(), 2],
+      [tied, 2],
+      [developed, 2],
+      [developed, 3],
+    ] as const) {
+      const scored = getLegalPositionMoves(state)
+        .map((move) => ({
+          candidate: { from: move.from, to: move.to },
+          score: -exhaustive(move.advance(), depth - 1),
+        }))
+        .sort(
+          (left, right) =>
+            right.score - left.score ||
+            squareOrder(left.candidate.from) - squareOrder(right.candidate.from) ||
+            squareOrder(left.candidate.to) - squareOrder(right.candidate.to),
+        );
+      const exhaustiveRoot = run(state, "lightweight-easy", depth);
+      for (const tier of ["lightweight-normal", "lightweight-hard"] satisfies LightweightTier[]) {
+        const result = run(state, tier, depth);
+        expect(result).toMatchObject({ completedDepth: depth, reason: "complete", ...scored[0] });
+        expect(result.nodes).toBeLessThan(exhaustiveRoot.nodes);
+      }
+    }
   });
 
   it("uses native task yielding without a nested zero-delay timer", async () => {

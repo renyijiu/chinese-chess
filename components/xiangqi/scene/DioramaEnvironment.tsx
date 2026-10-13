@@ -5,6 +5,7 @@
 import { useThree } from "@react-three/fiber";
 import {
   Component,
+  memo,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -622,7 +623,7 @@ function DioramaPropLayer({
   );
 }
 
-export function DioramaEnvironment({
+export const DioramaEnvironment = memo(function DioramaEnvironment({
   animate,
   onStatusChange,
   quality,
@@ -679,4 +680,4 @@ export function DioramaEnvironment({
       </group>
     </>
   );
-}
+});

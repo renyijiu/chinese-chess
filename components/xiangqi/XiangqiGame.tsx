@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -1240,6 +1241,41 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
     }
   };
 
+  // The scene gets one stable handler and one memoized layer element, so HUD,
+  // notice and opponent updates here do not re-render the board or its pieces.
+  const squarePressRef = useRef(handleSquarePress);
+  useLayoutEffect(() => {
+    squarePressRef.current = handleSquarePress;
+  });
+  const pressSquare = useCallback((square: Square) => squarePressRef.current(square), []);
+  const boardKeyboardSquare = keyboardActive ? keyboardSquare : null;
+  const pieceLayer = useMemo(
+    () => (
+      <GameBoardLayer
+        animations={animations}
+        disabled={boardCommandsLocked}
+        game={game}
+        keyboardSquare={boardKeyboardSquare}
+        legalMoves={selection.legalMoves}
+        onSquarePress={pressSquare}
+        presentation={presentation}
+        quality={settings.quality}
+        selectedPieceId={selection.pieceId}
+      />
+    ),
+    [
+      animations,
+      boardCommandsLocked,
+      boardKeyboardSquare,
+      game,
+      pressSquare,
+      presentation,
+      selection.legalMoves,
+      selection.pieceId,
+      settings.quality,
+    ],
+  );
+
   const handleKeyboardBoardKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
     if (isKeyboardNavigationKey(event.key)) {
       event.preventDefault();
@@ -1613,19 +1649,7 @@ export function XiangqiGame({ onAction }: { onAction?: GameActionHandler }) {
                 </>
               )
             }
-            pieceLayer={
-              <GameBoardLayer
-                animations={animations}
-                disabled={boardCommandsLocked}
-                game={game}
-                keyboardSquare={keyboardActive ? keyboardSquare : null}
-                legalMoves={selection.legalMoves}
-                onSquarePress={handleSquarePress}
-                presentation={presentation}
-                quality={settings.quality}
-                selectedPieceId={selection.pieceId}
-              />
-            }
+            pieceLayer={pieceLayer}
             quality={settings.quality}
             presentation={presentation}
             reducedMotion={settings.reducedMotion}

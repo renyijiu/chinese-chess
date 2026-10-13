@@ -390,8 +390,16 @@ export function GameBoardLayer({
     presentation.getSnapshot,
     presentation.getSnapshot,
   );
+  // Read the lock at press time: passing it to every actor would re-render all
+  // thirty-two of them whenever a move starts or ends.
+  const disabledRef = useRef(disabled);
+  useLayoutEffect(() => {
+    disabledRef.current = disabled;
+  }, [disabled]);
   const handlePiecePress = useCallback(
-    (piece: Piece) => onSquarePress(piece.square),
+    (piece: Piece) => {
+      if (!disabledRef.current) onSquarePress(piece.square);
+    },
     [onSquarePress],
   );
   const lastMove = game.history.at(-1) ?? null;
@@ -475,7 +483,6 @@ export function GameBoardLayer({
             }
             presentation={presentation}
             animations={animations}
-            disabled={disabled}
             destroyProgress={
               terminalLoser === slot.data.side && slot.data.role === "general" ? 0.98 : 0
             }

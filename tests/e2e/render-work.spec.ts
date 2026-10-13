@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 import {
   openCleanGame,
@@ -11,6 +11,7 @@ import {
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     type Fiber = {
+      alternate: Fiber | null;
       child: Fiber | null;
       sibling: Fiber | null;
       flags: number;
@@ -23,6 +24,7 @@ test.beforeEach(async ({ page }) => {
     const target = window as typeof window & {
       __REACT_DEVTOOLS_GLOBAL_HOOK__?: unknown;
       __ACTOR_RENDERS__?: Record<string, number>;
+      __COMPONENT_RENDERS__?: Record<string, number>;
       __BLOOM_MAX_SELECTION__?: number;
     };
     let rendererId = 0;
@@ -37,28 +39,35 @@ test.beforeEach(async ({ page }) => {
       },
       onCommitFiberUnmount: () => undefined,
       onCommitFiberRoot: (_id: number, root: { current: Fiber }) => {
-        const visit = (fiber: Fiber | null) => {
-          if (!fiber) return;
-          const counts = target.__ACTOR_RENDERS__;
-          const actor = fiber.memoizedProps?.actorId;
-          if (counts && actor && fiber.type?.name === "PieceActor" && (fiber.flags & 1) !== 0) {
-            counts[actor] = (counts[actor] ?? 0) + 1;
+        // Follow only the fibers React worked on in this commit. A subtree it
+        // skipped keeps its previous child pointer and its stale render flags.
+        const visit = (first: Fiber | null) => {
+          for (let fiber = first; fiber; fiber = fiber.sibling) {
+            const name = fiber.type?.name;
+            if (name && (fiber.flags & 1) !== 0) {
+              const components = target.__COMPONENT_RENDERS__;
+              if (components) components[name] = (components[name] ?? 0) + 1;
+              const actors = target.__ACTOR_RENDERS__;
+              const actor = fiber.memoizedProps?.actorId;
+              if (actors && actor && name === "PieceActor") {
+                actors[actor] = (actors[actor] ?? 0) + 1;
+              }
+            }
+            const effect = fiber.memoizedProps?.object;
+            if (effect?.selection && !observedSelections.has(effect.selection)) {
+              const selection = effect.selection;
+              observedSelections.add(selection);
+              const set = selection.set;
+              selection.set = function (objects) {
+                target.__BLOOM_MAX_SELECTION__ = Math.max(
+                  target.__BLOOM_MAX_SELECTION__ ?? 0,
+                  objects.length,
+                );
+                return set.call(this, objects);
+              };
+            }
+            if (fiber.child && fiber.child !== fiber.alternate?.child) visit(fiber.child);
           }
-          const effect = fiber.memoizedProps?.object;
-          if (effect?.selection && !observedSelections.has(effect.selection)) {
-            const selection = effect.selection;
-            observedSelections.add(selection);
-            const set = selection.set;
-            selection.set = function (objects) {
-              target.__BLOOM_MAX_SELECTION__ = Math.max(
-                target.__BLOOM_MAX_SELECTION__ ?? 0,
-                objects.length,
-              );
-              return set.call(this, objects);
-            };
-          }
-          visit(fiber.child);
-          visit(fiber.sibling);
         };
         visit(root.current);
       },
@@ -66,7 +75,38 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-test("keeps stationary actors out of per-frame React updates", async ({ page }, testInfo) => {
+type RenderCounts = Readonly<{
+  actors: Record<string, number>;
+  components: Record<string, number>;
+}>;
+
+async function resetRenderCounts(page: Page) {
+  await page.evaluate(() => {
+    const target = window as typeof window & {
+      __ACTOR_RENDERS__?: Record<string, number>;
+      __COMPONENT_RENDERS__?: Record<string, number>;
+    };
+    target.__ACTOR_RENDERS__ = {};
+    target.__COMPONENT_RENDERS__ = {};
+  });
+}
+
+function readRenderCounts(page: Page): Promise<RenderCounts> {
+  return page.evaluate(() => {
+    const target = window as typeof window & {
+      __ACTOR_RENDERS__?: Record<string, number>;
+      __COMPONENT_RENDERS__?: Record<string, number>;
+    };
+    return {
+      actors: { ...target.__ACTOR_RENDERS__ },
+      components: { ...target.__COMPONENT_RENDERS__ },
+    };
+  });
+}
+
+test("keeps stationary actors and the static scene out of React updates", async ({
+  page,
+}, testInfo) => {
   await openCleanGame(page);
   const keyboard = await startGame(page);
   await pressSequence(keyboard, [
@@ -80,23 +120,29 @@ test("keeps stationary actors out of per-frame React updates", async ({ page }, 
     "Enter",
     "ArrowUp",
   ]);
-  await page.evaluate(() => {
-    (window as typeof window & { __ACTOR_RENDERS__?: Record<string, number> }).__ACTOR_RENDERS__ =
-      {};
-  });
+  await resetRenderCounts(page);
   await keyboard.press("Enter");
   await waitForRevision(page, 1);
-  const counts = await page.evaluate(
-    () =>
-      (window as typeof window & { __ACTOR_RENDERS__?: Record<string, number> }).__ACTOR_RENDERS__,
-  );
-  await testInfo.attach("actor-render-counts.json", {
-    body: JSON.stringify(counts),
+  const move = await readRenderCounts(page);
+
+  // Moving the keyboard cursor redraws its marker and nothing else in the scene.
+  await resetRenderCounts(page);
+  await pressSequence(keyboard, ["ArrowRight", "ArrowRight"]);
+  await expect(keyboard).toContainText("c4");
+  const cursor = await readRenderCounts(page);
+
+  await testInfo.attach("render-counts.json", {
+    body: JSON.stringify({ cursor, move }),
     contentType: "application/json",
   });
-  console.info(`ACTOR_RENDERS ${JSON.stringify(counts)}`);
-  expect(counts?.["red:soldier:0"]).toBeGreaterThan(0);
-  expect(counts?.["red:general:0"]).toBeLessThanOrEqual(3);
+  console.info(`RENDER_COUNTS ${JSON.stringify({ cursor, move })}`);
+  expect(move.actors["red:soldier:0"]).toBeGreaterThan(0);
+  expect(Object.keys(move.actors)).toEqual(["red:soldier:0"]);
+  expect(cursor.actors).toEqual({});
+  for (const counts of [move, cursor]) {
+    expect(counts.components.DioramaEnvironment ?? 0).toBe(0);
+    expect(counts.components.BoardSurface ?? 0).toBe(0);
+  }
 });
 
 for (const failGlow of [false, true]) {

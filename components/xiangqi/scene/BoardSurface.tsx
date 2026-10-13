@@ -5,6 +5,7 @@
 import { RoundedBox } from "@react-three/drei";
 import {
   Component,
+  memo,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -464,7 +465,7 @@ function QinBoardOrnaments() {
   );
 }
 
-export function BoardSurface({
+export const BoardSurface = memo(function BoardSurface({
   animate,
   onRiverStatusChange,
   shadows,
@@ -486,4 +487,4 @@ export function BoardSurface({
       <QinBoardOrnaments />
     </group>
   );
-}
+});
