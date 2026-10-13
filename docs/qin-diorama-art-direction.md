@@ -1,6 +1,6 @@
 # Qin Diorama Art Direction
 
-This document is the visual contract for the Qin terracotta diorama. The existing Q-shaped Qin roster remains authoritative: large readable heads, compact rounded bodies, matte fired-clay massing, restrained surface detail, and faction accents from `FACTION_COLORS`. Scene, interaction, and HUD work consume `QIN_DIORAMA_THEME`; DOM styling consumes its serialized `QIN_DIORAMA_CSS_VARIABLES` projection.
+This document is the visual contract for the Qin terracotta diorama. The Q-shaped Qin roster remains authoritative: large readable heads, compact rounded bodies, matte fired-clay massing, restrained surface detail, and faction accents from `FACTION_COLORS`. Its figures are sculpted rather than stacked from primitives (round faces with glazed eyes, hands with fingers, cloth folds, lamellar relief), carry baked clay shading, and are scaled uniformly so heads stay round on the board. Scene, interaction, and HUD work consume `QIN_DIORAMA_THEME`; DOM styling consumes its serialized `QIN_DIORAMA_CSS_VARIABLES` projection.
 
 ## Palette and materials
 

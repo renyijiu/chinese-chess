@@ -1,17 +1,16 @@
-# Marshal vertical slice
+# Marshal runtime asset
 
-`source/marshal.blend` is the editable Blender 5.2 source. The three files under
-`exports` are uncompressed authoring exports; the web application must load the
-Meshopt-compressed files referenced by `public/models/pieces/v1/manifest.json`.
+`source/marshal.blend` is the editable Blender 5.2 runtime adapter. The three
+files under `exports` are uncompressed authoring exports; the web application
+must load the Meshopt-compressed files referenced by
+`public/models/pieces/v1/manifest.json`.
 
-This deterministic procedural model establishes the runtime contract and the
-realistic bronze/vermilion military-figurine direction. It follows the supplied
-six-view silhouette — adult proportions, broad ceremonial robe, lamellar armour,
-narrow crown, beard, command sword, and heavy round plinth — but does not claim
-the facial anatomy, embroidery, cloth folds, or surface weathering of a manually
-sculpted film-quality hero asset.
+All three are generated from the sculpted Q-version commander in
+`assets/models/red-marshal-terracotta-cartoon-v3.glb`: twin-tailed crown with a
+jade seal, lamellar cuirass and tassets, banded sleeves, and both hands resting
+on a jade-hilted sword. Change the character there, not here.
 
-The runtime mesh uses one opaque `marshal_vertex_palette` material. Authored
-solid colors are baked into `COLOR_0.rgb`; `COLOR_0.a` carries stable semantic
-region codes used by the runtime faction shader to map the same geometry to the
-red or black palette without adding material primitives or draw calls.
+The runtime mesh uses one opaque `marshal_terracotta_vertex_palette` material.
+`COLOR_0` holds the palette, with exact reference colors on the regions the
+runtime remaps per faction, and `_SHADE` holds the baked clay shading for those
+regions. See [`../README.md`](../README.md) for the shared contract.

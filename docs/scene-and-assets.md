@@ -19,7 +19,7 @@
 
 全景图的无损源文件是 [`qin-diorama-panorama-v1.png`](../assets/background/qin-diorama-panorama-v1.png)，生成说明、用途与限制见 [`qin-diorama-panorama-v1.prompt.md`](../assets/background/qin-diorama-panorama-v1.prompt.md)。网页只加载 `public/background/` 下的 high / medium / low 三个 WebP 版本。
 
-棋子底座直径约 `0.89` 米，静止时最大占地 `0.943` 米，小于 `1.14` 的落子点间距；模型底面会自动贴合棋盘表面。
+棋子底座直径 `0.89` 米，静止时最大占地 `0.971` 米，小于 `1.14` 的落子点间距；模型底面会自动贴合棋盘表面。
 
 ## 画质档位
 
@@ -37,15 +37,18 @@
 
 七类角色依据原创的 [`秦兵马俑阵容概念图`](../assets/concepts/xiangqi-characters/qin-terracotta-roster-v1.png) 制作，生成提示与使用边界见 [`qin-terracotta-roster-v1.prompt.md`](../assets/concepts/xiangqi-characters/qin-terracotta-roster-v1.prompt.md)。帅/将戴秦军将领冠，仕/士持竹简与虎符，兵/卒穿秦式层札甲。“炮”保留象棋里的名称，但模型做成秦代幻想风格的双人重型床弩，不出现火药、炮口或火球。
 
+七个角色的母版是一体雕塑的 Q 版秦俑：保留 2.25 头身的大头比例，脸、手、衣褶和甲片用“数字泥塑”雕出，而不是用球体和方块拼接。母版和它的生成脚本在 `assets/models/`，重建与锁定步骤见 [`assets/models/README.md`](../assets/models/README.md)。
+
 制作流程：
 
 ```text
-秦兵马俑阵容概念 → Blender 可编辑源 / 骨架 / 7 个动作 / 挂点 → 三档 raw GLB
-→ 规格校验 → Meshopt 运行时 GLB → 版本化 manifest → 网页加载
+秦兵马俑阵容概念 → 雕塑母版（assets/models）→ 等比缩放到棋座 / 骨架 / 7 个动作 / 挂点
+→ 三档 raw GLB → 规格校验 → Meshopt 运行时 GLB → 版本化 manifest → 网页加载
 ```
 
 文件位置：
 
+- `assets/models/red-{role}-terracotta-cartoon-v3.{blend,glb}`：雕塑母版，外观以它为准。
 - `assets/characters/{role}/source/{role}.blend`：可编辑源文件。
 - `assets/characters/{role}/exports/{role}-lod{0,1,2}-raw.glb`：用于交换与验证的导出文件。
 - `public/models/pieces/v1/{role}/{role}-lod{0,1,2}.glb`：网页实际加载的 Meshopt 产物。
@@ -62,7 +65,7 @@ npm run assets:pieces:validate
 npm run assets:pieces:report
 ```
 
-当前 21 个运行时 GLB 都是单个不透明蒙皮网格，14 个骨骼关节、7 个动作；七类 LOD1 合计约 1.90 MiB。模型用顶点色表现烧土明暗、墓土侵蚀和裂隙，配合低金属度和高粗糙度，避免塑料玩具感。完整红黑阵容见 [`roster-contact-sheet-qin-terracotta.png`](../assets/characters/reviews/roster-contact-sheet-qin-terracotta.png)。这套模型的定位是在棋盘上容易辨认的 Q 版秦俑，不追求博物馆扫描级的精度。
+当前 21 个运行时 GLB 都是单个不透明蒙皮网格，14 个骨骼关节、7 个动作；七类 LOD1 合计约 3.21 MiB。所有棋子按同一比例缩放到 `0.89` 米棋座，不做纵向拉伸，所以高度随造型而定（帅、兵约 1.42 米，仕约 1.18 米，相、炮约 0.86 米）。烧土明暗烘焙在顶点上，配合低金属度和高粗糙度，避免塑料玩具感。完整红黑阵容见 [`roster-contact-sheet-qin-terracotta.png`](../assets/characters/reviews/roster-contact-sheet-qin-terracotta.png)。这套模型的定位是在棋盘上容易辨认的 Q 版秦俑，不追求博物馆扫描级的精度。
 
 模型与动作的更多约定见 [`assets/characters/README.md`](../assets/characters/README.md) 和 [`assets/models/README.md`](../assets/models/README.md)。
 

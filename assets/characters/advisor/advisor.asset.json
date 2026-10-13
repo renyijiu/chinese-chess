@@ -1,5 +1,5 @@
 {
-  "schema": "xiangqi-source-asset/v1",
+  "schema": "xiangqi-source-asset/v2",
   "role": "advisor",
   "displayNames": {
     "red": "仕",
@@ -7,48 +7,53 @@
   },
   "generator": {
     "application": "Blender",
-    "version": "5.2.0 LTS",
+    "version": "5.2.2 LTS",
     "script": "scripts/blender/create_xiangqi_piece_assets.py"
   },
   "authoritativeVisualSource": {
-    "path": "assets/models/red-advisor-terracotta-cartoon-v1.glb",
-    "sha256": "c1ac303a40125da5909501b9b90962da2270e890c7c0d2dda41d992f4c2a5a19",
-    "editableMaster": "assets/models/red-advisor-terracotta-cartoon-v1.blend",
-    "editableMasterSha256": "d2de727b8ab5cb8cd68d2f87ab86517d88b3faa79822fb5a9c6b2396a7bdbdc0"
+    "path": "assets/models/red-advisor-terracotta-cartoon-v3.glb",
+    "sha256": "8d4182c234f8e87fe8464b0333416962f01023e8e91ed31c790f4bdfad94776e",
+    "editableMaster": "assets/models/red-advisor-terracotta-cartoon-v3.blend",
+    "editableMasterSha256": "36cefb439f576824265e7752aa5273ecec5cd170d27f32811d0ae694058fbab1"
   },
   "derivedRawLods": {
     "lod0": {
       "path": "assets/characters/advisor/exports/advisor-lod0-raw.glb",
-      "sha256": "69b396f7a5da607ddd5e61a2f4f346bf0281f97e8fd98934770ad5610455a361"
+      "sha256": "fc13b0ed0ab6b4b6d7aed7f76742a235f22578b731b49a80f5c482276e94b2a5"
     },
     "lod1": {
       "path": "assets/characters/advisor/exports/advisor-lod1-raw.glb",
-      "sha256": "bee165d10abbad0c2c0ec64f9137041fc1e2a444830f9dafb70e7fc25f2b50e8"
+      "sha256": "4c523edd8a1fdbf9307258f039da231dd3b1ad08e00e9f2d4c6f3c5d611c4eb9"
     },
     "lod2": {
       "path": "assets/characters/advisor/exports/advisor-lod2-raw.glb",
-      "sha256": "53255ded1b4582bbf9aad02115476f4a142f5979b5c90bccea6ca69f1363553b"
+      "sha256": "91ee2bd545e9f1d324ccad0c2b235061d665b67f9ecf2c00d34d9a6599ae723a"
     }
   },
-  "sourceCommit": "96cadeb",
+  "styleFamily": "red-xiangqi-qin-terracotta-cartoon-v3",
   "derivationMode": "authoritative-import",
   "reference": "assets/models/README.md",
   "license": "Repository-owned Qin-terracotta research asset; no third-party geometry or bitmap textures",
   "visualIntent": [
-    "Qin command officer",
-    "bamboo slips and bronze tiger tally",
-    "layered robe beneath lamellar collar"
+    "Q-version Qin court officer",
+    "winged cap and crossed-lapel robe",
+    "bamboo slips held in both hands"
   ],
   "periodPolicy": "Qin terracotta visual fantasy: no gunpowder artillery; cannon role is represented by a heavy siege crossbow",
-  "derivation": "Authoritative research GLB normalized and decimated per LOD, then adapted to the shared runtime rig, actions, sockets and faction palette contract",
+  "scale": {
+    "baseDiameter": 0.89,
+    "uniformScale": 0.412037,
+    "policy": "one factor for all axes; the sculpt's proportions are preserved"
+  },
+  "derivation": "Sculpted research GLB scaled uniformly onto the plinth, decimated per LOD, then bound island by island to the shared runtime rig, actions, sockets and faction palette contract",
   "knownLimitations": [
-    "first-pass broad automatic skin weights require manual deformation polish before an extreme close-up",
-    "source solid materials are baked to vertex colors; bitmap normal maps are intentionally absent",
+    "each sculpted island follows one bone; only the torso and sleeves blend between bones",
+    "source colours and clay shading are baked to vertex colours; bitmap normal maps are intentionally absent",
     "canonical runtime actions are adapters and may be iterated without changing the visual source authority"
   ],
   "texturePolicy": {
     "bitmapTextures": 0,
     "ktx2": "not-applicable-no-bitmap-textures",
-    "solidColorBake": "COLOR_0 VEC3 exact RGB reference colors; one advisor_terracotta_vertex_palette material"
+    "solidColorBake": "COLOR_0 VEC3 exact RGB reference colors with shading in _SHADE; one advisor_terracotta_vertex_palette material"
   }
 }

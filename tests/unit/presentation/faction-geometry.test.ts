@@ -86,6 +86,30 @@ it("shares immutable mesh buffers while caching independent faction colors and d
   expect(factionGeometry(source.clone(), "red")).not.toBe(red);
 });
 
+it("multiplies baked shade into faction colors only", () => {
+  const source = new THREE.BufferGeometry();
+  source.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, 0, 1, 0, 0, 0, 1, 0], 3));
+  source.setAttribute(
+    "color",
+    new THREE.Float32BufferAttribute([0.25, 0.018, 0.01, 0.38, 0.18, 0.035, 0.31, 0.142, 0.06], 3),
+  );
+  source.setAttribute("_shade", new THREE.Float32BufferAttribute([0.5, 1, 0.25], 1));
+
+  for (const side of ["red", "black"] as const) {
+    const colors = factionGeometry(source, side).getAttribute("color");
+    const cloth = new THREE.Color(FACTION_COLORS[side].clothPrimary);
+    const trim = new THREE.Color(FACTION_COLORS[side].trim);
+    expect(colors.getX(0)).toBeCloseTo(cloth.r * 0.5);
+    expect(colors.getY(0)).toBeCloseTo(cloth.g * 0.5);
+    expect(colors.getZ(0)).toBeCloseTo(cloth.b * 0.5);
+    expect(colors.getX(1)).toBeCloseTo(trim.r);
+    // Natural clay already carries its shading in COLOR_0 and is left alone.
+    expect(colors.getX(2)).toBeCloseTo(0.31);
+    expect(colors.getY(2)).toBeCloseTo(0.142);
+    expect(colors.getZ(2)).toBeCloseTo(0.06);
+  }
+});
+
 it("keeps geometry without authored colors uncolored", () => {
   const source = new THREE.BufferGeometry();
   source.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, 0], 3));

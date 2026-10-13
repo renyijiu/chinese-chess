@@ -35,6 +35,7 @@
     "prepare:model": "npm run optimize:model && npm run inspect:model",
     "assets:pieces:build": "node scripts/assets/build-pieces.mjs",
     "assets:pieces:validate": "node scripts/assets/validate-pieces.mjs",
+    "assets:pieces:lock": "node scripts/assets/lock-pieces.mjs",
     "assets:pieces:report": "node scripts/assets/report-pieces.mjs",
     "assets:audio:validate": "node scripts/verify-audio-assets.mjs",
     "assets:ai:validate": "node scripts/verify-ai-engine-assets.mjs",
