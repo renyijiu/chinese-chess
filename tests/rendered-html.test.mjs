@@ -1,6 +1,23 @@
 import assert from "node:assert/strict";
 import { readFile, stat } from "node:fs/promises";
+import * as nodeModule from "node:module";
 import test from "node:test";
+
+// vinext's Workers tracing imports `cloudflare:workers`, which only the Workers
+// runtime provides. It tolerates missing exports, so Node gets an empty module.
+const workersStubUrl = "data:text/javascript,export {}";
+if (nodeModule.registerHooks) {
+  nodeModule.registerHooks({
+    resolve: (specifier, context, next) =>
+      specifier === "cloudflare:workers"
+        ? { url: workersStubUrl, shortCircuit: true }
+        : next(specifier, context),
+  });
+} else {
+  nodeModule.register(
+    'data:text/javascript,export async function resolve(s, c, n) { return s === "cloudflare:workers" ? { url: "data:text/javascript,export {}", shortCircuit: true } : n(s, c); }',
+  );
+}
 
 async function render(path = "/", assetResponse = new Response("Not found", { status: 404 })) {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
