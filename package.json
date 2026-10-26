@@ -71,46 +71,46 @@
     "format:check": "oxfmt --check"
   },
   "dependencies": {
-    "@react-three/drei": "^10.7.8",
-    "@react-three/fiber": "^9.7.0",
-    "@react-three/postprocessing": "3.1.1",
+    "@react-three/drei": "^10.7.9",
+    "@react-three/fiber": "^9.8.2",
+    "@react-three/postprocessing": "3.2.2",
     "@types/three": "^0.185.4",
     "qrcode": "^1.5.4",
-    "react": "19.2.8",
-    "react-dom": "19.2.8",
-    "three": "^0.185.1"
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "three": "^0.186.1"
   },
   "devDependencies": {
-    "@cloudflare/vite-plugin": "1.54.4",
-    "@gltf-transform/cli": "^4.5.0",
+    "@cloudflare/vite-plugin": "1.64.0",
+    "@gltf-transform/cli": "^4.5.1",
     "@openai/sites-vite-plugin": "0.2.0",
-    "@playwright/test": "^1.63.0",
+    "@playwright/test": "^1.64.1",
     "@tailwindcss/postcss": "4.3.3",
-    "@types/node": "26.4.1",
+    "@types/node": "26.6.5",
     "@types/qrcode": "^1.5.6",
-    "@types/react": "19.2.18",
-    "@types/react-dom": "19.2.7",
-    "@vitejs/plugin-react": "6.1.1",
-    "@vitejs/plugin-rsc": "0.5.34",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "@vitejs/plugin-rsc": "0.5.38",
     "braces": "file:third_party/braces",
-    "oxfmt": "0.66.0",
-    "oxlint": "1.81.0",
-    "oxlint-tsgolint": "7.0.2001",
-    "react-server-dom-webpack": "19.2.8",
+    "oxfmt": "0.74.0",
+    "oxlint": "1.89.0",
+    "oxlint-tsgolint": "7.0.2005",
+    "react-server-dom-webpack": "19.3.1",
     "tailwindcss": "4.3.3",
     "typescript": "7.0.2",
-    "vinext": "1.0.0-beta.9",
+    "vinext": "1.2.1",
     "vite": "8.3.5",
-    "vitest": "^5.0.0",
-    "wrangler": "4.129.0"
+    "vitest": "^5.0.5",
+    "wrangler": "4.152.0"
   },
   "overrides": {
     "braces": "$braces",
-    "miniflare@5.20260903.0-alpha": {
-      "undici": "7.29.1"
+    "miniflare": {
+      "undici": "7.30.1"
     },
-    "oxfmt@0.66.0": {
-      "tinypool": "2.1.2"
+    "satori": {
+      "fflate": "0.7.5"
     },
     "sharp": "0.35.5",
     "source-map-js": "1.2.2"
