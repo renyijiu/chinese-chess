@@ -15,7 +15,7 @@ if (nodeModule.registerHooks) {
   });
 } else {
   nodeModule.register(
-    `data:text/javascript,export async function resolve(s, c, n) { return s === "cloudflare:workers" ? { url: ${JSON.stringify(workersStubUrl)}, shortCircuit: true } : n(s, c); }`,
+    'data:text/javascript,export async function resolve(s, c, n) { return s === "cloudflare:workers" ? { url: "data:text/javascript,export {}", shortCircuit: true } : n(s, c); }',
   );
 }
 
