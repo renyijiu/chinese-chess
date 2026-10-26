@@ -19,3 +19,7 @@ updates:
       time: "09:30"
       timezone: Asia/Singapore
     open-pull-requests-limit: 3
+    groups:
+      # Every github/codeql-action step must run the same version.
+      codeql-action:
+        patterns: ["github/codeql-action*"]
