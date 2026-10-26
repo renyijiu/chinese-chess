@@ -74,7 +74,7 @@ test("serves Master assets with exact MIME, isolation, and version-aware cache p
   assert.deepEqual(generatedWrangler.assets.run_worker_first, [
     "/engines/fairy-stockfish-nnue/1.1.12/*",
     "/workers/xiangqi-master-v1.worker.js",
-    "/_next/static/workers/lightweight.worker-*.js",
+    "/_next/static/workers/*.js",
   ]);
 
   const wasm = await render(
@@ -104,7 +104,7 @@ test("serves Master assets with exact MIME, isolation, and version-aware cache p
   assert.equal(hostWorker.headers.get("cache-control"), "public, max-age=31536000, immutable");
 
   const lightweightWorker = await render(
-    "/_next/static/workers/lightweight.worker-AbC_123.js",
+    "/_next/static/workers/91d21ee7-AbC_123.js",
     new Response("self.onmessage = () => {};", { headers: { "content-type": "text/plain" } }),
   );
   assert.equal(lightweightWorker.status, 200);

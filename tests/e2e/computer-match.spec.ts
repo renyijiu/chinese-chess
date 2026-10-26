@@ -239,7 +239,7 @@ test("orients for human black and lets the computer open while controls stay res
   page,
 }) => {
   const lightweightWorkerResponse = page.waitForResponse((response) =>
-    /lightweight\.worker(?:-[A-Za-z0-9_-]+\.js|\.ts)/.test(response.url()),
+    /\/_next\/static\/workers\/[A-Za-z0-9_-]+\.js$|lightweight\.worker\.ts/.test(response.url()),
   );
   await forceNextDie(page, 4);
   await openCleanGame(page, "low", true);
@@ -298,16 +298,21 @@ test("resumes a computer turn and presents one authoritative capture and check",
       }),
     )
     .toBe(7);
+  // The check cue is scheduled after the capture cue's audited duration.
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const cues = window.__XIANGQI_AUDIO_DEBUG__?.().sourceStartsByCue;
+        return [cues?.["system.capture"] ?? 0, cues?.["system.check"] ?? 0];
+      }),
+    )
+    .toEqual([
+      (baselineAudio?.["system.capture"] ?? 0) + 1,
+      (baselineAudio?.["system.check"] ?? 0) + 1,
+    ]);
   const captureEvidence = await page.evaluate(() => ({
-    audio: window.__XIANGQI_AUDIO_DEBUG__?.().sourceStartsByCue,
     presentation: window.__XIANGQI_PRESENTATION_DEBUG__?.(),
   }));
-  expect(captureEvidence.audio?.["system.capture"] ?? 0).toBe(
-    (baselineAudio?.["system.capture"] ?? 0) + 1,
-  );
-  expect(captureEvidence.audio?.["system.check"] ?? 0).toBe(
-    (baselineAudio?.["system.check"] ?? 0) + 1,
-  );
   expect(captureEvidence.presentation).toMatchObject({
     activeActionId: null,
     activeTimelines: 0,

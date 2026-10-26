@@ -31,8 +31,8 @@ const ALLOWED_IMAGE_WIDTHS = [...DEFAULT_DEVICE_SIZES, ...DEFAULT_IMAGE_SIZES];
 
 const ENGINE_BASE_PATH = "/engines/fairy-stockfish-nnue/1.1.12/";
 const MASTER_HOST_WORKER_PATH = "/workers/xiangqi-master-v1.worker.js";
-const LIGHTWEIGHT_WORKER_PATH =
-  /^\/_next\/static\/workers\/lightweight\.worker-[A-Za-z0-9_-]+\.js$/;
+// vinext names Web Worker bundles by hash only, e.g. `91d21ee7-BW1l9ulm.js`.
+const BUNDLED_WORKER_PATH = /^\/_next\/static\/workers\/[A-Za-z0-9_-]+\.js$/;
 const ENGINE_MIME_TYPES = Object.freeze<Record<string, string>>({
   AUTHORS: "text/plain; charset=utf-8",
   "Copying.txt": "text/plain; charset=utf-8",
@@ -66,7 +66,7 @@ function engineAssetMetadata(pathname: string): Readonly<{
       mimeType: "text/javascript; charset=utf-8",
     };
   }
-  if (LIGHTWEIGHT_WORKER_PATH.test(pathname)) {
+  if (BUNDLED_WORKER_PATH.test(pathname)) {
     return {
       cacheControl: "public, max-age=31536000, immutable",
       mimeType: "text/javascript; charset=utf-8",
