@@ -15,7 +15,8 @@ const localBindingConfig = {
     run_worker_first: [
       "/engines/fairy-stockfish-nnue/1.1.12/*",
       "/workers/xiangqi-master-v1.worker.js",
-      "/_next/static/workers/lightweight.worker-*.js",
+      // vinext emits Web Workers as hash-only names, so match the directory.
+      "/_next/static/workers/*.js",
     ],
   },
 };
