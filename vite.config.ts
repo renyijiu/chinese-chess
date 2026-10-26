@@ -32,6 +32,8 @@ export default defineConfig(async () => {
 
   return {
     server: {
+      // vinext 1.x no longer defaults to 3000; README and Playwright expect it.
+      port: 3000,
       headers: {
         "Cross-Origin-Opener-Policy": "same-origin",
         "Cross-Origin-Embedder-Policy": "require-corp",
